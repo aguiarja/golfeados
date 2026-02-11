@@ -1,0 +1,986 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+<meta name="theme-color" content="#0A1F10"/>
+<meta name="description" content="Golfeados Golf Club - Tournament Manager"/>
+<meta name="mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="apple-mobile-web-app-title" content="Golfeados"/>
+<link rel="manifest" href="manifest.json"/>
+<link rel="apple-touch-icon" href="Logo_Golfeados.png"/>
+<title>Golfeados · Golf Club</title>
+
+<!-- Firebase compat SDK -->
+<script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-firestore-compat.js"></script>
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --bg:#0A1F10;--card:#0F2D17;--cardL:#163820;
+  --border:#1E4D28;--green:#2A7A3B;
+  --gold:#D4AF37;--goldL:#F0CC55;
+  --silver:#A8B4A9;--bronze:#CD7F32;
+  --white:#F4F8F4;--muted:#7A9A7E;
+  --red:#C0392B;--text:#E8F0E9;
+}
+html,body{background:var(--bg);color:var(--text);font-family:'Trebuchet MS',sans-serif;min-height:100dvh;}
+button{cursor:pointer;font-family:inherit;}
+input,select{font-family:inherit;}
+::-webkit-scrollbar{width:4px;height:4px;}
+::-webkit-scrollbar-track{background:var(--card);}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
+
+/* ── LOADING ── */
+#loading{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:14px;z-index:999;}
+.spin{width:36px;height:36px;border:3px solid var(--border);border-top-color:var(--gold);border-radius:50%;animation:spin 0.8s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+/* ── LOGIN ── */
+#loginScreen{min-height:100dvh;display:flex;align-items:center;justify-content:center;padding:24px;background:radial-gradient(ellipse at 50% 0%,#1A5E2A33 0%,transparent 60%);}
+.login-card{width:100%;max-width:380px;background:var(--card);border-radius:20px;border:1px solid var(--border);padding:40px 32px;box-shadow:0 24px 80px rgba(0,0,0,0.5);}
+.login-logo{text-align:center;margin-bottom:32px;}
+.login-logo img{width:100px;height:100px;object-fit:contain;filter:drop-shadow(0 4px 12px rgba(212,175,55,0.3));}
+.login-title{font-size:22px;font-weight:800;color:var(--gold);font-family:Georgia,serif;letter-spacing:2px;margin-top:12px;}
+.login-sub{font-size:11px;color:var(--muted);letter-spacing:3px;text-transform:uppercase;margin-top:3px;}
+.field{margin-bottom:16px;}
+.field label{font-size:11px;color:var(--muted);font-weight:700;letter-spacing:1px;text-transform:uppercase;display:block;margin-bottom:6px;}
+.field input{width:100%;padding:12px 16px;background:#0A1F10;border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:15px;outline:none;transition:border-color 0.2s;}
+.field input:focus{border-color:var(--gold);}
+.btn-gold{width:100%;padding:14px;border-radius:10px;border:none;background:linear-gradient(135deg,var(--gold),#A07820);color:#0A1F10;font-weight:700;font-size:16px;font-family:Georgia,serif;letter-spacing:1px;box-shadow:0 4px 20px rgba(212,175,55,0.3);transition:opacity 0.2s;margin-top:4px;}
+.btn-gold:disabled{opacity:0.6;cursor:not-allowed;}
+.btn-link{background:none;border:none;color:var(--muted);font-size:13px;text-align:center;display:block;width:100%;margin-top:14px;}
+.error-box{background:#3A0A0A;border:1px solid #C0392B44;border-radius:8px;padding:10px 14px;color:#FF6B6B;font-size:13px;margin-bottom:12px;}
+.login-footer{position:fixed;bottom:20px;left:0;right:0;text-align:center;color:#2A5A32;font-size:11px;letter-spacing:2px;}
+
+/* ── HEADER ── */
+#header{background:linear-gradient(90deg,#0A1F10,#0F2D17);border-bottom:1px solid var(--border);padding:0 20px;display:flex;align-items:center;justify-content:space-between;height:56px;position:sticky;top:0;z-index:100;}
+.header-logo{display:flex;align-items:center;gap:10px;}
+.header-logo img{width:40px;height:40px;object-fit:contain;filter:drop-shadow(0 0 6px rgba(212,175,55,0.3));}
+.header-title{font-size:15px;font-weight:800;color:var(--gold);font-family:Georgia,serif;letter-spacing:1px;}
+.header-sub{font-size:9px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;}
+.header-right{display:flex;align-items:center;gap:10px;}
+.badge-admin{font-size:10px;color:var(--gold);font-weight:700;letter-spacing:1px;background:#3A2800;padding:3px 8px;border-radius:10px;}
+.header-user{font-size:11px;color:var(--muted);max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.btn-logout{background:none;border:1px solid var(--border);border-radius:6px;color:var(--muted);padding:5px 10px;font-size:11px;}
+
+/* ── NAV ── */
+#nav{background:var(--card);border-bottom:1px solid var(--border);display:flex;padding:0 12px;overflow-x:auto;position:sticky;top:56px;z-index:99;}
+#nav::-webkit-scrollbar{height:0;}
+.nav-btn{padding:11px 14px;background:transparent;border:none;border-bottom:2px solid transparent;color:var(--muted);font-weight:400;font-size:13px;display:flex;align-items:center;gap:5px;white-space:nowrap;transition:all 0.15s;}
+.nav-btn.active{border-bottom-color:var(--gold);color:var(--gold);font-weight:700;}
+
+/* ── CONTENT ── */
+#content{padding:20px;max-width:900px;margin:0 auto;padding-bottom:40px;}
+
+/* ── CARDS ── */
+.card{background:var(--card);border-radius:14px;border:1px solid var(--border);overflow:hidden;margin-bottom:16px;}
+.card-header{padding:16px 20px;border-bottom:1px solid rgba(30,77,40,0.3);display:flex;justify-content:space-between;align-items:center;}
+.card-title{font-size:13px;font-weight:700;color:var(--gold);letter-spacing:1px;text-transform:uppercase;}
+.card-body{padding:20px;}
+
+/* ── HERO ── */
+.hero{background:linear-gradient(135deg,#0F3D1A 0%,#1A5E2A 50%,#0D2813 100%);border-radius:16px;padding:24px 28px;border:1px solid var(--border);position:relative;overflow:hidden;margin-bottom:16px;}
+.hero::after{content:'';position:absolute;top:-30px;right:-30px;width:200px;height:200px;border-radius:50%;background:radial-gradient(circle,rgba(212,175,55,0.13) 0%,transparent 70%);}
+.hero-label{font-size:11px;color:var(--gold);font-weight:600;letter-spacing:2px;text-transform:uppercase;margin-bottom:6px;}
+.hero-title{font-size:22px;font-weight:700;color:var(--white);font-family:Georgia,serif;}
+.hero-stats{display:flex;gap:24px;margin-top:14px;flex-wrap:wrap;}
+.hero-stat label{font-size:10px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;display:block;}
+.hero-stat span{font-size:15px;font-weight:600;color:var(--white);margin-top:2px;display:block;}
+
+/* ── AVATAR ── */
+.avatar{border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-family:Georgia,serif;flex-shrink:0;}
+.avatar-sm{width:32px;height:32px;font-size:11px;}
+.avatar-md{width:36px;height:36px;font-size:13px;}
+.avatar-lg{width:42px;height:42px;font-size:15px;}
+
+/* ── BADGE STATUS ── */
+.badge{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;}
+.badge::before{content:'';width:6px;height:6px;border-radius:50%;background:currentColor;flex-shrink:0;}
+.badge-oficial{background:#1A4A2E;color:#4ADE80;}
+.badge-validar{background:#3A2800;color:#FCD34D;}
+.badge-attest{background:#2A1A40;color:#C4B5FD;}
+.badge-planificada{background:#1A2340;color:#93C5FD;}
+.badge-enjuego{background:#3A1A00;color:#FB923C;}
+.badge-activo{background:#1A4A2E;color:#4ADE80;}
+
+/* ── RANKING ROW ── */
+.rank-row{display:grid;grid-template-columns:40px 1fr 50px 55px 50px;gap:8px;padding:12px 16px;border-bottom:1px solid rgba(30,77,40,0.18);align-items:center;}
+.rank-row.top{background:var(--cardL);}
+.rank-head{display:grid;grid-template-columns:40px 1fr 50px 55px 50px;gap:8px;padding:8px 16px;border-bottom:1px solid rgba(30,77,40,0.18);}
+.rank-head span{font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:1px;}
+
+/* ── JORNADA CARD ── */
+.jornada-card{background:var(--card);border-radius:14px;border:1px solid var(--border);overflow:hidden;margin-bottom:12px;}
+.jornada-header{padding:16px 20px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;user-select:none;}
+.jornada-num{width:42px;height:42px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:800;color:var(--gold);font-family:Georgia,serif;flex-shrink:0;}
+.jornada-body{padding:0 20px 20px;border-top:1px solid rgba(30,77,40,0.18);}
+.jornada-actions{display:flex;gap:10px;padding:14px 0;flex-wrap:wrap;}
+
+/* ── RESULT ROW ── */
+.result-row{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:10px;background:var(--cardL);margin-bottom:6px;}
+
+/* ── FORM ── */
+.form-label{font-size:11px;color:var(--muted);font-weight:700;letter-spacing:1px;text-transform:uppercase;display:block;margin-bottom:6px;}
+.form-input{width:100%;padding:10px 14px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;outline:none;}
+.form-input:focus{border-color:var(--gold);}
+.form-select{padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;outline:none;}
+.form-check{accent-color:var(--gold);width:16px;height:16px;}
+
+/* ── BUTTONS ── */
+.btn-primary{padding:9px 18px;border-radius:8px;border:none;background:linear-gradient(135deg,var(--gold),#A07820);color:#0A1F10;font-weight:700;font-size:13px;}
+.btn-attest{padding:8px 18px;border-radius:8px;border:1px solid #A78BFA;background:#2A1A40;color:#C4B5FD;font-weight:700;font-size:13px;}
+.btn-approve{padding:8px 18px;border-radius:8px;border:none;background:#1A4A2E;color:#4ADE80;font-weight:700;font-size:13px;}
+.btn-outline{padding:8px 18px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--muted);font-weight:600;font-size:13px;}
+.btn-danger{padding:8px 14px;border-radius:8px;border:none;background:transparent;color:var(--muted);font-size:18px;}
+.btn-save{width:100%;padding:15px;border-radius:12px;border:none;background:linear-gradient(135deg,var(--gold),#A07820);color:#0A1F10;font-weight:800;font-size:16px;font-family:Georgia,serif;letter-spacing:1px;box-shadow:0 4px 20px rgba(212,175,55,0.3);margin-top:8px;}
+.btn-back{background:none;border:none;color:var(--muted);font-size:22px;padding:0 8px 0 0;}
+
+/* ── CARGAR ── */
+.cargar-row{padding:14px 16px;border-bottom:1px solid rgba(30,77,40,0.15);display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
+.pts-box{width:52px;height:36px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:18px;}
+
+/* ── INFO BOXES ── */
+.info-attest{background:#2A1A40;border:1px solid rgba(167,139,250,0.3);border-radius:10px;padding:12px 16px;font-size:12px;color:#C4B5FD;margin-bottom:16px;}
+.success-box{background:#1A4A2E;border:1px solid rgba(34,197,94,0.3);border-radius:14px;padding:32px;text-align:center;}
+
+/* ── TABLE ── */
+.breakdown-table{width:100%;border-collapse:collapse;font-size:12px;}
+.breakdown-table td{padding:8px;border-top:1px solid rgba(30,77,40,0.18);}
+
+/* ── UTILS ── */
+.flex{display:flex;}.flex-1{flex:1;}.gap-8{gap:8px;}.gap-12{gap:12px;}.gap-16{gap:16px;}
+.items-center{align-items:center;}.justify-between{justify-content:space-between;}
+.text-gold{color:var(--gold);}.text-muted{color:var(--muted);}.text-white{color:var(--white);}
+.font-bold{font-weight:700;}.font-georgia{font-family:Georgia,serif;}
+.text-11{font-size:11px;}.text-12{font-size:12px;}.text-13{font-size:13px;}.text-14{font-size:14px;}.text-15{font-size:15px;}
+.mb-8{margin-bottom:8px;}.mb-12{margin-bottom:12px;}.mb-16{margin-bottom:16px;}.mb-20{margin-bottom:20px;}
+.mt-8{margin-top:8px;}.mt-12{margin-top:12px;}.mt-16{margin-top:16px;}
+.overflow-x{overflow-x:auto;}
+</style>
+</head>
+<body>
+
+<!-- LOADING -->
+<div id="loading">
+  <div class="spin"></div>
+  <div style="font-size:12px;color:var(--muted);letter-spacing:2px;">CARGANDO...</div>
+</div>
+
+<!-- LOGIN -->
+<div id="loginScreen" style="display:none;">
+  <div class="login-card">
+    <div class="login-logo">
+      <img id="loginLogo" src="Logo_Golfeados.png" alt="Golfeados"/>
+      <div class="login-title">GOLFEADOS</div>
+      <div class="login-sub">Golf Club · Tournament Manager</div>
+    </div>
+    <div id="loginView">
+      <div id="loginError" class="error-box" style="display:none;"></div>
+      <div class="field"><label>Email</label><input type="email" id="loginEmail" placeholder="tu@email.com" autocomplete="email"/></div>
+      <div class="field"><label>Contraseña</label><input type="password" id="loginPassword" placeholder="••••••••" autocomplete="current-password"/></div>
+      <button class="btn-gold" id="loginBtn" onclick="handleLogin()">Entrar al Club</button>
+      <button class="btn-link" onclick="showReset()">¿Olvidaste tu contraseña?</button>
+    </div>
+    <div id="resetView" style="display:none;">
+      <div style="font-size:13px;color:var(--muted);margin-bottom:14px;">Ingresa tu email para recibir un enlace de recuperación.</div>
+      <div id="resetError" class="error-box" style="display:none;"></div>
+      <div id="resetSuccess" style="display:none;text-align:center;padding:20px 0;">
+        <div style="font-size:40px;margin-bottom:10px;">📧</div>
+        <div style="color:var(--text);font-size:14px;">Email de recuperación enviado.</div>
+      </div>
+      <div id="resetForm">
+        <div class="field"><label>Email</label><input type="email" id="resetEmail" placeholder="tu@email.com"/></div>
+        <button class="btn-gold" onclick="handleReset()">Enviar Email</button>
+      </div>
+      <button class="btn-link" onclick="showLogin()">← Volver al login</button>
+    </div>
+  </div>
+  <div class="login-footer">PLAY · RELAX · ENJOY · SINCE 2024</div>
+</div>
+
+<!-- APP -->
+<div id="app" style="display:none;">
+  <div id="header">
+    <div class="header-logo">
+      <img src="Logo_Golfeados.png" alt="Golfeados"/>
+      <div>
+        <div class="header-title">GOLFEADOS</div>
+        <div class="header-sub">Golf Club</div>
+      </div>
+    </div>
+    <div class="header-right">
+      <span id="adminBadge" class="badge-admin" style="display:none;">ADMIN</span>
+      <span id="headerUser" class="header-user"></span>
+      <button class="btn-logout" onclick="handleLogout()">Salir</button>
+    </div>
+  </div>
+
+  <div id="nav">
+    <button class="nav-btn active" data-tab="dashboard" onclick="goTab('dashboard')">🏠 Inicio</button>
+    <button class="nav-btn" data-tab="ranking" onclick="goTab('ranking')">🏆 Ranking</button>
+    <button class="nav-btn" data-tab="jornadas" onclick="goTab('jornadas')">📅 Jornadas</button>
+    <button class="nav-btn" data-tab="jugadores" onclick="goTab('jugadores')">👤 Jugadores</button>
+  </div>
+
+  <div id="content">
+    <div id="tab-dashboard"></div>
+    <div id="tab-ranking" style="display:none;"></div>
+    <div id="tab-jornadas" style="display:none;"></div>
+    <div id="tab-jugadores" style="display:none;"></div>
+    <div id="tab-cargar" style="display:none;"></div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════
+// FIREBASE CONFIG — Rellena con tus credenciales
+// ══════════════════════════════════════════════════════
+const firebaseConfig = {
+  apiKey:            "AIzaSyCu98_7auFGd3nJJmYDRCM7KaM5OdtCBx4",
+  authDomain:        "golfeados-660b3.firebaseapp.com",
+  projectId:         "golfeados-660b3",
+  storageBucket:     "golfeados-660b3.firebasestorage.app",
+  messagingSenderId: "417996522021",
+  appId:             "1:417996522021:web:67871e33758befec81f5cc"
+};
+
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db   = firebase.firestore();
+
+// ══════════════════════════════════════════════════════
+// ESTADO GLOBAL
+// ══════════════════════════════════════════════════════
+let STATE = {
+  user: null, profile: null,
+  torneo: null, jugadores: [], jornadas: [], resultados: [],
+  currentTab: 'dashboard', cargarJornadaId: null,
+  expandedJornada: null, chartInstance: null,
+  unsubs: []
+};
+
+// ══════════════════════════════════════════════════════
+// AUTH
+// ══════════════════════════════════════════════════════
+auth.onAuthStateChanged(async user => {
+  if (user) {
+    STATE.user = user;
+    const snap = await db.collection('users').doc(user.uid).get();
+    if (snap.exists) {
+      STATE.profile = snap.data();
+    } else {
+      const p = { email: user.email, nombre: user.displayName || user.email, role: 'jugador', jugador_id: null };
+      await db.collection('users').doc(user.uid).set(p);
+      STATE.profile = p;
+    }
+    showApp();
+    initListeners();
+  } else {
+    STATE.user = null; STATE.profile = null;
+    stopListeners();
+    showLogin_();
+  }
+});
+
+function showLogin_() {
+  document.getElementById('loading').style.display = 'none';
+  document.getElementById('loginScreen').style.display = 'flex';
+  document.getElementById('app').style.display = 'none';
+}
+
+function showApp() {
+  document.getElementById('loading').style.display = 'none';
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  document.getElementById('headerUser').textContent = STATE.profile?.nombre || STATE.user?.email || '';
+  document.getElementById('adminBadge').style.display = STATE.profile?.role === 'admin' ? 'inline' : 'none';
+}
+
+async function handleLogin() {
+  const email = document.getElementById('loginEmail').value.trim();
+  const pass  = document.getElementById('loginPassword').value;
+  const btn   = document.getElementById('loginBtn');
+  const err   = document.getElementById('loginError');
+  err.style.display = 'none';
+  btn.disabled = true; btn.textContent = 'Entrando...';
+  try {
+    await auth.signInWithEmailAndPassword(email, pass);
+  } catch(e) {
+    const msgs = {
+      'auth/user-not-found':'Usuario no encontrado.',
+      'auth/wrong-password':'Contraseña incorrecta.',
+      'auth/invalid-credential':'Email o contraseña incorrectos.',
+      'auth/too-many-requests':'Demasiados intentos. Espera un momento.',
+    };
+    err.textContent = msgs[e.code] || 'Error al iniciar sesión.';
+    err.style.display = 'block';
+  } finally {
+    btn.disabled = false; btn.textContent = 'Entrar al Club';
+  }
+}
+
+async function handleLogout() { await auth.signOut(); }
+
+async function handleReset() {
+  const email = document.getElementById('resetEmail').value.trim();
+  const err = document.getElementById('resetError');
+  err.style.display = 'none';
+  try {
+    await auth.sendPasswordResetEmail(email);
+    document.getElementById('resetForm').style.display = 'none';
+    document.getElementById('resetSuccess').style.display = 'block';
+  } catch {
+    err.textContent = 'No se encontró ese email.';
+    err.style.display = 'block';
+  }
+}
+
+function showReset() {
+  document.getElementById('loginView').style.display = 'none';
+  document.getElementById('resetView').style.display = 'block';
+}
+function showLogin() {
+  document.getElementById('loginView').style.display = 'block';
+  document.getElementById('resetView').style.display = 'none';
+}
+
+// ══════════════════════════════════════════════════════
+// FIRESTORE LISTENERS (tiempo real)
+// ══════════════════════════════════════════════════════
+function initListeners() {
+  stopListeners();
+
+  STATE.unsubs.push(
+    db.collection('torneos').orderBy('creado','desc').limit(1)
+      .onSnapshot(s => {
+        STATE.torneo = s.empty ? null : { id: s.docs[0].id, ...s.docs[0].data() };
+        renderCurrentTab();
+      })
+  );
+  STATE.unsubs.push(
+    db.collection('jugadores').orderBy('nombre')
+      .onSnapshot(s => {
+        STATE.jugadores = s.docs.map(d => ({ id: d.id, ...d.data() }));
+        renderCurrentTab();
+      })
+  );
+  STATE.unsubs.push(
+    db.collection('jornadas').orderBy('numero')
+      .onSnapshot(s => {
+        STATE.jornadas = s.docs.map(d => ({ id: d.id, ...d.data() }));
+        renderCurrentTab();
+      })
+  );
+  STATE.unsubs.push(
+    db.collection('resultados')
+      .onSnapshot(s => {
+        STATE.resultados = s.docs.map(d => ({ id: d.id, ...d.data() }));
+        renderCurrentTab();
+      })
+  );
+}
+
+function stopListeners() {
+  STATE.unsubs.forEach(u => u());
+  STATE.unsubs = [];
+}
+
+// ══════════════════════════════════════════════════════
+// NAVEGACIÓN
+// ══════════════════════════════════════════════════════
+function goTab(tab) {
+  STATE.currentTab = tab;
+  STATE.cargarJornadaId = null;
+  document.querySelectorAll('.nav-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.tab === tab);
+  });
+  ['dashboard','ranking','jornadas','jugadores','cargar'].forEach(t => {
+    document.getElementById('tab-'+t).style.display = t === tab ? 'block' : 'none';
+  });
+  renderCurrentTab();
+}
+
+function goCargar(jornadaId) {
+  STATE.cargarJornadaId = jornadaId;
+  STATE.currentTab = 'cargar';
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  ['dashboard','ranking','jornadas','jugadores'].forEach(t =>
+    document.getElementById('tab-'+t).style.display = 'none'
+  );
+  document.getElementById('tab-cargar').style.display = 'block';
+  renderCargar();
+}
+
+function renderCurrentTab() {
+  if (STATE.currentTab === 'dashboard') renderDashboard();
+  else if (STATE.currentTab === 'ranking') renderRanking();
+  else if (STATE.currentTab === 'jornadas') renderJornadas();
+  else if (STATE.currentTab === 'jugadores') renderJugadores();
+  else if (STATE.currentTab === 'cargar') renderCargar();
+}
+
+// ══════════════════════════════════════════════════════
+// HELPERS
+// ══════════════════════════════════════════════════════
+function calcRanking() {
+  return STATE.jugadores.map(j => {
+    const mis = STATE.resultados.filter(r => r.jugador_id === j.id);
+    const ptsOf = mis.filter(r => {
+      const jn = STATE.jornadas.find(jn => jn.id === r.jornada_id);
+      return jn?.estado === 'Oficial';
+    }).reduce((a,r) => a + (r.pts||0), 0);
+    const ptsT = mis.filter(r => {
+      const jn = STATE.jornadas.find(jn => jn.id === r.jornada_id);
+      return jn && jn.estado !== 'Planificada';
+    }).reduce((a,r) => a + (r.pts||0), 0);
+    const asist = mis.filter(r => r.asistencia && STATE.jornadas.find(jn => jn.id === r.jornada_id)?.estado !== 'Planificada').length;
+    return { ...j, ptsOf, ptsT, asist };
+  }).sort((a,b) => b.ptsT - a.ptsT).map((j,i) => ({ ...j, pos: i+1 }));
+}
+
+function getPtsByPos(pos, asistencia) {
+  if (!asistencia) return 0;
+  if (pos === 1) return 4;
+  if (pos === 2) return 3;
+  if (pos === 3) return 2;
+  return 1;
+}
+
+function avatarColor(pos) {
+  if (pos === 1) return 'linear-gradient(135deg,#D4AF37,#A07820)';
+  if (pos === 2) return 'linear-gradient(135deg,#A8B4A9,#707A70)';
+  if (pos === 3) return 'linear-gradient(135deg,#CD7F32,#8B4513)';
+  return 'linear-gradient(135deg,#2A7A3B,#1A4A24)';
+}
+
+function medal(pos) {
+  if (pos === 1) return '🥇';
+  if (pos === 2) return '🥈';
+  if (pos === 3) return '🥉';
+  return `<span style="color:var(--muted);font-weight:700;font-size:14px;width:22px;display:inline-block;text-align:center;">${pos}</span>`;
+}
+
+function badgeHTML(estado) {
+  const map = {
+    'Oficial':          'badge-oficial',
+    'Por Validar':      'badge-validar',
+    'Pendiente Attest': 'badge-attest',
+    'Planificada':      'badge-planificada',
+    'En Juego':         'badge-enjuego',
+    'Activo':           'badge-activo',
+  };
+  return `<span class="badge ${map[estado]||'badge-planificada'}">${estado}</span>`;
+}
+
+function avatarHTML(foto, pos, size='md') {
+  const bg = avatarColor(pos);
+  const shadow = pos === 1 ? 'box-shadow:0 0 12px rgba(212,175,55,0.4);' : '';
+  const sz = size === 'sm' ? '32px;font-size:11px' : size === 'lg' ? '42px;font-size:15px' : '36px;font-size:13px';
+  return `<div class="avatar" style="width:${sz};background:${bg};color:#0A1F10;${shadow}">${foto||'?'}</div>`;
+}
+
+// ══════════════════════════════════════════════════════
+// DASHBOARD
+// ══════════════════════════════════════════════════════
+function renderDashboard() {
+  const el = document.getElementById('tab-dashboard');
+  const rk = calcRanking();
+  const top3 = rk.slice(0, 3);
+  const top5 = rk.slice(0, 5);
+  const jugadas = STATE.jornadas.filter(j => j.estado !== 'Planificada').length;
+  const proxima = STATE.jornadas.find(j => j.estado === 'Planificada');
+  const isAdmin = STATE.profile?.role === 'admin';
+
+  el.innerHTML = `
+    <div class="hero">
+      <div class="hero-label">Campeonato Activo</div>
+      <div class="hero-title">${STATE.torneo?.nombre || 'Sin torneo activo'}</div>
+      <div class="hero-stats">
+        <div class="hero-stat"><label>Jornadas Jugadas</label><span>${jugadas}/${STATE.torneo?.jornadas_total||'—'}</span></div>
+        <div class="hero-stat"><label>Jugadores</label><span>${STATE.jugadores.length}</span></div>
+        <div class="hero-stat"><label>Próxima Sede</label><span>${proxima?.sede||'—'}</span></div>
+        <div class="hero-stat"><label>Estado</label><span>${badgeHTML(STATE.torneo?.estado||'Activo')}</span></div>
+      </div>
+    </div>
+
+    <div class="card mb-16">
+      <div class="card-header"><span class="card-title">🏆 Podio</span></div>
+      <div class="card-body" style="padding:16px;">
+        ${top3.map(j => `
+          <div class="result-row" style="margin-bottom:8px;">
+            <span style="font-size:20px;">${medal(j.pos)}</span>
+            ${avatarHTML(j.foto, j.pos)}
+            <div class="flex-1">
+              <div class="text-14 font-bold text-white">${j.nombre}</div>
+              <div class="text-11 text-muted">${j.asist} jornadas jugadas</div>
+            </div>
+            <div style="text-align:right;">
+              <div style="font-size:20px;font-weight:800;color:${j.pos===1?'var(--gold)':'var(--text)'};">${j.ptsT}</div>
+              <div class="text-10 text-muted">pts</div>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+
+    <div class="card mb-16">
+      <div class="card-header"><span class="card-title">📊 Puntos Top 5</span></div>
+      <div class="card-body">
+        <canvas id="chartBar" height="140"></canvas>
+      </div>
+    </div>
+
+    ${isAdmin ? `
+    <div class="card">
+      <div class="card-header"><span class="card-title">⚙️ Admin — Acciones Rápidas</span></div>
+      <div class="card-body" style="display:flex;gap:10px;flex-wrap:wrap;">
+        <button class="btn-primary" onclick="goTab('jugadores')">+ Jugador</button>
+        <button class="btn-outline" onclick="goTab('jornadas')">Ver Jornadas</button>
+        ${STATE.jugadores.length === 0 ? `<button class="btn-attest" onclick="seedDatos()">🌱 Cargar Datos Iniciales</button>` : ''}
+      </div>
+      <div id="seedMsg" style="display:none;padding:10px 20px;font-size:13px;color:#4ADE80;"></div>
+    </div>` : ''}
+  `;
+
+  // Chart
+  setTimeout(() => {
+    const ctx = document.getElementById('chartBar');
+    if (!ctx) return;
+    if (STATE.chartInstance) { STATE.chartInstance.destroy(); STATE.chartInstance = null; }
+    const colors = ['#D4AF37','#A8B4A9','#CD7F32','#2A7A3B','#2A7A3B'];
+    STATE.chartInstance = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: top5.map(j => j.alias || j.nombre.split(' ')[0]),
+        datasets: [{ data: top5.map(j => j.ptsT), backgroundColor: colors, borderRadius: 6, borderSkipped: false }]
+      },
+      options: {
+        responsive: true, plugins: { legend: { display: false },
+          tooltip: { callbacks: { label: ctx => ` ${ctx.parsed.y} pts` } }
+        },
+        scales: {
+          x: { ticks: { color: '#7A9A7E' }, grid: { display: false } },
+          y: { ticks: { color: '#7A9A7E' }, grid: { color: '#1E4D2844' } }
+        }
+      }
+    });
+  }, 50);
+}
+
+// ══════════════════════════════════════════════════════
+// RANKING
+// ══════════════════════════════════════════════════════
+function renderRanking() {
+  const el = document.getElementById('tab-ranking');
+  const rk = calcRanking();
+  const jugadasOf = STATE.jornadas.filter(j => j.estado === 'Oficial');
+  const jugadasAll = STATE.jornadas.filter(j => j.estado !== 'Planificada');
+
+  el.innerHTML = `
+    <div class="card mb-16">
+      <div class="card-header">
+        <span class="card-title">Tabla de Posiciones</span>
+        <span class="text-11 text-muted">${jugadasOf.length} jornadas oficiales</span>
+      </div>
+      <div class="rank-head">
+        <span>#</span><span>Jugador</span><span>Ofic.</span><span>Total</span><span>Asist.</span>
+      </div>
+      ${rk.map(j => `
+        <div class="rank-row ${j.pos<=3?'top':''}">
+          <div>${medal(j.pos)}</div>
+          <div class="flex items-center gap-8">
+            ${avatarHTML(j.foto, j.pos, 'sm')}
+            <div>
+              <div class="text-13 font-bold text-white">${j.nombre}</div>
+              <div class="text-11 text-muted">${j.alias||''}</div>
+            </div>
+          </div>
+          <div class="text-14 font-bold text-white">${j.ptsOf}</div>
+          <div style="font-size:15px;font-weight:800;color:${j.pos===1?'var(--gold)':'var(--text)'};">${j.ptsT}</div>
+          <div class="text-13 text-muted">${j.asist}✓</div>
+        </div>
+      `).join('')}
+    </div>
+
+    <div class="card">
+      <div class="card-header"><span class="card-title">Desglose por Jornada</span></div>
+      <div class="card-body overflow-x" style="padding:12px;">
+        <table class="breakdown-table">
+          <tr>
+            <td style="padding:6px 8px;color:var(--muted);font-weight:700;">Jugador</td>
+            ${jugadasAll.map(jn => `<td style="padding:6px 8px;text-align:center;color:var(--muted);font-weight:700;white-space:nowrap;">${jn.nombre}<br/>${badgeHTML(jn.estado)}</td>`).join('')}
+            <td style="padding:6px 8px;text-align:center;color:var(--gold);font-weight:700;">TOTAL</td>
+          </tr>
+          ${rk.map(j => `
+            <tr>
+              <td style="padding:8px;color:var(--white);font-weight:600;white-space:nowrap;">${j.nombre}</td>
+              ${jugadasAll.map(jn => {
+                const r = STATE.resultados.find(r => r.jornada_id === jn.id && r.jugador_id === j.id);
+                const val = r ? (r.asistencia ? r.pts : '—') : '?';
+                const col = r && r.pts >= 4 ? 'var(--gold)' : 'var(--text)';
+                return `<td style="padding:8px;text-align:center;color:${r?col:'var(--muted)'};">${val}</td>`;
+              }).join('')}
+              <td style="padding:8px;text-align:center;font-weight:800;color:${j.pos===1?'var(--gold)':'var(--text)'};">${j.ptsT}</td>
+            </tr>
+          `).join('')}
+        </table>
+      </div>
+    </div>
+  `;
+}
+
+// ══════════════════════════════════════════════════════
+// JORNADAS
+// ══════════════════════════════════════════════════════
+function renderJornadas() {
+  const el = document.getElementById('tab-jornadas');
+  const isAdmin = STATE.profile?.role === 'admin';
+
+  el.innerHTML = STATE.jornadas.map(jn => {
+    const res = STATE.resultados.filter(r => r.jornada_id === jn.id).sort((a,b)=>a.pos-b.pos);
+    const isOpen = STATE.expandedJornada === jn.id;
+    const cargador = STATE.jugadores.find(j => j.id === jn.cargado_por);
+    const attestador = STATE.jugadores.find(j => j.id === jn.attest_por);
+    const bgNum = jn.estado==='Oficial'?'#1A4A2E':jn.estado==='Planificada'?'#1A2340':'#2A1A40';
+    const numLabel = jn.numero || (jn.nombre||'').replace('J','');
+
+    // Can attest?
+    const myJugadorId = STATE.profile?.jugador_id;
+    const canAttest = jn.estado === 'Pendiente Attest'
+      && jn.cargado_por !== myJugadorId
+      && STATE.resultados.some(r => r.jornada_id === jn.id && r.jugador_id === myJugadorId);
+
+    return `
+      <div class="jornada-card">
+        <div class="jornada-header" onclick="toggleJornada('${jn.id}')">
+          <div class="flex items-center gap-12">
+            <div class="jornada-num" style="background:${bgNum};">${numLabel}</div>
+            <div>
+              <div class="text-15 font-bold text-white">${jn.nombre}</div>
+              <div class="text-12 text-muted">${jn.sede} · ${jn.fecha}</div>
+            </div>
+          </div>
+          <div class="flex items-center gap-8">
+            ${badgeHTML(jn.estado)}
+            <span style="color:var(--muted);font-size:13px;">${isOpen?'▲':'▼'}</span>
+          </div>
+        </div>
+        ${isOpen ? `
+          <div class="jornada-body">
+            <div class="jornada-actions">
+              ${(jn.estado==='Planificada'||jn.estado==='En Juego') ? `<button class="btn-primary" onclick="goCargar('${jn.id}')">📋 Cargar Resultados</button>` : ''}
+              ${canAttest ? `<button class="btn-attest" onclick="handleAttest('${jn.id}')">✍️ Attest (Confirmar)</button>` : ''}
+              ${isAdmin && jn.estado==='Por Validar' ? `<button class="btn-approve" onclick="handleAprobar('${jn.id}')">✅ Aprobar Oficial</button>` : ''}
+              ${jn.estado!=='Planificada' ? `<button class="btn-outline" onclick="goCargar('${jn.id}')">✏️ Editar</button>` : ''}
+            </div>
+            ${res.length > 0 ? `
+              ${res.map(r => {
+                const jug = STATE.jugadores.find(j => j.id === r.jugador_id);
+                return `
+                  <div class="result-row">
+                    <span style="font-size:18px;">${medal(r.pos)}</span>
+                    ${avatarHTML(jug?.foto||'?', r.pos, 'sm')}
+                    <div class="flex-1 text-13 font-bold text-white">${jug?.nombre||'Desconocido'}</div>
+                    <div class="text-11" style="color:${r.asistencia?'var(--muted)':'var(--red)'};">${r.asistencia?'Jugó':'No asistió'}</div>
+                    <div style="font-size:16px;font-weight:800;color:${r.pos===1?'var(--gold)':'var(--text)'};">${r.pts}<span class="text-11 text-muted"> pts</span></div>
+                  </div>`;
+              }).join('')}
+              <div style="margin-top:10px;padding:8px 12px;background:rgba(10,31,16,0.5);border-radius:8px;font-size:11px;color:var(--muted);">
+                ${cargador ? `📋 Cargado por <strong style="color:var(--text);">${cargador.nombre}</strong>` : ''}
+                ${attestador ? ` · ✍️ Attest: <strong style="color:#C4B5FD;">${attestador.nombre}</strong>` : ''}
+              </div>
+            ` : `<div style="padding:20px 0;text-align:center;color:var(--muted);font-size:13px;">
+              ${jn.estado==='Planificada'?'⏳ Pendiente · Presiona "Cargar Resultados" al finalizar':'Sin resultados cargados'}
+            </div>`}
+          </div>` : ''}
+      </div>`;
+  }).join('');
+}
+
+function toggleJornada(id) {
+  STATE.expandedJornada = STATE.expandedJornada === id ? null : id;
+  renderJornadas();
+}
+
+async function handleAttest(jornadaId) {
+  const myJugadorId = STATE.profile?.jugador_id;
+  await db.collection('jornadas').doc(jornadaId).update({
+    estado: 'Por Validar',
+    attest_por: myJugadorId || STATE.user.uid,
+    attest_at: firebase.firestore.FieldValue.serverTimestamp()
+  });
+}
+
+async function handleAprobar(jornadaId) {
+  await db.collection('jornadas').doc(jornadaId).update({
+    estado: 'Oficial',
+    aprobado_por: STATE.user.uid,
+    aprobado_at: firebase.firestore.FieldValue.serverTimestamp()
+  });
+}
+
+// ══════════════════════════════════════════════════════
+// CARGAR RESULTADOS
+// ══════════════════════════════════════════════════════
+let cargarEntries = [];
+
+function renderCargar() {
+  const el = document.getElementById('tab-cargar');
+  const jornadaId = STATE.cargarJornadaId;
+  const jornada = STATE.jornadas.find(j => j.id === jornadaId);
+  if (!jornada) { el.innerHTML = '<p style="color:var(--muted);padding:20px;">Jornada no encontrada.</p>'; return; }
+
+  // Init entries if not set
+  const existentes = STATE.resultados.filter(r => r.jornada_id === jornadaId);
+  if (cargarEntries.length === 0 || cargarEntries[0]._jid !== jornadaId) {
+    cargarEntries = STATE.jugadores.map((j, i) => {
+      const ex = existentes.find(r => r.jugador_id === j.id);
+      return {
+        _jid: jornadaId,
+        jugador_id: j.id,
+        jugador: j,
+        pos: ex?.pos ?? (i + 1),
+        pts: ex?.pts ?? 1,
+        asistencia: ex?.asistencia ?? true,
+      };
+    });
+  }
+
+  el.innerHTML = `
+    <div class="flex items-center gap-8 mb-16">
+      <button class="btn-back" onclick="backFromCargar()">←</button>
+      <div>
+        <div class="text-15 font-bold text-white font-georgia">${jornada.nombre} — ${jornada.sede}</div>
+        <div class="text-12 text-muted">${jornada.fecha} · ${badgeHTML(jornada.estado)}</div>
+      </div>
+    </div>
+
+    <div class="info-attest">✍️ <strong>Flujo:</strong> Tú cargas → otro jugador confirma (Attest) → Admin aprueba como Oficial.</div>
+
+    <div class="card mb-16">
+      <div class="card-header"><span class="card-title">Ingresa los resultados</span><span class="text-11 text-muted">Puntos automáticos por posición</span></div>
+      ${cargarEntries.map((e, i) => `
+        <div class="cargar-row" id="row-${e.jugador_id}">
+          ${avatarHTML(e.jugador.foto, 99, 'sm')}
+          <div style="flex:1;min-width:110px;">
+            <div class="text-13 font-bold text-white">${e.jugador.nombre}</div>
+            <div class="text-11 text-muted">${e.jugador.alias||''}</div>
+          </div>
+          <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);cursor:pointer;">
+            <input type="checkbox" class="form-check" ${e.asistencia?'checked':''} onchange="updateEntry('${e.jugador_id}','asistencia',this.checked)"/>
+            Jugó
+          </label>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span class="text-11 text-muted">Pos.</span>
+            <select class="form-select" ${!e.asistencia?'disabled':''} onchange="updateEntry('${e.jugador_id}','pos',parseInt(this.value))">
+              ${STATE.jugadores.map((_,pi) => `<option value="${pi+1}" ${e.pos===pi+1?'selected':''}>${pi+1}°</option>`).join('')}
+            </select>
+          </div>
+          <div class="pts-box" style="background:${e.asistencia?(e.pos===1?'#3A2800':'var(--cardL)'):'#1A1A1A'};color:${e.asistencia?(e.pos===1?'var(--gold)':'var(--text)'):'var(--muted)'};">
+            ${e.pts}
+          </div>
+        </div>
+      `).join('')}
+    </div>
+
+    <div id="cargarError" class="error-box" style="display:none;"></div>
+    <button class="btn-save" id="btnSave" onclick="saveResultados()">💾 Guardar y Enviar a Attest</button>
+  `;
+}
+
+function updateEntry(jugadorId, field, value) {
+  const entry = cargarEntries.find(e => e.jugador_id === jugadorId);
+  if (!entry) return;
+  entry[field] = value;
+  if (field === 'pos' || field === 'asistencia') {
+    entry.pts = getPtsByPos(field === 'pos' ? value : entry.pos, field === 'asistencia' ? value : entry.asistencia);
+  }
+  renderCargar();
+}
+
+async function saveResultados() {
+  const jornadaId = STATE.cargarJornadaId;
+  const btn = document.getElementById('btnSave');
+  const err = document.getElementById('cargarError');
+  err.style.display = 'none';
+  btn.disabled = true; btn.textContent = 'Guardando...';
+  try {
+    const batch = db.batch();
+    cargarEntries.forEach(e => {
+      const ref = db.collection('resultados').doc(`${jornadaId}_${e.jugador_id}`);
+      batch.set(ref, {
+        jornada_id: jornadaId,
+        jugador_id: e.jugador_id,
+        pos: e.pos, pts: e.pts, asistencia: e.asistencia,
+        cargado_por: STATE.profile?.jugador_id || STATE.user?.email,
+        updated_at: firebase.firestore.FieldValue.serverTimestamp()
+      });
+    });
+    batch.update(db.collection('jornadas').doc(jornadaId), {
+      estado: 'Pendiente Attest',
+      cargado_por: STATE.profile?.jugador_id || null,
+      cargado_at: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    await batch.commit();
+    cargarEntries = [];
+
+    // Show success
+    document.getElementById('tab-cargar').innerHTML = `
+      <div class="success-box">
+        <div style="font-size:48px;margin-bottom:14px;">✅</div>
+        <div style="color:#4ADE80;font-size:18px;font-weight:700;">¡Resultados guardados!</div>
+        <div style="color:var(--muted);font-size:13px;margin-top:8px;">Pendiente de Attest por otro jugador de la jornada.</div>
+        <button class="btn-primary" style="margin-top:20px;" onclick="backFromCargar()">← Volver a Jornadas</button>
+      </div>`;
+  } catch(e) {
+    err.textContent = 'Error al guardar: ' + e.message;
+    err.style.display = 'block';
+    btn.disabled = false; btn.textContent = '💾 Guardar y Enviar a Attest';
+  }
+}
+
+function backFromCargar() {
+  cargarEntries = [];
+  goTab('jornadas');
+}
+
+// ══════════════════════════════════════════════════════
+// JUGADORES
+// ══════════════════════════════════════════════════════
+let showAddForm = false;
+
+function renderJugadores() {
+  const el = document.getElementById('tab-jugadores');
+  const isAdmin = STATE.profile?.role === 'admin';
+
+  el.innerHTML = `
+    ${isAdmin ? `
+      <button class="btn-primary mb-16" onclick="toggleAddForm()">${showAddForm?'✕ Cancelar':'+ Agregar Jugador'}</button>
+      ${showAddForm ? `
+        <div class="card mb-16">
+          <div class="card-header"><span class="card-title">Nuevo Jugador</span></div>
+          <div class="card-body" style="display:flex;flex-direction:column;gap:12px;">
+            <div><label class="form-label">Nombre Completo *</label><input class="form-input" id="newNombre" placeholder="Ej: Daniel Badell"/></div>
+            <div style="display:flex;gap:12px;">
+              <div style="flex:1;"><label class="form-label">Alias</label><input class="form-input" id="newAlias" placeholder="Ej: Badell"/></div>
+              <div style="width:90px;"><label class="form-label">Iniciales</label><input class="form-input" id="newFoto" placeholder="DB" maxlength="2"/></div>
+            </div>
+            <div id="addError" class="error-box" style="display:none;"></div>
+            <button class="btn-primary" onclick="addJugador()">Agregar al Club</button>
+          </div>
+        </div>` : ''}
+    ` : ''}
+
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      ${STATE.jugadores.map(j => `
+        <div class="card" style="margin-bottom:0;">
+          <div style="padding:14px 18px;display:flex;align-items:center;gap:14px;">
+            ${avatarHTML(j.foto, 99, 'lg')}
+            <div class="flex-1">
+              <div class="text-14 font-bold text-white">${j.nombre}</div>
+              <div class="text-12 text-muted">${j.alias||'—'}</div>
+            </div>
+            ${isAdmin ? `<button class="btn-danger" onclick="deleteJugador('${j.id}','${j.nombre}')">🗑️</button>` : ''}
+          </div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+function toggleAddForm() {
+  showAddForm = !showAddForm;
+  renderJugadores();
+}
+
+async function addJugador() {
+  const nombre = document.getElementById('newNombre').value.trim();
+  const alias  = document.getElementById('newAlias').value.trim();
+  const foto   = document.getElementById('newFoto').value.trim().toUpperCase().slice(0,2);
+  const err    = document.getElementById('addError');
+  if (!nombre) { err.textContent = 'El nombre es obligatorio.'; err.style.display='block'; return; }
+  const initials = foto || nombre.split(' ').map(n=>n[0]).join('').toUpperCase().slice(0,2);
+  const id = nombre.toLowerCase().replace(/\s+/g,'_') + '_' + Date.now();
+  await db.collection('jugadores').doc(id).set({
+    nombre, alias: alias||nombre.split(' ')[0], foto: initials,
+    creado: firebase.firestore.FieldValue.serverTimestamp()
+  });
+  showAddForm = false;
+}
+
+async function deleteJugador(id, nombre) {
+  if (!confirm(`¿Eliminar a ${nombre}?`)) return;
+  await db.collection('jugadores').doc(id).delete();
+}
+
+// ══════════════════════════════════════════════════════
+// SEED — Cargar datos iniciales (solo admin, solo 1 vez)
+// ══════════════════════════════════════════════════════
+async function seedDatos() {
+  const msg = document.getElementById('seedMsg');
+  msg.style.display = 'block';
+  msg.textContent = '⏳ Cargando datos iniciales...';
+  try {
+    const batch = db.batch();
+
+    // Torneo
+    const torneoRef = db.collection('torneos').doc('apertura2026');
+    batch.set(torneoRef, {
+      nombre: 'Torneo Apertura 2026', estado: 'Activo',
+      jornadas_total: 8, temporada: '2026',
+      creado: firebase.firestore.FieldValue.serverTimestamp()
+    });
+
+    // Jugadores
+    const jugadores = [
+      { id:'badell',    nombre:'Daniel Badell',       alias:'Badell',    foto:'DB' },
+      { id:'jimeno',    nombre:'Javi Jimeno',          alias:'Jimeno',    foto:'JJ' },
+      { id:'padron',    nombre:'Loor Padrón',          alias:'Loor',      foto:'LP' },
+      { id:'kolman',    nombre:'Juan Kolman',          alias:'Kolman',    foto:'JK' },
+      { id:'aguiar',    nombre:'Jesús Aguiar',         alias:'J. Aguiar', foto:'JA' },
+      { id:'soto',      nombre:'Mauricio Soto',        alias:'Soto',      foto:'MS' },
+      { id:'aguiar_r',  nombre:'Jesús Aguiar Romero',  alias:'Aguiar R.', foto:'JR' },
+    ];
+    jugadores.forEach(j => {
+      const { id, ...data } = j;
+      batch.set(db.collection('jugadores').doc(id), { ...data, creado: firebase.firestore.FieldValue.serverTimestamp() });
+    });
+
+    // Jornadas
+    const jornadas = [
+      { id:'j1', numero:1, nombre:'J1', sede:'Izcaragua CC',   fecha:'15 Ene 2026' },
+      { id:'j2', numero:2, nombre:'J2', sede:'Junko GC',        fecha:'05 Feb 2026' },
+      { id:'j3', numero:3, nombre:'J3', sede:'Lagunita CC',     fecha:'19 Feb 2026' },
+      { id:'j4', numero:4, nombre:'J4', sede:'Valle Arriba GC', fecha:'05 Mar 2026' },
+      { id:'j5', numero:5, nombre:'J5', sede:'Guataparo CC',    fecha:'19 Mar 2026' },
+      { id:'j6', numero:6, nombre:'J6', sede:'Izcaragua CC',    fecha:'09 Abr 2026' },
+      { id:'j7', numero:7, nombre:'J7', sede:'Junko GC',        fecha:'23 Abr 2026' },
+      { id:'j8', numero:8, nombre:'J8', sede:'Lagunita CC',     fecha:'07 May 2026' },
+    ];
+    jornadas.forEach(j => {
+      const { id, ...data } = j;
+      batch.set(db.collection('jornadas').doc(id), { ...data, estado:'Planificada', torneo_id:'apertura2026', creado: firebase.firestore.FieldValue.serverTimestamp() });
+    });
+
+    await batch.commit();
+    msg.textContent = '✅ ¡Datos cargados! 7 jugadores y 8 jornadas creados.';
+  } catch(e) {
+    msg.style.color = '#FF6B6B';
+    msg.textContent = '❌ Error: ' + e.message;
+  }
+}
+
+// ══════════════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════════════
+// La autenticación maneja la inicialización vía onAuthStateChanged
+</script>
+</body>
+</html>
