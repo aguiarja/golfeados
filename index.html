@@ -209,6 +209,21 @@ input,select,textarea{font-family:inherit;}
 .upload-progress-bar{height:100%;background:var(--green);width:0%;transition:width 0.3s;border-radius:2px;}
 .foto-perfil-circle{width:64px;height:64px;border-radius:50%;object-fit:cover;border:2px solid var(--border);flex-shrink:0;}
 
+
+/* ── AUTH EXTRA ── */
+.login-divider{display:flex;align-items:center;gap:10px;margin:14px 0;}
+.login-divider::before,.login-divider::after{content:'';flex:1;height:1px;background:var(--border);}
+.login-divider span{font-size:11px;color:var(--muted);white-space:nowrap;}
+.verify-option{border:1.5px solid var(--border);border-radius:12px;padding:16px;cursor:pointer;transition:all 0.2s;display:flex;align-items:center;gap:14px;}
+.verify-option:hover,.verify-option.selected{border-color:var(--green);background:var(--greenPale);}
+.verify-option-icon{font-size:28px;flex-shrink:0;}
+.otp-inputs{display:flex;gap:10px;justify-content:center;margin:20px 0;}
+.otp-input{width:46px;height:56px;border:2px solid var(--border);border-radius:10px;text-align:center;font-size:24px;font-weight:700;color:var(--text);background:var(--bg);outline:none;transition:border-color 0.2s;}
+.otp-input:focus{border-color:var(--green);}
+.strength-bar{height:4px;border-radius:2px;transition:all 0.3s;margin-top:6px;}
+.input-icon-wrap{position:relative;}
+.input-icon-wrap input{padding-right:40px;}
+.input-icon-wrap .toggle-pass{position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px;}
 </style>
 </head>
 <body>
@@ -219,21 +234,158 @@ input,select,textarea{font-family:inherit;}
   <div style="font-size:12px;color:var(--muted);letter-spacing:2px;">CARGANDO...</div>
 </div>
 
-<!-- LOGIN -->
+<!-- LOGIN SCREEN — multiple views -->
 <div id="loginScreen" style="display:none;">
-  <div class="login-card">
+  <div class="login-card" style="max-width:400px;">
+
+    <!-- LOGO (shared) -->
     <div class="login-logo">
       <img src="Logo_Golfeados.png" alt="Golfeados"/>
       <div class="login-title">GOLFEADOS</div>
       <div class="login-sub">Golf Club · Tournament Manager</div>
     </div>
+
+    <!-- ① LOGIN -->
     <div id="loginView">
       <div id="loginError" class="error-box" style="display:none;"></div>
-      <div class="field"><label>Email</label><input type="email" id="loginEmail" placeholder="tu@email.com" autocomplete="email"/></div>
-      <div class="field"><label>Contraseña</label><input type="password" id="loginPassword" placeholder="••••••••" autocomplete="current-password"/></div>
+      <div class="field">
+        <label>Email, usuario o teléfono</label>
+        <input type="text" id="loginIdentifier" placeholder="email / @usuario / +58414..." autocomplete="username"
+          oninput="updateLoginHint(this)"/>
+        <div id="loginHint" style="font-size:11px;color:var(--muted);margin-top:4px;"></div>
+      </div>
+      <div class="field">
+        <label>Contraseña</label>
+        <div class="input-icon-wrap">
+          <input type="password" id="loginPassword" placeholder="••••••••" autocomplete="current-password"/>
+          <button class="toggle-pass" type="button" onclick="togglePass('loginPassword',this)">👁</button>
+        </div>
+      </div>
       <button class="btn-login" id="loginBtn" onclick="handleLogin()">Entrar al Club</button>
+      <div class="login-divider"><span>¿No tienes cuenta?</span></div>
+      <button class="btn-login" style="background:transparent;border:2px solid var(--green);color:var(--green);box-shadow:none;" onclick="showRegister()">Crear cuenta</button>
       <button class="btn-link" onclick="showReset()">¿Olvidaste tu contraseña?</button>
     </div>
+
+    <!-- ② REGISTRO -->
+    <div id="registerView" style="display:none;">
+      <div style="font-size:15px;font-weight:700;color:var(--green);margin-bottom:16px;">Crear cuenta</div>
+      <div id="registerError" class="error-box" style="display:none;"></div>
+      <div class="field">
+        <label>Nombre completo *</label>
+        <input type="text" id="regNombre" placeholder="Ej: Daniel Badell"/>
+      </div>
+      <div class="field">
+        <label>Nombre de usuario *</label>
+        <div class="input-icon-wrap">
+          <input type="text" id="regUsername" placeholder="@badell" oninput="formatUsername(this)"/>
+        </div>
+        <div id="usernameHint" style="font-size:11px;color:var(--muted);margin-top:4px;">Solo letras, números y guión bajo</div>
+      </div>
+      <div class="field">
+        <label>Email *</label>
+        <input type="email" id="regEmail" placeholder="tu@email.com" autocomplete="email"/>
+      </div>
+      <div class="field">
+        <label>Teléfono (opcional pero recomendado)</label>
+        <div style="display:flex;gap:8px;">
+          <select class="form-select" id="regPaisCodigo" style="width:110px;">
+            <option value="+58">🇻🇪 +58</option>
+            <option value="+1">🇺🇸 +1</option>
+            <option value="+34">🇪🇸 +34</option>
+            <option value="+52">🇲🇽 +52</option>
+            <option value="+57">🇨🇴 +57</option>
+            <option value="+51">🇵🇪 +51</option>
+            <option value="+54">🇦🇷 +54</option>
+            <option value="+56">🇨🇱 +56</option>
+            <option value="+55">🇧🇷 +55</option>
+          </select>
+          <input class="form-input" id="regTelefono" type="tel" placeholder="4141234567" style="flex:1;"
+            oninput="this.value=this.value.replace(/[^0-9]/g,'')"/>
+        </div>
+      </div>
+      <div class="field">
+        <label>Contraseña *</label>
+        <div class="input-icon-wrap">
+          <input type="password" id="regPassword" placeholder="Mín. 6 caracteres" oninput="checkStrength(this)"/>
+          <button class="toggle-pass" type="button" onclick="togglePass('regPassword',this)">👁</button>
+        </div>
+        <div class="strength-bar" id="strengthBar" style="background:var(--border);width:0%;"></div>
+        <div id="strengthLabel" style="font-size:11px;color:var(--muted);margin-top:4px;"></div>
+      </div>
+      <button class="btn-login" id="regBtn" onclick="handleRegister()">Continuar →</button>
+      <button class="btn-link" onclick="showLogin()">← Ya tengo cuenta</button>
+    </div>
+
+    <!-- ③ ELEGIR VERIFICACIÓN -->
+    <div id="verifyChoiceView" style="display:none;">
+      <div style="font-size:15px;font-weight:700;color:var(--green);margin-bottom:6px;">Verificar tu cuenta</div>
+      <div style="font-size:13px;color:var(--muted);margin-bottom:20px;">Verifica al menos uno para activar tu cuenta.</div>
+      <div id="verifyChoiceError" class="error-box" style="display:none;"></div>
+      <div class="verify-option mb-12" id="optEmail" onclick="chooseVerify('email')">
+        <div class="verify-option-icon">📧</div>
+        <div>
+          <div style="font-weight:700;font-size:14px;">Verificar por Email</div>
+          <div id="verifyEmailAddr" style="font-size:12px;color:var(--muted);">Gratis e instantáneo</div>
+        </div>
+      </div>
+      <div class="verify-option" id="optSMS" onclick="chooseVerify('sms')">
+        <div class="verify-option-icon">📱</div>
+        <div>
+          <div style="font-weight:700;font-size:14px;">Verificar por SMS</div>
+          <div id="verifyPhoneNum" style="font-size:12px;color:var(--muted);">Recibirás un código de 6 dígitos</div>
+        </div>
+      </div>
+      <div id="recaptcha-container" style="margin-top:12px;"></div>
+      <button class="btn-login" style="margin-top:16px;" id="btnSendVerify" onclick="sendVerification()">Enviar código</button>
+      <button class="btn-link" onclick="skipVerify()">Verificar más tarde</button>
+    </div>
+
+    <!-- ④ CÓDIGO SMS -->
+    <div id="smsCodeView" style="display:none;">
+      <div style="text-align:center;margin-bottom:20px;">
+        <div style="font-size:36px;margin-bottom:10px;">📱</div>
+        <div style="font-size:15px;font-weight:700;color:var(--green);">Código enviado</div>
+        <div id="smsSentTo" style="font-size:13px;color:var(--muted);margin-top:4px;"></div>
+      </div>
+      <div id="smsError" class="error-box" style="display:none;"></div>
+      <div class="otp-inputs">
+        <input class="otp-input" id="otp0" maxlength="1" oninput="otpNext(this,0)" onkeydown="otpBack(event,0)"/>
+        <input class="otp-input" id="otp1" maxlength="1" oninput="otpNext(this,1)" onkeydown="otpBack(event,1)"/>
+        <input class="otp-input" id="otp2" maxlength="1" oninput="otpNext(this,2)" onkeydown="otpBack(event,2)"/>
+        <input class="otp-input" id="otp3" maxlength="1" oninput="otpNext(this,3)" onkeydown="otpBack(event,3)"/>
+        <input class="otp-input" id="otp4" maxlength="1" oninput="otpNext(this,4)" onkeydown="otpBack(event,4)"/>
+        <input class="otp-input" id="otp5" maxlength="1" oninput="otpNext(this,5)" onkeydown="otpBack(event,5)"/>
+      </div>
+      <button class="btn-login" id="btnConfirmSMS" onclick="confirmSMS()">Confirmar código</button>
+      <button class="btn-link" onclick="showVerifyChoice()">← Cambiar método</button>
+      <button class="btn-link" id="btnResendSMS" onclick="resendSMS()" style="display:none;">Reenviar código</button>
+    </div>
+
+    <!-- ⑤ EMAIL ENVIADO -->
+    <div id="emailSentView" style="display:none;">
+      <div style="text-align:center;padding:10px 0 20px;">
+        <div style="font-size:48px;margin-bottom:12px;">📧</div>
+        <div style="font-size:16px;font-weight:700;color:var(--green);">¡Revisa tu email!</div>
+        <div id="emailSentAddr" style="font-size:13px;color:var(--muted);margin-top:6px;line-height:1.5;"></div>
+      </div>
+      <button class="btn-login" onclick="recheckEmail()">Ya verifiqué mi email ✓</button>
+      <button class="btn-link" onclick="resendEmail()">Reenviar email</button>
+      <button class="btn-link" onclick="skipVerify()">Verificar más tarde</button>
+    </div>
+
+    <!-- ⑥ VERIFICACIÓN PENDIENTE (usuario ya registrado pero no verificó) -->
+    <div id="pendingVerifyView" style="display:none;">
+      <div style="text-align:center;padding:10px 0 20px;">
+        <div style="font-size:48px;margin-bottom:12px;">⚠️</div>
+        <div style="font-size:15px;font-weight:700;color:var(--gold);">Cuenta pendiente de verificación</div>
+        <div style="font-size:13px;color:var(--muted);margin-top:8px;line-height:1.5;">Debes verificar tu email o teléfono para acceder.</div>
+      </div>
+      <button class="btn-login" onclick="showVerifyChoice()">Verificar ahora</button>
+      <button class="btn-link" onclick="handleLogout()">Cerrar sesión</button>
+    </div>
+
+    <!-- ⑦ RESET PASSWORD -->
     <div id="resetView" style="display:none;">
       <div style="font-size:13px;color:var(--muted);margin-bottom:14px;">Ingresa tu email para recibir un enlace de recuperación.</div>
       <div id="resetError" class="error-box" style="display:none;"></div>
@@ -247,6 +399,7 @@ input,select,textarea{font-family:inherit;}
       </div>
       <button class="btn-link" onclick="showLogin()">← Volver al login</button>
     </div>
+
   </div>
   <div class="login-footer">PLAY · RELAX · ENJOY · SINCE 2024</div>
 </div>
@@ -473,7 +626,7 @@ input,select,textarea{font-family:inherit;}
 // ══════════════════════════════════════════════════════
 // VERSIÓN — cambia este número cada vez que subas cambios
 // ══════════════════════════════════════════════════════
-const APP_VERSION = '1.0.10';
+const APP_VERSION = '2.0.0';
 
 // ══════════════════════════════════════════════════════
 // FIREBASE CONFIG
@@ -506,17 +659,51 @@ let STATE = {
 // ══════════════════════════════════════════════════════
 // AUTH
 // ══════════════════════════════════════════════════════
-auth.onAuthStateChanged(async user => {
-  if (user) {
-    STATE.user = user;
-    const snap = await db.collection('users').doc(user.uid).get();
-    if (snap.exists) { STATE.profile = snap.data(); }
-    else {
-      const p = {email:user.email, nombre:user.displayName||user.email, role:'jugador', jugador_id:null};
+// ══════════════════════════════════════════════════════
+// AUTH — Multi-method login + Registration + Verification
+// ══════════════════════════════════════════════════════
+
+// Show/hide login views
+function showLoginView(id){
+  ['loginView','registerView','verifyChoiceView','smsCodeView',
+   'emailSentView','pendingVerifyView','resetView'].forEach(v=>{
+    const el=document.getElementById(v);
+    if(el) el.style.display=v===id?'block':'none';
+  });
+}
+function showLogin(){ showLoginView('loginView'); }
+function showRegister(){ showLoginView('registerView'); }
+function showVerifyChoice(){ showLoginView('verifyChoiceView'); }
+
+// ─── onAuthStateChanged ───────────────────────────────
+auth.onAuthStateChanged(async user=>{
+  if(user){
+    STATE.user=user;
+    const snap=await db.collection('users').doc(user.uid).get();
+    if(snap.exists){ STATE.profile=snap.data(); }
+    else{
+      const p={email:user.email,nombre:user.displayName||user.email,
+               role:'jugador',jugador_id:null,verified:false,username:''};
       await db.collection('users').doc(user.uid).set(p);
-      STATE.profile = p;
+      STATE.profile=p;
     }
-    showApp(); initListeners();
+    // Check if verified
+    await user.reload();
+    const emailVerif=user.emailVerified;
+    const phoneVerif=STATE.profile?.phoneVerified||false;
+    const isLegacy=STATE.profile?.legacy||false; // admin-created accounts skip verification
+    if(!emailVerif&&!phoneVerif&&!isLegacy){
+      // Not verified — show pending
+      showLogin_();
+      document.getElementById('loginScreen').style.display='flex';
+      // Pre-fill verifyChoice
+      document.getElementById('verifyEmailAddr').textContent=user.email||'';
+      const tc=STATE.profile?.telefonoCompleto;
+      if(tc) document.getElementById('verifyPhoneNum').textContent=tc;
+      showLoginView('pendingVerifyView');
+    } else {
+      showApp_(); initListeners();
+    }
   } else {
     STATE.user=null; STATE.profile=null;
     stopListeners(); showLogin_();
@@ -527,29 +714,290 @@ function showLogin_(){
   document.getElementById('loading').style.display='none';
   document.getElementById('loginScreen').style.display='flex';
   document.getElementById('app').style.display='none';
+  showLoginView('loginView');
 }
-function showApp(){
+
+function showApp_(){
   document.getElementById('loading').style.display='none';
   document.getElementById('loginScreen').style.display='none';
   document.getElementById('app').style.display='block';
-  document.getElementById('headerUser').textContent = STATE.profile?.nombre||STATE.user?.email||'';
-  document.getElementById('adminBadge').style.display = STATE.profile?.role==='admin'?'inline':'none';
+  document.getElementById('headerUser').textContent=STATE.profile?.nombre||STATE.user?.email||'';
+  document.getElementById('adminBadge').style.display=STATE.profile?.role==='admin'?'inline':'none';
   initConnectionMonitor();
   initUpdateChecker();
 }
+
+// Keep showApp as alias
+function showApp(){ showApp_(); }
+
+// ─── LOGIN: email / username / phone ─────────────────
+function updateLoginHint(input){
+  const v=input.value.trim();
+  const hint=document.getElementById('loginHint');
+  if(!v){ hint.textContent=''; return; }
+  if(v.includes('@')&&v.includes('.')){ hint.textContent='📧 Entrando con email'; }
+  else if(/^[+0-9]/.test(v)){ hint.textContent='📱 Entrando con teléfono'; }
+  else { hint.textContent='👤 Entrando con usuario'; }
+}
+
+async function resolveEmail(identifier){
+  // Returns email for any identifier type
+  if(identifier.includes('@')&&identifier.includes('.')) return identifier;
+  // Search Firestore users
+  let snap;
+  if(/^[+0-9]/.test(identifier)){
+    // Phone: normalize
+    const normalized=identifier.replace(/[^0-9+]/g,'');
+    snap=await db.collection('users').where('telefonoCompleto','==',normalized).limit(1).get();
+    if(snap.empty){
+      // Try without country code variants
+      snap=await db.collection('users').where('telefono','==',normalized.replace(/^\+[0-9]{1,3}/,'')).limit(1).get();
+    }
+  } else {
+    // Username: strip leading @
+    const uname=identifier.replace(/^@/,'').toLowerCase();
+    snap=await db.collection('users').where('username','==',uname).limit(1).get();
+  }
+  if(!snap||snap.empty) return null;
+  return snap.docs[0].data().email||null;
+}
+
 async function handleLogin(){
-  const email=document.getElementById('loginEmail').value.trim();
+  const identifier=document.getElementById('loginIdentifier').value.trim();
   const pass=document.getElementById('loginPassword').value;
   const btn=document.getElementById('loginBtn');
   const err=document.getElementById('loginError');
   err.style.display='none'; btn.disabled=true; btn.textContent='Entrando...';
-  try{ await auth.signInWithEmailAndPassword(email,pass); }
-  catch(e){
-    const m={'auth/user-not-found':'Usuario no encontrado.','auth/wrong-password':'Contraseña incorrecta.','auth/invalid-credential':'Email o contraseña incorrectos.','auth/too-many-requests':'Demasiados intentos.'};
-    err.textContent=m[e.code]||'Error al iniciar sesión.'; err.style.display='block';
+  try{
+    const email=await resolveEmail(identifier);
+    if(!email){ err.textContent='Usuario no encontrado.'; err.style.display='block'; return; }
+    await auth.signInWithEmailAndPassword(email,pass);
+  }catch(e){
+    const m={
+      'auth/user-not-found':'Usuario no encontrado.',
+      'auth/wrong-password':'Contraseña incorrecta.',
+      'auth/invalid-credential':'Credenciales incorrectas.',
+      'auth/too-many-requests':'Demasiados intentos. Espera un momento.'
+    };
+    err.textContent=m[e.code]||'Error: '+e.message; err.style.display='block';
   } finally{ btn.disabled=false; btn.textContent='Entrar al Club'; }
 }
+
+// ─── REGISTER ────────────────────────────────────────
+function formatUsername(input){
+  input.value=input.value.toLowerCase().replace(/[^a-z0-9_]/g,'');
+  const hint=document.getElementById('usernameHint');
+  if(input.value.length>0&&input.value.length<3){
+    hint.textContent='⚠️ Mínimo 3 caracteres'; hint.style.color='var(--red)';
+  } else if(input.value.length>=3){
+    hint.textContent='✅ @'+input.value; hint.style.color='var(--green)';
+  } else { hint.textContent='Solo letras, números y guión bajo'; hint.style.color='var(--muted)'; }
+}
+
+function checkStrength(input){
+  const v=input.value;
+  const bar=document.getElementById('strengthBar');
+  const lbl=document.getElementById('strengthLabel');
+  let score=0;
+  if(v.length>=6)score++;
+  if(v.length>=10)score++;
+  if(/[A-Z]/.test(v))score++;
+  if(/[0-9]/.test(v))score++;
+  if(/[^A-Za-z0-9]/.test(v))score++;
+  const levels=[
+    {w:'0%',bg:'var(--border)',t:''},
+    {w:'25%',bg:'var(--red)',t:'Muy débil'},
+    {w:'50%',bg:'#FF9800',t:'Débil'},
+    {w:'75%',bg:'#2196F3',t:'Buena'},
+    {w:'100%',bg:'var(--green)',t:'Muy segura'},
+  ];
+  const lv=levels[Math.min(score,4)];
+  bar.style.width=lv.w; bar.style.background=lv.bg;
+  lbl.textContent=lv.t; lbl.style.color=lv.bg;
+}
+
+function togglePass(id,btn){
+  const inp=document.getElementById(id);
+  if(inp.type==='password'){ inp.type='text'; btn.textContent='🙈'; }
+  else { inp.type='password'; btn.textContent='👁'; }
+}
+
+async function handleRegister(){
+  const nombre=document.getElementById('regNombre').value.trim();
+  const username=document.getElementById('regUsername').value.trim().toLowerCase();
+  const email=document.getElementById('regEmail').value.trim();
+  const tel=document.getElementById('regTelefono').value.trim();
+  const codigo=document.getElementById('regPaisCodigo').value;
+  const pass=document.getElementById('regPassword').value;
+  const err=document.getElementById('registerError');
+  const btn=document.getElementById('regBtn');
+  err.style.display='none';
+
+  if(!nombre){ err.textContent='El nombre es obligatorio.'; err.style.display='block'; return; }
+  if(!username||username.length<3){ err.textContent='El usuario debe tener mínimo 3 caracteres.'; err.style.display='block'; return; }
+  if(!email||!email.includes('@')){ err.textContent='Email inválido.'; err.style.display='block'; return; }
+  if(pass.length<6){ err.textContent='La contraseña debe tener mínimo 6 caracteres.'; err.style.display='block'; return; }
+
+  btn.disabled=true; btn.textContent='Creando cuenta...';
+  try{
+    // Check username availability
+    const usnap=await db.collection('users').where('username','==',username).limit(1).get();
+    if(!usnap.empty){ err.textContent='Ese nombre de usuario ya está tomado.'; err.style.display='block'; return; }
+
+    // Create Firebase Auth user
+    const cred=await auth.createUserWithEmailAndPassword(email,pass);
+    await cred.user.updateProfile({displayName:nombre});
+
+    // Save profile to Firestore
+    const telefonoCompleto=tel?(codigo+tel):'';
+    const profile={
+      email, nombre, username, role:'jugador', jugador_id:null,
+      telefono:tel||'', codigoPais:tel?codigo:'', telefonoCompleto,
+      verified:false, phoneVerified:false, legacy:false,
+      creado:firebase.firestore.FieldValue.serverTimestamp()
+    };
+    await db.collection('users').doc(cred.user.uid).set(profile);
+    STATE.profile=profile;
+
+    // Go to verification choice
+    document.getElementById('verifyEmailAddr').textContent=email;
+    if(telefonoCompleto) document.getElementById('verifyPhoneNum').textContent=telefonoCompleto;
+    else document.getElementById('optSMS').style.opacity='0.4';
+    showVerifyChoice();
+  }catch(e){
+    const m={
+      'auth/email-already-in-use':'Ese email ya tiene una cuenta.',
+      'auth/invalid-email':'Email inválido.',
+      'auth/weak-password':'Contraseña muy débil.'
+    };
+    err.textContent=m[e.code]||'Error: '+e.message; err.style.display='block';
+  } finally{ btn.disabled=false; btn.textContent='Continuar →'; }
+}
+
+// ─── VERIFICATION ─────────────────────────────────────
+let verifyMethod=null;
+let confirmationResult=null;
+let appVerifier=null;
+
+function chooseVerify(method){
+  verifyMethod=method;
+  document.getElementById('optEmail').classList.toggle('selected',method==='email');
+  document.getElementById('optSMS').classList.toggle('selected',method==='sms');
+}
+
+async function sendVerification(){
+  const err=document.getElementById('verifyChoiceError');
+  const btn=document.getElementById('btnSendVerify');
+  err.style.display='none';
+  if(!verifyMethod){ err.textContent='Selecciona un método.'; err.style.display='block'; return; }
+  btn.disabled=true; btn.textContent='Enviando...';
+
+  try{
+    if(verifyMethod==='email'){
+      await auth.currentUser.sendEmailVerification({
+        url:window.location.origin+window.location.pathname
+      });
+      document.getElementById('emailSentAddr').textContent=
+        'Enviamos un link a '+auth.currentUser.email+'. Ábrelo y luego vuelve aquí.';
+      showLoginView('emailSentView');
+    } else {
+      // SMS via Firebase Phone Auth
+      const profile=STATE.profile||(await db.collection('users').doc(auth.currentUser.uid).get()).data();
+      const phone=profile?.telefonoCompleto;
+      if(!phone){ err.textContent='No tienes teléfono registrado. Elige email.'; err.style.display='block'; return; }
+
+      if(!appVerifier){
+        appVerifier=new firebase.auth.RecaptchaVerifier('recaptcha-container',{
+          size:'invisible',
+          callback:()=>{}
+        });
+      }
+      confirmationResult=await auth.signInWithPhoneNumber(phone,appVerifier);
+      document.getElementById('smsSentTo').textContent='Código enviado a '+phone;
+      // Clear OTP inputs
+      [0,1,2,3,4,5].forEach(i=>{ const el=document.getElementById('otp'+i); if(el)el.value=''; });
+      showLoginView('smsCodeView');
+      document.getElementById('otp0').focus();
+      // Show resend after 30s
+      setTimeout(()=>{ const b=document.getElementById('btnResendSMS'); if(b)b.style.display='block'; },30000);
+    }
+  }catch(e){
+    err.textContent='Error: '+e.message; err.style.display='block';
+    if(appVerifier){ try{appVerifier.clear();}catch(ex){} appVerifier=null; }
+  } finally{ btn.disabled=false; btn.textContent='Enviar código'; }
+}
+
+// OTP input helpers
+function otpNext(input,i){
+  input.value=input.value.replace(/[^0-9]/g,'');
+  if(input.value&&i<5) document.getElementById('otp'+(i+1)).focus();
+  // Auto-confirm when all 6 filled
+  const code=[0,1,2,3,4,5].map(n=>document.getElementById('otp'+n).value).join('');
+  if(code.length===6) confirmSMS();
+}
+function otpBack(e,i){
+  if(e.key==='Backspace'&&!e.target.value&&i>0) document.getElementById('otp'+(i-1)).focus();
+}
+
+async function confirmSMS(){
+  const code=[0,1,2,3,4,5].map(i=>document.getElementById('otp'+i).value).join('');
+  const err=document.getElementById('smsError');
+  const btn=document.getElementById('btnConfirmSMS');
+  err.style.display='none';
+  if(code.length<6){ err.textContent='Ingresa los 6 dígitos.'; err.style.display='block'; return; }
+  btn.disabled=true; btn.textContent='Verificando...';
+  try{
+    // Get phone credential and link to current user
+    const credential=firebase.auth.PhoneAuthProvider.credential(
+      confirmationResult.verificationId, code
+    );
+    await auth.currentUser.linkWithCredential(credential);
+    // Mark verified in Firestore
+    await db.collection('users').doc(auth.currentUser.uid).update({
+      phoneVerified:true, verified:true,
+      verifiedAt:firebase.firestore.FieldValue.serverTimestamp()
+    });
+    STATE.profile.phoneVerified=true; STATE.profile.verified=true;
+    showApp_(); initListeners();
+  }catch(e){
+    const m={'auth/invalid-verification-code':'Código incorrecto.','auth/code-expired':'Código expirado, reenvía.'};
+    err.textContent=m[e.code]||'Error: '+e.message; err.style.display='block';
+  } finally{ btn.disabled=false; btn.textContent='Confirmar código'; }
+}
+
+async function resendSMS(){
+  if(appVerifier){ try{appVerifier.clear();}catch(e){} appVerifier=null; }
+  confirmationResult=null;
+  showVerifyChoice();
+  verifyMethod='sms';
+  chooseVerify('sms');
+}
+
+async function recheckEmail(){
+  await auth.currentUser.reload();
+  if(auth.currentUser.emailVerified){
+    await db.collection('users').doc(auth.currentUser.uid).update({verified:true,verifiedAt:firebase.firestore.FieldValue.serverTimestamp()});
+    STATE.profile.verified=true;
+    showApp_(); initListeners();
+  } else {
+    const err=document.getElementById('verifyChoiceError');
+    showLoginView('emailSentView');
+    alert('El email aún no ha sido verificado. Por favor abre el link en tu correo.');
+  }
+}
+
+async function resendEmail(){
+  try{ await auth.currentUser.sendEmailVerification({url:window.location.origin+window.location.pathname}); }
+  catch(e){ alert('Error al reenviar: '+e.message); }
+}
+
+function skipVerify(){
+  // Allow limited access — can be restricted later
+  showApp_(); initListeners();
+}
+
 async function handleLogout(){ await auth.signOut(); }
+
 async function handleReset(){
   const email=document.getElementById('resetEmail').value.trim();
   const err=document.getElementById('resetError'); err.style.display='none';
@@ -559,8 +1007,12 @@ async function handleReset(){
     document.getElementById('resetSuccess').style.display='block';
   }catch{ err.textContent='No se encontró ese email.'; err.style.display='block'; }
 }
-function showReset(){ document.getElementById('loginView').style.display='none'; document.getElementById('resetView').style.display='block'; }
-function showLogin(){ document.getElementById('loginView').style.display='block'; document.getElementById('resetView').style.display='none'; }
+
+function showReset(){
+  showLoginView('resetView');
+  document.getElementById('resetForm').style.display='block';
+  document.getElementById('resetSuccess').style.display='none';
+}
 
 // ══════════════════════════════════════════════════════
 // FIRESTORE LISTENERS
