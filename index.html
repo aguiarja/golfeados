@@ -178,8 +178,8 @@ input,select,textarea{font-family:inherit;}
 .breakdown-table td{padding:8px;border-top:1px solid var(--border);}
 
 /* ── MODAL ── */
-.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.35);z-index:200;display:flex;align-items:center;justify-content:center;padding:20px;}
-.modal-box{background:var(--white);border-radius:16px;width:100%;max-width:460px;box-shadow:0 16px 48px rgba(0,0,0,0.2);overflow:hidden;max-height:90vh;overflow-y:auto;}
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:200;display:flex;align-items:flex-end;justify-content:center;padding:0;}@media(min-width:520px){.modal-overlay{align-items:center;padding:20px;}}
+.modal-box{background:var(--white);border-radius:20px 20px 0 0;width:100%;max-width:500px;box-shadow:0 -4px 30px rgba(0,0,0,0.2);overflow:hidden;max-height:92vh;overflow-y:auto;}@media(min-width:520px){.modal-box{border-radius:16px;max-height:88vh;}}
 .modal-header{padding:18px 24px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;background:var(--cardL);}
 .modal-title{font-size:15px;font-weight:700;color:var(--green);}
 .modal-body{padding:24px;}
@@ -827,7 +827,7 @@ input,select,textarea{font-family:inherit;}
 // ══════════════════════════════════════════════════════
 // VERSIÓN — cambia este número cada vez que subas cambios
 // ══════════════════════════════════════════════════════
-const APP_VERSION = '3.3.0';
+const APP_VERSION = '3.4.0';
 
 // ══════════════════════════════════════════════════════
 // FIREBASE CONFIG
@@ -1403,6 +1403,13 @@ function calcRankingTorneo(torneoId){
   // First build a map: jornada_id → { jugador_id → calculated_pts }
   const jornadaPtsMap={};
   for(const jn of jugados){
+    // Per-jornada rules: use reglasOverride if present
+    const jnReglas=jn.reglasOverride?Object.assign({},reglas,{
+      puntos:jn.reglasOverride.puntos||reglas.puntos,
+      bonusAsistencia:jn.reglasOverride.bonusAsistencia!=null?jn.reglasOverride.bonusAsistencia:reglas.bonusAsistencia,
+      penalNoAsistencia:jn.reglasOverride.penalNoAsistencia!=null?jn.reglasOverride.penalNoAsistencia:reglas.penalNoAsistencia,
+      penalDQ:jn.reglasOverride.penalDQ!=null?jn.reglasOverride.penalDQ:reglas.penalDQ
+    }):reglas;
     const jnResults=STATE.resultados.filter(r=>r.jornada_id===jn.id&&r.asistencia);
     // Group by position to detect empates
     const byPos={};
@@ -1414,24 +1421,24 @@ function calcRankingTorneo(torneoId){
     Object.entries(byPos).forEach(([posStr,group])=>{
       const pos=Number(posStr);
       let basePts;
-      if(reglas.empates==='comparten'&&group.length>1){
+      if(jnReglas.empates==='comparten'&&group.length>1){
         // Average points of positions pos, pos+1, ... pos+group.length-1
         let sum=0;
-        for(let k=0;k<group.length;k++) sum+=getPtsPosicion(pos+k,reglas);
+        for(let k=0;k<group.length;k++) sum+=getPtsPosicion(pos+k,jnReglas);
         basePts=sum/group.length;
       } else {
-        basePts=getPtsPosicion(pos,reglas);
+        basePts=getPtsPosicion(pos,jnReglas);
       }
       group.forEach(r=>{
         let pts=basePts;
-        pts+=(reglas.bonusAsistencia||0);
-        if(r.dq) pts+=(reglas.penalDQ||0);
+        pts+=(jnReglas.bonusAsistencia||0);
+        if(r.dq) pts+=(jnReglas.penalDQ||0);
         jornadaPtsMap[jn.id][r.jugador_id]=Math.round(pts*100)/100;
       });
     });
     // Non-attendees
     STATE.resultados.filter(r=>r.jornada_id===jn.id&&!r.asistencia).forEach(r=>{
-      jornadaPtsMap[jn.id][r.jugador_id]=(reglas.penalNoAsistencia||0);
+      jornadaPtsMap[jn.id][r.jugador_id]=(jnReglas.penalNoAsistencia||0);
     });
   }
 
@@ -1724,7 +1731,7 @@ function renderMisTorneos(){
               <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
                 ${clubAvatarHTML(jn.sede)}
                 <div class="flex-1">
-                  <div class="text-13 font-bold">${jn.sede||'Sin sede'}${jn.cuentaRanking===false?' 🚫':''}${jn.reglasOverride?' (especial)':''}</div>
+                  <div class="text-13 font-bold">${jn.sede||'Sin sede'}${jn.cuentaRanking===false?' 🚫':''}${jn.reglasOverride?' ⭐ Especial':''}</div>
                   <div class="text-11 text-muted">${fmtFecha(jn.fecha)}${jn.teeTime?' · ⏰ '+jn.teeTime:''}</div>
                 </div>
                 ${badgeHTML(jn.estado)}
@@ -1740,7 +1747,7 @@ function renderMisTorneos(){
             html+='<div class="text-11 text-muted font-bold" style="letter-spacing:1px;text-transform:uppercase;margin-bottom:10px;">Desglose por Jornada</div>';
             html+='<table style="width:100%;border-collapse:collapse;font-size:12px;min-width:'+minW+'px;">';
             html+='<tr><td style="padding:4px 8px;color:var(--muted);font-weight:700;white-space:nowrap;">Jugador</td>';
-            jJugadas.forEach(jn=>{html+='<td style="padding:4px 8px;text-align:center;color:var(--muted);font-weight:700;white-space:nowrap;">'+jn.sede+'<br/>'+badgeHTML(jn.estado)+'</td>';});
+            jJugadas.forEach(jn=>{html+='<td style="padding:4px 8px;text-align:center;color:var(--muted);font-weight:700;white-space:nowrap;">'+jn.sede+(jn.reglasOverride?' ⭐':'')+'<br/><span style="font-size:10px;opacity:0.75;">'+fmtFecha(jn.fecha)+'</span><br/>'+badgeHTML(jn.estado)+'</td>';});
             html+='<td style="padding:4px 8px;text-align:center;color:var(--green);font-weight:700;">TOT</td></tr>';
             rk.forEach(j=>{
               html+='<tr style="border-top:1px solid var(--border);">';
@@ -2112,20 +2119,23 @@ function renderJornadas(){
       return`
         <div class="jornada-card">
           <div class="jornada-header" onclick="toggleJornada('${jn.id}')">
-            <div class="flex items-center gap-12">
+            <div class="flex items-center gap-10" style="flex:1;min-width:0;">
               ${clubAvatarHTML(jn.sede)}
-              <div>
-                <div class="text-15 font-bold">${jn.sede||'Sin sede'}${jn.cuentaRanking===false?' 🚫':''}${jn.reglasOverride?' (especial)':''}</div>
-                <div class="text-12 text-muted">${fmtFecha(jn.fecha)}${jn.teeTime?' · ⏰ '+jn.teeTime:''}${jn.notas?' · '+jn.notas:''}</div>
-                ${(()=>{const t=STATE.torneos.find(t=>t.id===jn.torneo_id);return t?`<div class="text-11" style="color:var(--green);font-weight:600;margin-top:2px;">🏆 ${t.nombre}</div>`:'';})()} 
+              <div style="flex:1;min-width:0;">
+                <div class="text-14 font-bold" style="line-height:1.3;">
+                  ${jn.sede||'Sin sede'}${jn.cuentaRanking===false?' 🚫':''}${jn.reglasOverride?` <span style="background:#FEF3C7;color:#92400E;font-size:10px;font-weight:700;padding:1px 5px;border-radius:4px;white-space:nowrap;">⭐ Especial</span>`:''}
+                </div>
+                <div style="font-size:12px;color:var(--text2);font-weight:600;margin-top:2px;">${fmtFecha(jn.fecha)}${jn.teeTime?' · ⏰ '+jn.teeTime:''}</div>
+                ${jn.notas?`<div class="text-11 text-muted">${jn.notas}</div>`:''}
+                ${(()=>{const t=STATE.torneos.find(t=>t.id===jn.torneo_id);return t?`<div class="text-11" style="color:var(--green);font-weight:600;margin-top:1px;">🏆 ${t.nombre}</div>`:'';})()} 
               </div>
+              ${jn.fotos&&jn.fotos.length>0?`<div style="display:flex;flex-direction:row;gap:0;flex-shrink:0;margin-left:4px;cursor:pointer;" onclick="event.stopPropagation();toggleJornada('${jn.id}')">${jn.fotos.slice(0,3).map((url,fi)=>'<img src="'+url+'" style="width:34px;height:34px;object-fit:cover;border-radius:6px;border:2px solid var(--white);'+(fi>0?'margin-left:-8px':'')+'box-shadow:0 1px 3px rgba(0,0,0,0.15);"/>').join('')}</div>`:''}
             </div>
-            <div class="flex items-center gap-8">
+            <div class="flex items-center gap-6" style="flex-shrink:0;margin-left:8px;">
               ${badgeHTML(jn.estado)}
               ${isAdmin?`<button class="btn-outline" style="padding:4px 10px;font-size:12px;" onclick="event.stopPropagation();openModalJornada('${jn.id}')">✏️</button>`:''}
               <span style="color:var(--muted);font-size:13px;">${isOpen?'▲':'▼'}</span>
-            </div>
-          </div>
+            </div></div>
           ${isOpen?`
             <div class="jornada-body">
               <div class="jornada-actions">
@@ -2640,7 +2650,17 @@ function goCargarStep2(){
 }
 
 function setPosJugador(idx,jugadorId){
-  if(cargarPosiciones[idx]) cargarPosiciones[idx].jugador_id=jugadorId;
+  if(!cargarPosiciones[idx]) return;
+  cargarPosiciones[idx].jugador_id=jugadorId;
+  // Auto-add next row if players still unassigned and no empty row waiting
+  if(jugadorId){
+    const asistentes=cargarParticipantes.filter(p=>p.asistio&&!p.dq);
+    const usados=new Set(cargarPosiciones.map(r=>r.jugador_id).filter(Boolean));
+    const hayPendientes=asistentes.some(p=>!usados.has(p.jugador_id));
+    const lastIsEmpty=!cargarPosiciones[cargarPosiciones.length-1]?.jugador_id;
+    if(hayPendientes && !lastIsEmpty){ addPosRow(); return; }
+  }
+  renderCargar();
 }
 
 function toggleEmpate(idx,checked){
@@ -2722,7 +2742,13 @@ async function saveResultados(){
     // Build results from new cargar model
     const jornada=STATE.jornadas.find(j=>j.id===jornadaId);
     const torneoId=jornada?.torneo_id||STATE.activeTorneoId||STATE.torneo?.id;
-    const reglas=getReglas(torneoId);
+    const _baseReglas=getReglas(torneoId);
+    const reglas=jornada?.reglasOverride?Object.assign({},_baseReglas,{
+      puntos:jornada.reglasOverride.puntos||_baseReglas.puntos,
+      bonusAsistencia:jornada.reglasOverride.bonusAsistencia!=null?jornada.reglasOverride.bonusAsistencia:_baseReglas.bonusAsistencia,
+      penalNoAsistencia:jornada.reglasOverride.penalNoAsistencia!=null?jornada.reglasOverride.penalNoAsistencia:_baseReglas.penalNoAsistencia,
+      penalDQ:jornada.reglasOverride.penalDQ!=null?jornada.reglasOverride.penalDQ:_baseReglas.penalDQ
+    }):_baseReglas;
 
     // Merge participantes + posiciones
     cargarParticipantes.forEach(p=>{
