@@ -493,7 +493,7 @@ input,select,textarea{font-family:inherit;}
         <div style="display:flex;gap:12px;">
           <div style="flex:1;">
             <label class="form-label">Tee Time</label>
-            <input type="time" class="form-input" id="jornadaTeeTime"/>
+            <input type="time" class="form-input" id="jornadaTeeTime" step="600"/>
           </div>
           <div style="flex:2;">
             <label class="form-label">Notas (opcional)</label>
@@ -508,24 +508,7 @@ input,select,textarea{font-family:inherit;}
           </div>
         </div>
       </div>
-      <div style="margin-top:14px;">
-        <label class="form-label">Fotos del día (máx 3)</label>
-        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:6px;" id="jornadaFotoGrid">
-          <div class="photo-upload-box" style="height:80px;padding:8px;" id="jornadaFotoSlot0" onclick="document.getElementById('jornadaFotoInput0').click()">
-            <div style="font-size:22px;">📷</div><div style="font-size:10px;color:var(--muted);">Foto 1</div>
-            <input type="file" id="jornadaFotoInput0" accept="image/*" style="display:none;" onchange="previewJornadaFoto(this,0)"/>
-          </div>
-          <div class="photo-upload-box" style="height:80px;padding:8px;" id="jornadaFotoSlot1" onclick="document.getElementById('jornadaFotoInput1').click()">
-            <div style="font-size:22px;">📷</div><div style="font-size:10px;color:var(--muted);">Foto 2</div>
-            <input type="file" id="jornadaFotoInput1" accept="image/*" style="display:none;" onchange="previewJornadaFoto(this,1)"/>
-          </div>
-          <div class="photo-upload-box" style="height:80px;padding:8px;" id="jornadaFotoSlot2" onclick="document.getElementById('jornadaFotoInput2').click()">
-            <div style="font-size:22px;">📷</div><div style="font-size:10px;color:var(--muted);">Foto 3</div>
-            <input type="file" id="jornadaFotoInput2" accept="image/*" style="display:none;" onchange="previewJornadaFoto(this,2)"/>
-          </div>
-        </div>
-        <div class="upload-progress"><div class="upload-progress-bar" id="jornadaFotoProgress"></div></div>
-      </div>
+<!-- fotos se cargan en pantalla de resultados -->
     </div>
     <div class="modal-footer">
       <button class="btn-outline" onclick="closeModalJornada()">Cancelar</button>
@@ -699,7 +682,7 @@ input,select,textarea{font-family:inherit;}
             </div>
             <div style="text-align:center;">
               <div style="font-size:18px;margin-bottom:4px;">🥉</div>
-              <input type="number" class="form-input" id="rPts3" value="2" min="0" style="text-align:center;padding:8px 4px;"/>
+              <input type="number" class="form-input" id="rPts3" oninput="updateEmpateEjemplo()" value="2" min="0" style="text-align:center;padding:8px 4px;"/>
             </div>
             <div style="text-align:center;">
               <div style="font-size:18px;margin-bottom:4px;">🏌️</div>
@@ -753,6 +736,19 @@ input,select,textarea{font-family:inherit;}
       </div>
     </div>
 
+      <!-- DELEGAR ADMINS -->
+      <div style="background:var(--cardL);border-radius:10px;padding:14px;border:1px solid var(--border);" id="seccionAdmins">
+        <div class="text-12 font-bold text-muted" style="letter-spacing:1px;text-transform:uppercase;margin-bottom:12px;">👥 Co-Administradores</div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:10px;">Pueden cargar jornadas, editar y gestionar el torneo.</div>
+        <div id="adminsList" style="display:flex;flex-direction:column;gap:8px;margin-bottom:10px;"></div>
+        <div style="display:flex;gap:8px;">
+          <input class="form-input" id="addAdminInput" placeholder="Email o @usuario del jugador" style="flex:1;"/>
+          <button class="btn-outline" style="white-space:nowrap;padding:8px 14px;" onclick="addCoAdmin()">+ Agregar</button>
+        </div>
+        <div id="addAdminError" style="font-size:11px;color:var(--red);margin-top:6px;display:none;"></div>
+      </div>
+    </div>
+
     <div class="modal-footer">
       <button class="btn-outline" onclick="closeModalTorneo()">Cancelar</button>
       <button class="btn-green" id="btnGuardarTorneo" onclick="saveModalTorneo()">Guardar Torneo</button>
@@ -763,7 +759,7 @@ input,select,textarea{font-family:inherit;}
 // ══════════════════════════════════════════════════════
 // VERSIÓN — cambia este número cada vez que subas cambios
 // ══════════════════════════════════════════════════════
-const APP_VERSION = '2.2.0';
+const APP_VERSION = '2.2.1';
 
 // ══════════════════════════════════════════════════════
 // FIREBASE CONFIG
@@ -1546,6 +1542,11 @@ function renderDashboard(){
           Ver todos mis torneos (${torneos.length}) →
         </button>
       </div>`:''}
+    <div class="card" style="margin-bottom:0;">
+      <div class="card-body" style="display:flex;gap:10px;flex-wrap:wrap;padding:14px 16px;">
+        <button class="btn-green" style="font-size:13px;" onclick="openModalTorneo()">+ Crear Torneo</button>
+      </div>
+    </div>
     ${isAdmin?`
     <div class="card">
       <div class="card-header"><span class="card-title">⚙️ Admin</span></div>
@@ -1721,11 +1722,70 @@ function openModalTorneo(torneoId=null){
   document.getElementById('rEmpates').value=r.empates||'comparten';
 
   updateEmpateEjemplo();
+
+  // Load co-admins
+  STATE._coAdmins=[...(t?.admins||[])].filter(uid=>uid!==STATE.user?.uid);
+  renderAdminsList();
+
+  // Hide co-admins section for new torneos (show after creation)
+  document.getElementById('seccionAdmins').style.display=torneoId?'block':'none';
   document.getElementById('modalTorneo').style.display='flex';
 }
 
 // Alias for edit button
 function openModalEditTorneo(torneoId){ openModalTorneo(torneoId); }
+
+function renderAdminsList(){
+  const el=document.getElementById('adminsList');
+  if(!el)return;
+  const admins=STATE._coAdmins||[];
+  if(admins.length===0){
+    el.innerHTML='<div class="text-12 text-muted">Sin co-administradores aún.</div>';
+    return;
+  }
+  el.innerHTML=admins.map(uid=>{
+    const u=STATE._adminUsers?.[uid]||{};
+    return`<div style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--bg);border-radius:8px;">
+      <div style="width:28px;height:28px;border-radius:50%;background:var(--green);display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:700;">${(u.nombre||uid).slice(0,2).toUpperCase()}</div>
+      <div class="flex-1"><div class="text-12 font-bold">${u.nombre||uid}</div><div class="text-11 text-muted">${u.email||''}</div></div>
+      <button onclick="removeCoAdmin('${uid}')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px;">✕</button>
+    </div>`;
+  }).join('');
+}
+
+async function addCoAdmin(){
+  const input=document.getElementById('addAdminInput');
+  const errEl=document.getElementById('addAdminError');
+  const val=input.value.trim();
+  errEl.style.display='none';
+  if(!val)return;
+
+  try{
+    // Search by email or username
+    let snap;
+    if(val.includes('@')&&val.includes('.')){
+      snap=await db.collection('users').where('email','==',val).limit(1).get();
+    } else {
+      snap=await db.collection('users').where('username','==',val.replace('@','')).limit(1).get();
+    }
+    if(snap.empty){ errEl.textContent='Usuario no encontrado.'; errEl.style.display='block'; return; }
+    const userData=snap.docs[0].data();
+    const uid=snap.docs[0].id;
+    if(STATE._coAdmins.includes(uid)||uid===STATE.user?.uid){
+      errEl.textContent='Este usuario ya es admin.'; errEl.style.display='block'; return;
+    }
+    STATE._coAdmins.push(uid);
+    if(!STATE._adminUsers) STATE._adminUsers={};
+    STATE._adminUsers[uid]=userData;
+    input.value='';
+    renderAdminsList();
+  }catch(e){ errEl.textContent='Error: '+e.message; errEl.style.display='block'; }
+}
+
+function removeCoAdmin(uid){
+  STATE._coAdmins=(STATE._coAdmins||[]).filter(u=>u!==uid);
+  renderAdminsList();
+}
 
 function closeModalTorneo(event){
   if(event&&event.currentTarget!==event.target)return;
@@ -1734,15 +1794,22 @@ function closeModalTorneo(event){
 }
 
 function updateEmpateEjemplo(){
-  const tipo=document.getElementById('rEmpates').value;
-  const pts1=Number(document.getElementById('rPts1').value)||4;
-  const pts2=Number(document.getElementById('rPts2').value)||3;
   const el=document.getElementById('empateEjemplo');
+  if(!el)return;
+  const tipo=(document.getElementById('rEmpates')?.value)||'comparten';
+  const pts1=Number(document.getElementById('rPts1')?.value)||4;
+  const pts2=Number(document.getElementById('rPts2')?.value)||3;
+  const pts3=Number(document.getElementById('rPts3')?.value)||2;
   if(tipo==='comparten'){
-    const avg=((pts1+pts2)/2).toFixed(1);
-    el.textContent=`Ej: 2 empatados en 1° → cada uno recibe ${avg} pts ((${pts1}+${pts2})/2). El siguiente toma 3°.`;
+    const avg2=((pts1+pts2)/2).toFixed(1);
+    const avg3=((pts1+pts2+pts3)/3).toFixed(1);
+    el.innerHTML=
+      `<strong>2 empatados en 1°:</strong> ${avg2} pts c/u → siguiente toma 3°<br>`+
+      `<strong>3 empatados en 1°:</strong> ${avg3} pts c/u → siguiente toma 4°`;
   } else {
-    el.textContent=`Ej: 2 empatados en 1° → ambos reciben ${pts1} pts. El siguiente toma 3°.`;
+    el.innerHTML=
+      `<strong>2 empatados en 1°:</strong> ambos reciben ${pts1} pts → siguiente toma 3°<br>`+
+      `<strong>3 empatados en 1°:</strong> todos reciben ${pts1} pts → siguiente toma 4°`;
   }
 }
 
@@ -1782,6 +1849,9 @@ async function saveModalTorneo(){
 
     if(editingTorneoId){
       data.updated_at=firebase.firestore.FieldValue.serverTimestamp();
+      // Keep original adminId, update admins list
+      const origTorneo=STATE.torneos.find(t=>t.id===editingTorneoId);
+      data.admins=[origTorneo?.adminId||STATE.user.uid,...(STATE._coAdmins||[])];
       await db.collection('torneos').doc(editingTorneoId).update(data);
     } else {
       data.adminId=STATE.user.uid;
@@ -2235,6 +2305,25 @@ function renderCargar(){
         </div>`).join('')}
     </div>
 
+    <!-- FOTOS DE LA JORNADA -->
+    <div class="card mb-16" style="padding:16px;">
+      <div class="card-header" style="margin-bottom:12px;"><span class="card-title">📷 Fotos del día (máx 3)</span></div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;" id="jornadaFotoGrid">
+        <div class="photo-upload-box" style="height:80px;padding:8px;" id="jornadaFotoSlot0" onclick="document.getElementById('jornadaFotoInput0').click()">
+          <div style="font-size:22px;">📷</div><div style="font-size:10px;color:var(--muted);">Foto 1</div>
+          <input type="file" id="jornadaFotoInput0" accept="image/*" style="display:none;" onchange="previewJornadaFoto(this,0)"/>
+        </div>
+        <div class="photo-upload-box" style="height:80px;padding:8px;" id="jornadaFotoSlot1" onclick="document.getElementById('jornadaFotoInput1').click()">
+          <div style="font-size:22px;">📷</div><div style="font-size:10px;color:var(--muted);">Foto 2</div>
+          <input type="file" id="jornadaFotoInput1" accept="image/*" style="display:none;" onchange="previewJornadaFoto(this,1)"/>
+        </div>
+        <div class="photo-upload-box" style="height:80px;padding:8px;" id="jornadaFotoSlot2" onclick="document.getElementById('jornadaFotoInput2').click()">
+          <div style="font-size:22px;">📷</div><div style="font-size:10px;color:var(--muted);">Foto 3</div>
+          <input type="file" id="jornadaFotoInput2" accept="image/*" style="display:none;" onchange="previewJornadaFoto(this,2)"/>
+        </div>
+      </div>
+      <div class="upload-progress" style="margin-top:8px;"><div class="upload-progress-bar" id="jornadaFotoProgress"></div></div>
+    </div>
     <div id="cargarError" class="error-box" style="display:none;"></div>
     <button class="btn-save" id="btnSave" onclick="saveResultados()">💾 Guardar y Enviar a Attest</button>
   `;
@@ -2254,6 +2343,18 @@ async function saveResultados(){
   const err=document.getElementById('cargarError');
   err.style.display='none'; btn.disabled=true; btn.textContent='Guardando...';
   try{
+    // Upload fotos if any new files selected
+    let fotos=[...(STATE._jornadaFotosExistentes||[])];
+    for(let i=0;i<3;i++){
+      const fi=document.getElementById('jornadaFotoInput'+i);
+      if(fi&&fi.files&&fi.files[0]){
+        const compressed=await resizeAndCompress(fi.files[0],1200,0.82);
+        const url=await uploadPhoto(compressed,`jornadas/${jornadaId}_foto${i}.jpg`,'jornadaFotoProgress');
+        fotos[i]=url;
+      }
+    }
+    fotos=fotos.filter(Boolean);
+
     const batch=db.batch();
     cargarEntries.forEach(e=>{
       batch.set(db.collection('resultados').doc(`${jornadaId}_${e.jugador_id}`),{
@@ -2264,7 +2365,8 @@ async function saveResultados(){
     });
     batch.update(db.collection('jornadas').doc(jornadaId),{
       estado:'Pendiente Attest',cargado_por:STATE.profile?.jugador_id||null,
-      cargado_at:firebase.firestore.FieldValue.serverTimestamp()
+      cargado_at:firebase.firestore.FieldValue.serverTimestamp(),
+      ...(fotos.length?{fotos}:{})
     });
     await batch.commit();
     cargarEntries=[];
