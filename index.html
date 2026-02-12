@@ -700,11 +700,15 @@ input,select,textarea{font-family:inherit;}
             <label class="form-label">Descripción (opcional)</label>
             <textarea class="form-input" id="tDescripcion" placeholder="Descripción del torneo..." rows="3" style="resize:vertical;"></textarea>
           </div>
-          <div>
-            <label class="form-label">Documento o imagen del torneo (opcional)</label>
-            <div class="photo-upload-box" onclick="document.getElementById('tDocInput').click()" id="tDocBox">
-              <img id="tDocPreview" style="display:none;width:100%;max-height:200px;object-fit:contain;border-radius:8px;margin-bottom:8px;"/>
-              <div id="tDocLabel">📎 Toca para subir PDF, imagen o reglamento</div>
+                      <div>
+            <label class="form-label">Documento / imagen (opcional)</label>
+            <div onclick="document.getElementById('tDocInput').click()" id="tDocBox"
+              style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--cardL);border-radius:10px;border:2px dashed var(--border);cursor:pointer;min-height:52px;">
+              <span style="font-size:22px;flex-shrink:0;">📎</span>
+              <div style="flex:1;min-width:0;">
+                <div id="tDocLabel" style="font-size:12px;color:var(--muted);line-height:1.3;">Subir PDF o imagen</div>
+              </div>
+              <img id="tDocPreview" style="display:none;width:44px;height:44px;object-fit:cover;border-radius:6px;flex-shrink:0;"/>
               <input type="file" id="tDocInput" accept="image/*,application/pdf" style="display:none;" onchange="previewTorneoDoc(this)"/>
             </div>
             <div id="tDocExisting" style="display:none;margin-top:8px;display:flex;align-items:center;gap:8px;">
@@ -823,7 +827,7 @@ input,select,textarea{font-family:inherit;}
 // ══════════════════════════════════════════════════════
 // VERSIÓN — cambia este número cada vez que subas cambios
 // ══════════════════════════════════════════════════════
-const APP_VERSION = '3.2.1';
+const APP_VERSION = '3.3.0';
 
 // ══════════════════════════════════════════════════════
 // FIREBASE CONFIG
@@ -1319,19 +1323,31 @@ function initConnectionMonitor(){
 // ══════════════════════════════════════════════════════
 function goTab(tab){
   STATE.currentTab=tab; STATE.cargarJornadaId=null;
-  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+  document.querySelector('[data-tab="'+tab+'"]')?.classList.add('active');
   ['dashboard','mistorneos','jornadas','jugadores','clubes','cargar'].forEach(t=>{
-    const el=document.getElementById('tab-'+t);
-    if(el) el.style.display=t===tab?'block':'none';
+    const el=document.getElementById('tab-'+t); if(el) el.style.display='none';
   });
+  const tEl=document.getElementById('tab-'+tab); if(tEl) tEl.style.display='block';
   renderCurrentTab();
 }
 function goCargar(jornadaId){
   STATE.cargarJornadaId=jornadaId; STATE.currentTab='cargar';
+  STATE._jornadaFotosExistentes=[];
+  cargarParticipantes=[]; cargarPosiciones=[]; cargarStep=1;
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
-  ['dashboard','ranking','jornadas','jugadores','clubes'].forEach(t=>document.getElementById('tab-'+t).style.display='none');
-  document.getElementById('tab-cargar').style.display='block';
+  ['dashboard','mistorneos','jornadas','jugadores','clubes'].forEach(t=>{
+    const el=document.getElementById('tab-'+t); if(el) el.style.display='none';
+  });
+  const ct=document.getElementById('tab-cargar');
+  if(ct) ct.style.display='block';
   renderCargar();
+  setTimeout(()=>{
+    const jn=STATE.jornadas.find(j=>j.id===jornadaId);
+    const fotos=jn?.fotos||[];
+    STATE._jornadaFotosExistentes=[...fotos];
+    [0,1,2].forEach(i=>{if(fotos[i]) setJornadaFotoSlot(i,fotos[i]); else resetJornadaFotoSlot(i);});
+  },150);
 }
 function renderCurrentTab(){
   if(STATE.currentTab==='dashboard') renderDashboard();
@@ -1708,7 +1724,7 @@ function renderMisTorneos(){
               <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
                 ${clubAvatarHTML(jn.sede)}
                 <div class="flex-1">
-                  <div class="text-13 font-bold">${jn.sede||'Sin sede'}${jn.cuentaRanking===false?' 🚫':''}${jn.reglasOverride?' ⭐':''}</div>
+                  <div class="text-13 font-bold">${jn.sede||'Sin sede'}${jn.cuentaRanking===false?' 🚫':''}${jn.reglasOverride?' (especial)':''}</div>
                   <div class="text-11 text-muted">${fmtFecha(jn.fecha)}${jn.teeTime?' · ⏰ '+jn.teeTime:''}</div>
                 </div>
                 ${badgeHTML(jn.estado)}
@@ -2099,7 +2115,7 @@ function renderJornadas(){
             <div class="flex items-center gap-12">
               ${clubAvatarHTML(jn.sede)}
               <div>
-                <div class="text-15 font-bold">${jn.sede||'Sin sede'}${jn.cuentaRanking===false?' 🚫':''}${jn.reglasOverride?' ⭐':''}</div>
+                <div class="text-15 font-bold">${jn.sede||'Sin sede'}${jn.cuentaRanking===false?' 🚫':''}${jn.reglasOverride?' (especial)':''}</div>
                 <div class="text-12 text-muted">${fmtFecha(jn.fecha)}${jn.teeTime?' · ⏰ '+jn.teeTime:''}${jn.notas?' · '+jn.notas:''}</div>
                 ${(()=>{const t=STATE.torneos.find(t=>t.id===jn.torneo_id);return t?`<div class="text-11" style="color:var(--green);font-weight:600;margin-top:2px;">🏆 ${t.nombre}</div>`:'';})()} 
               </div>
@@ -2744,7 +2760,11 @@ async function saveResultados(){
     await batch.commit();
     cargarEntries=[];
     cargarParticipantes=[]; cargarPosiciones=[]; cargarStep=1;
-    // Go to jornadas and expand this jornada so user sees the summary
+    // Update local fotos in STATE immediately
+    if(fotos.length){
+      const jnIdx=STATE.jornadas.findIndex(j=>j.id===jornadaId);
+      if(jnIdx>-1) STATE.jornadas[jnIdx]={...STATE.jornadas[jnIdx],fotos};
+    }
     STATE.expandedJornada=jornadaId;
     goTab('jornadas');
   }catch(e){
@@ -2754,6 +2774,7 @@ async function saveResultados(){
 }
 function backFromCargar(){
   cargarEntries=[]; cargarParticipantes=[]; cargarPosiciones=[]; cargarStep=1;
+  const ct=document.getElementById('tab-cargar'); if(ct) ct.style.display='none';
   goTab('jornadas');
 }
 
