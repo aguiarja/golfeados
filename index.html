@@ -20,6 +20,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-storage-compat.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 
 <style>
@@ -194,6 +195,20 @@ input,select,textarea{font-family:inherit;}
 .mt-8{margin-top:8px;}.mt-12{margin-top:12px;}.mt-16{margin-top:16px;}
 .overflow-x{overflow-x:auto;}
 .section-gap{margin-bottom:20px;}
+/* ── FOTOS ── */
+.photo-upload-box{border:2px dashed var(--border2);border-radius:12px;padding:20px;text-align:center;cursor:pointer;transition:all 0.2s;background:var(--cardL);}
+.photo-upload-box:hover{border-color:var(--green);background:var(--greenPale);}
+.photo-upload-box input[type=file]{display:none;}
+.photo-preview{width:100%;height:140px;object-fit:cover;border-radius:10px;border:1px solid var(--border);}
+.photo-preview-sm{width:60px;height:60px;object-fit:cover;border-radius:8px;border:1px solid var(--border);}
+.photo-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px;}
+.photo-grid-item{position:relative;aspect-ratio:1;}
+.photo-grid-item img{width:100%;height:100%;object-fit:cover;border-radius:8px;border:1px solid var(--border);}
+.photo-grid-item .del-photo{position:absolute;top:3px;right:3px;background:rgba(0,0,0,0.6);color:#fff;border:none;border-radius:50%;width:20px;height:20px;font-size:11px;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+.upload-progress{height:4px;background:var(--border);border-radius:2px;margin-top:8px;overflow:hidden;display:none;}
+.upload-progress-bar{height:100%;background:var(--green);width:0%;transition:width 0.3s;border-radius:2px;}
+.foto-perfil-circle{width:64px;height:64px;border-radius:50%;object-fit:cover;border:2px solid var(--border);flex-shrink:0;}
+
 </style>
 </head>
 <body>
@@ -243,7 +258,7 @@ input,select,textarea{font-family:inherit;}
   box-shadow:0 -4px 20px rgba(0,0,0,0.2);gap:12px;">
   <div>
     <div style="color:#fff;font-weight:700;font-size:14px;">🔄 Nueva versión disponible</div>
-    <div style="color:rgba(255,255,255,0.8);font-size:12px;margin-top:2px;">Toca para actualizar Golfeados</div>
+    <div style="color:rgba(255,255,255,0.8);font-size:12px;margin-top:2px;" id="updateBannerSub">Nueva versión disponible</div>
   </div>
   <button onclick="forceUpdate()" style="background:#fff;color:var(--green);border:none;border-radius:8px;
     padding:10px 18px;font-weight:800;font-size:13px;white-space:nowrap;cursor:pointer;">
@@ -331,6 +346,24 @@ input,select,textarea{font-family:inherit;}
           </div>
         </div>
       </div>
+      <div style="margin-top:14px;">
+        <label class="form-label">Fotos del día (máx 3)</label>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:6px;" id="jornadaFotoGrid">
+          <div class="photo-upload-box" style="height:80px;padding:8px;" id="jornadaFotoSlot0" onclick="document.getElementById('jornadaFotoInput0').click()">
+            <div style="font-size:22px;">📷</div><div style="font-size:10px;color:var(--muted);">Foto 1</div>
+            <input type="file" id="jornadaFotoInput0" accept="image/*" style="display:none;" onchange="previewJornadaFoto(this,0)"/>
+          </div>
+          <div class="photo-upload-box" style="height:80px;padding:8px;" id="jornadaFotoSlot1" onclick="document.getElementById('jornadaFotoInput1').click()">
+            <div style="font-size:22px;">📷</div><div style="font-size:10px;color:var(--muted);">Foto 2</div>
+            <input type="file" id="jornadaFotoInput1" accept="image/*" style="display:none;" onchange="previewJornadaFoto(this,1)"/>
+          </div>
+          <div class="photo-upload-box" style="height:80px;padding:8px;" id="jornadaFotoSlot2" onclick="document.getElementById('jornadaFotoInput2').click()">
+            <div style="font-size:22px;">📷</div><div style="font-size:10px;color:var(--muted);">Foto 3</div>
+            <input type="file" id="jornadaFotoInput2" accept="image/*" style="display:none;" onchange="previewJornadaFoto(this,2)"/>
+          </div>
+        </div>
+        <div class="upload-progress"><div class="upload-progress-bar" id="jornadaFotoProgress"></div></div>
+      </div>
     </div>
     <div class="modal-footer">
       <button class="btn-outline" onclick="closeModalJornada()">Cancelar</button>
@@ -365,6 +398,15 @@ input,select,textarea{font-family:inherit;}
             </select>
           </div>
         </div>
+        <div>
+          <label class="form-label">Foto del Club (opcional)</label>
+          <div class="photo-upload-box" onclick="document.getElementById('clubFotoInput').click()">
+            <img id="clubFotoPreview" style="display:none;width:100%;height:120px;object-fit:cover;border-radius:8px;margin-bottom:8px;"/>
+            <div id="clubFotoPlaceholder">📷 Toca para subir foto</div>
+            <input type="file" id="clubFotoInput" accept="image/*" onchange="previewPhoto(this,'clubFotoPreview','clubFotoPlaceholder')"/>
+          </div>
+          <div class="upload-progress"><div class="upload-progress-bar" id="clubFotoProgress"></div></div>
+        </div>
       </div>
     </div>
     <div class="modal-footer">
@@ -384,7 +426,16 @@ input,select,textarea{font-family:inherit;}
     <div class="modal-body">
       <div id="modalJugadorError" class="error-box" style="display:none;"></div>
       <div style="display:flex;flex-direction:column;gap:14px;">
-        <div><label class="form-label">Nombre Completo *</label><input class="form-input" id="editNombre" placeholder="Nombre completo"/></div>
+        <div style="display:flex;align-items:center;gap:16px;">
+          <div style="position:relative;flex-shrink:0;">
+            <img id="jugadorFotoPreview" src="" style="display:none;" class="foto-perfil-circle"/>
+            <div id="jugadorFotoFallback" style="width:64px;height:64px;border-radius:50%;background:var(--green);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:20px;">👤</div>
+            <button type="button" onclick="document.getElementById('jugadorFotoInput').click()" 
+              style="position:absolute;bottom:0;right:0;background:var(--green);border:none;border-radius:50%;width:22px;height:22px;color:#fff;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;">✏️</button>
+            <input type="file" id="jugadorFotoInput" accept="image/*" style="display:none;" onchange="previewPhoto(this,'jugadorFotoPreview','jugadorFotoFallback')"/>
+          </div>
+          <div style="flex:1;"><label class="form-label">Nombre Completo *</label><input class="form-input" id="editNombre" placeholder="Nombre completo"/></div>
+        </div>
         <div style="display:flex;gap:12px;">
           <div style="flex:1;"><label class="form-label">Alias</label><input class="form-input" id="editAlias" placeholder="Alias o apodo"/></div>
           <div style="width:80px;"><label class="form-label">Iniciales</label><input class="form-input" id="editFoto" placeholder="DB" maxlength="2"/></div>
@@ -422,7 +473,7 @@ input,select,textarea{font-family:inherit;}
 // ══════════════════════════════════════════════════════
 // VERSIÓN — cambia este número cada vez que subas cambios
 // ══════════════════════════════════════════════════════
-const APP_VERSION = '1.0.7';
+const APP_VERSION = '1.0.9';
 
 // ══════════════════════════════════════════════════════
 // FIREBASE CONFIG
@@ -436,8 +487,9 @@ const firebaseConfig = {
   appId:             "1:417996522021:web:67871e33758befec81f5cc"
 };
 firebase.initializeApp(firebaseConfig);
-const auth = firebase.auth();
-const db   = firebase.firestore();
+const auth    = firebase.auth();
+const db      = firebase.firestore();
+const storage = firebase.storage();
 
 // ══════════════════════════════════════════════════════
 // ESTADO GLOBAL
@@ -755,7 +807,7 @@ function renderRanking(){
       ${rk.map(j=>`
         <div class="rank-row ${j.pos<=3?'top':''}">
           <div>${medal(j.pos)}</div>
-          <div class="flex items-center gap-8">${avatarHTML(j.foto,j.pos,'sm')}<div><div class="text-13 font-bold">${j.nombre}</div><div class="text-11 text-muted">${j.alias||''}</div></div></div>
+          <div class="flex items-center gap-8">${j.fotoURL?`<img src="${j.fotoURL}" style="width:32px;height:32px;border-radius:50%;object-fit:cover;flex-shrink:0;border:2px solid ${j.pos===1?'var(--gold)':'var(--border)'}"/>`:avatarHTML(j.foto,j.pos,'sm')}<div><div class="text-13 font-bold">${j.nombre}</div><div class="text-11 text-muted">${j.alias||''}</div></div></div>
           <div class="text-14 font-bold">${j.ptsOf}</div>
           <div style="font-size:15px;font-weight:800;color:${j.pos===1?'var(--gold)':'var(--text)'};">${j.ptsT}</div>
           <div class="text-13 text-muted">${j.asist}✓</div>
@@ -791,6 +843,7 @@ function clubAvatarHTML(sede){
   const cl=STATE.clubes.find(c=>c.nombre===sede);
   const bg=cl?.color||'#2E7D5E';
   const ini=cl?.iniciales||sede?.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,3)||'⛳';
+  if(cl?.fotoURL) return`<img src="${cl.fotoURL}" style="width:42px;height:42px;border-radius:10px;object-fit:cover;flex-shrink:0;border:1px solid var(--border);"/>`;
   return`<div style="width:42px;height:42px;border-radius:10px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12px;color:#fff;background:${bg};">${ini}</div>`;
 }
 
@@ -852,7 +905,14 @@ function renderJornadas(){
                 <div style="margin-top:10px;padding:8px 12px;background:var(--cardL);border-radius:8px;font-size:11px;color:var(--muted);border:1px solid var(--border);">
                   ${cargador?`📋 Cargado por <strong style="color:var(--text);">${cargador.nombre}</strong>`:''}
                   ${attestador?` · ✍️ Attest: <strong style="color:#7B1FA2;">${attestador.nombre}</strong>`:''}
-                </div>`
+                </div>
+                ${jn.fotos&&jn.fotos.length>0?`
+                <div style="margin-top:12px;">
+                  <div class="text-11 text-muted font-bold" style="letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;">📸 Fotos del día</div>
+                  <div style="display:grid;grid-template-columns:repeat(${Math.min(jn.fotos.length,3)},1fr);gap:8px;">
+                    ${jn.fotos.map(url=>`<img src="${url}" style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:10px;border:1px solid var(--border);cursor:pointer;" onclick="window.open('${url}','_blank')"/>`).join('')}
+                  </div>
+                </div>`:''}`
               :`<div style="padding:20px 0;text-align:center;color:var(--muted);font-size:13px;">
                 ${jn.estado==='Planificada'?'⏳ Pendiente · Presiona "Cargar Resultados" al finalizar':'Sin resultados cargados'}
               </div>`}
@@ -920,6 +980,45 @@ function openModalJornada(jornadaId=null){
   modal.style.display='flex';
 }
 
+
+function resetJornadaFotoSlot(i){
+  const slot=document.getElementById('jornadaFotoSlot'+i);
+  if(!slot)return;
+  slot.innerHTML=`
+    <div class="photo-upload-box" style="height:80px;padding:8px;" onclick="document.getElementById('jornadaFotoInput${i}').click()">
+      <div style="font-size:22px;">📷</div>
+      <div style="font-size:10px;color:var(--muted);">Foto ${i+1}</div>
+      <input type="file" id="jornadaFotoInput${i}" accept="image/*" onchange="previewJornadaFoto(this,${i})"/>
+    </div>`.replace(/\${i}/g,i).replace(/\${i\+1}/g,i+1);
+}
+
+function setJornadaFotoSlot(i,url){
+  const slot=document.getElementById('jornadaFotoSlot'+i);
+  if(!slot)return;
+  slot.innerHTML=`
+    <img src="${url}" style="width:100%;height:80px;object-fit:cover;border-radius:8px;border:1px solid var(--border);"/>
+    <button class="del-photo" onclick="delJornadaFoto(${i})">✕</button>`;
+}
+
+function previewJornadaFoto(input,i){
+  const file=input.files[0];
+  if(!file)return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    const slot=document.getElementById('jornadaFotoSlot'+i);
+    if(slot) slot.innerHTML=`
+      <img src="${e.target.result}" style="width:100%;height:80px;object-fit:cover;border-radius:8px;border:1px solid var(--border);"/>
+      <button class="del-photo" onclick="delJornadaFoto(${i})">✕</button>
+      <input type="file" id="jornadaFotoInput${i}" accept="image/*" style="display:none;" onchange="previewJornadaFoto(this,${i})"/>`;
+  };
+  reader.readAsDataURL(file);
+}
+
+function delJornadaFoto(i){
+  if(STATE._jornadaFotosExistentes) STATE._jornadaFotosExistentes[i]=null;
+  resetJornadaFotoSlot(i);
+}
+
 function closeModalJornada(event){
   if(event&&event.currentTarget!==event.target)return;
   document.getElementById('modalJornada').style.display='none';
@@ -941,15 +1040,28 @@ async function saveJornada(){
 
   btn.disabled=true; btn.textContent='Guardando...';
   try{
+    // Upload new photos (slots with new files)
+    let fotos=[...(STATE._jornadaFotosExistentes||[])];
+    for(let i=0;i<3;i++){
+      const fi=document.getElementById('jornadaFotoInput'+i);
+      if(fi&&fi.files&&fi.files[0]){
+        const jid=STATE.editingJornadaId||'new_'+Date.now();
+        const compressed=await resizeAndCompress(fi.files[0],1200,0.82);
+        const url=await uploadPhoto(compressed,`jornadas/${jid}_foto${i}.jpg`,'jornadaFotoProgress');
+        fotos[i]=url;
+      }
+    }
+    fotos=fotos.filter(Boolean);
+
     if(STATE.editingJornadaId){
       await db.collection('jornadas').doc(STATE.editingJornadaId).update({
-        sede:club, fecha, estado, notas, teeTime,
+        sede:club, fecha, estado, notas, teeTime, fotos,
         updated_at:firebase.firestore.FieldValue.serverTimestamp()
       });
     } else {
       const numero=(STATE.jornadas.length>0?Math.max(...STATE.jornadas.map(j=>j.numero||0)):0)+1;
       await db.collection('jornadas').add({
-        numero, nombre:`J${numero}`, sede:club, fecha, estado, notas, teeTime,
+        numero, nombre:`J${numero}`, sede:club, fecha, estado, notas, teeTime, fotos,
         torneo_id:STATE.torneo?.id||'',
         creado:firebase.firestore.FieldValue.serverTimestamp()
       });
@@ -978,10 +1090,13 @@ function renderClubes(){
       ${STATE.clubes.map(club=>{
         const bg=club.color||'#2E7D5E';
         const ini=club.iniciales||club.nombre.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,3);
+        const avatarEl=club.fotoURL
+          ?`<img src="${club.fotoURL}" style="width:44px;height:44px;border-radius:10px;object-fit:cover;flex-shrink:0;border:1px solid var(--border);"/>`
+          :`<div style="width:44px;height:44px;border-radius:10px;background:${bg};display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:13px;flex-shrink:0;">${ini}</div>`;
         return`
         <div class="card" style="margin-bottom:0;">
           <div style="padding:14px 18px;display:flex;align-items:center;gap:14px;">
-            <div style="width:44px;height:44px;border-radius:10px;background:${bg};display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:13px;flex-shrink:0;">${ini}</div>
+            ${avatarEl}
             <div class="flex-1">
               <div class="text-14 font-bold">${club.nombre}</div>
               <div class="text-12 text-muted">${club.ciudad||'—'}</div>
@@ -1031,10 +1146,20 @@ async function saveClub(){
   btn.disabled=true; btn.textContent='Guardando...';
   try{
     const ini=iniciales||nombre.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,3);
+    const data={nombre,ciudad,iniciales:ini,color};
+    // Upload photo if selected
+    const fileInput=document.getElementById('clubFotoInput');
+    if(fileInput.files&&fileInput.files[0]){
+      const compressed=await resizeAndCompress(fileInput.files[0],800);
+      const path='clubes/'+(editingClubId||Date.now())+'.jpg';
+      data.fotoURL=await uploadPhoto(compressed,path,'clubFotoProgress');
+    }
     if(editingClubId){
-      await db.collection('clubes').doc(editingClubId).update({nombre,ciudad,iniciales:ini,color,updated_at:firebase.firestore.FieldValue.serverTimestamp()});
+      data.updated_at=firebase.firestore.FieldValue.serverTimestamp();
+      await db.collection('clubes').doc(editingClubId).update(data);
     } else {
-      await db.collection('clubes').add({nombre,ciudad,iniciales:ini,color,creado:firebase.firestore.FieldValue.serverTimestamp()});
+      data.creado=firebase.firestore.FieldValue.serverTimestamp();
+      await db.collection('clubes').add(data);
     }
     closeModalClub();
   }catch(e){err.textContent='Error: '+e.message;err.style.display='block';}
@@ -1201,7 +1326,9 @@ function renderJugadores(){
         return`
         <div class="card" style="margin-bottom:0;">
           <div style="padding:14px 18px;display:flex;align-items:center;gap:14px;">
-            ${avatarHTML(j.foto,rk?.pos||99,'lg')}
+            ${j.fotoURL
+              ?`<img src="${j.fotoURL}" class="foto-perfil-circle" style="width:42px;height:42px;"/>`
+              :avatarHTML(j.foto,rk?.pos||99,'lg')}
             <div class="flex-1">
               <div class="text-14 font-bold">${j.nombre}</div>
               <div class="text-12 text-muted">${j.alias||'—'}${j.handicap!==undefined?' · HCP '+j.handicap:''}</div>
@@ -1230,6 +1357,15 @@ function openModalJugador(jugadorId){
     document.getElementById('editAlias').value=j.alias||'';
     document.getElementById('editFoto').value=j.foto||'';
     document.getElementById('editHandicap').value=j.handicap??'';
+    if(j.fotoURL){
+      document.getElementById('jugadorFotoPreview').src=j.fotoURL;
+      document.getElementById('jugadorFotoPreview').style.display='block';
+      document.getElementById('jugadorFotoFallback').style.display='none';
+    } else {
+      document.getElementById('jugadorFotoPreview').style.display='none';
+      document.getElementById('jugadorFotoFallback').style.display='flex';
+    }
+    document.getElementById('jugadorFotoInput').value='';
     const tel=j.telefono||'';
     const codigoPais=j.codigoPais||'+58';
     document.getElementById('editPaisCodigo').value=codigoPais;
@@ -1306,6 +1442,11 @@ async function saveJugador(){
     const upd={nombre,alias:alias||nombre.split(' ')[0],foto:foto||nombre.split(' ').map(n=>n[0]).join('').toUpperCase().slice(0,2),updated_at:firebase.firestore.FieldValue.serverTimestamp()};
     if(handicap!=='')upd.handicap=Number(handicap);
     if(telefono){upd.telefono=telefono;upd.codigoPais=codigoPais;upd.telefonoCompleto=codigoPais+telefono;}
+    const fotoFile=document.getElementById('jugadorFotoInput').files[0];
+    if(fotoFile){
+      const compressed=await resizeAndCompress(fotoFile,400,0.85);
+      upd.fotoURL=await uploadPhoto(compressed,'jugadores/'+editingJugadorId+'.jpg');
+    }
     await db.collection('jugadores').doc(editingJugadorId).update(upd);
     closeModalJugador();
   }catch(e){err.textContent='Error: '+e.message;err.style.display='block';}
@@ -1336,60 +1477,137 @@ async function deleteJugador(id,nombre){
   await db.collection('jugadores').doc(id).delete();
 }
 
-// ══════════════════════════════════════════════════════
-// ACTUALIZACIONES AUTOMÁTICAS — fuerza recarga si hay versión nueva
-// ══════════════════════════════════════════════════════
-function initUpdateChecker(){
-  // Save current version to localStorage
-  const storedVersion=localStorage.getItem('golfeados_version');
-  if(storedVersion&&storedVersion!==APP_VERSION){
-    // Version changed since last open — force hard reload
-    localStorage.setItem('golfeados_version',APP_VERSION);
-    window.location.reload(true);
-    return;
-  }
-  localStorage.setItem('golfeados_version',APP_VERSION);
 
-  // Periodically fetch index.html to check if server has newer version
-  async function checkForUpdate(){
-    try{
-      // Add timestamp to bypass cache
-      const res=await fetch(window.location.href+'?v='+Date.now(),{
-        method:'HEAD',
-        cache:'no-store',
-        headers:{'Cache-Control':'no-cache, no-store, must-revalidate','Pragma':'no-cache'}
-      });
-      const serverVer=res.headers.get('x-app-version');
-      // Alternatively, fetch the file and parse the version string
-      const res2=await fetch(window.location.href+'?nc='+Date.now(),{cache:'no-store'});
-      const text=await res2.text();
-      const match=text.match(/APP_VERSION\s*=\s*['"]([^'"]+)['"]/);
-      if(match&&match[1]&&match[1]!==APP_VERSION){
-        // New version detected — show banner
-        document.getElementById('updateBanner').style.display='flex';
+// ══════════════════════════════════════════════════════
+// STORAGE — Subir fotos
+// ══════════════════════════════════════════════════════
+async function uploadPhoto(file, path, progressBarId=null){
+  return new Promise((resolve,reject)=>{
+    const ref=storage.ref(path);
+    const task=ref.put(file);
+    task.on('state_changed',
+      snap=>{
+        if(progressBarId){
+          const pct=Math.round((snap.bytesTransferred/snap.totalBytes)*100);
+          const bar=document.getElementById(progressBarId);
+          if(bar){bar.parentElement.style.display='block';bar.style.width=pct+'%';}
+        }
+      },
+      err=>reject(err),
+      async ()=>{
+        const url=await task.snapshot.ref.getDownloadURL();
+        if(progressBarId){
+          const bar=document.getElementById(progressBarId);
+          if(bar){bar.parentElement.style.display='none';bar.style.width='0%';}
+        }
+        resolve(url);
       }
-    }catch(e){
-      // Network error — silent fail
-    }
-  }
-
-  // Check on app open (after 3s)
-  setTimeout(checkForUpdate, 3000);
-  // Check every 5 minutes while app is open
-  setInterval(checkForUpdate, 5*60*1000);
-  // Check when app comes back to foreground (iOS PWA resumes)
-  document.addEventListener('visibilitychange',()=>{
-    if(document.visibilityState==='visible') checkForUpdate();
+    );
   });
 }
 
-function forceUpdate(){
-  // Clear all caches and reload
-  localStorage.setItem('golfeados_version','');
-  if('caches' in window){
-    caches.keys().then(names=>names.forEach(n=>caches.delete(n)));
+function resizeAndCompress(file, maxW=800, quality=0.82){
+  return new Promise(resolve=>{
+    const img=new Image();
+    const url=URL.createObjectURL(file);
+    img.onload=()=>{
+      const ratio=Math.min(1,maxW/img.width);
+      const canvas=document.createElement('canvas');
+      canvas.width=img.width*ratio; canvas.height=img.height*ratio;
+      canvas.getContext('2d').drawImage(img,0,0,canvas.width,canvas.height);
+      canvas.toBlob(b=>{ URL.revokeObjectURL(url); resolve(new File([b],file.name,{type:'image/jpeg'})); },'image/jpeg',quality);
+    };
+    img.src=url;
+  });
+}
+
+function previewPhoto(input, imgId, fallbackId=null){
+  const file=input.files[0];
+  if(!file)return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    const img=document.getElementById(imgId);
+    if(img){img.src=e.target.result;img.style.display='block';}
+    if(fallbackId){const fb=document.getElementById(fallbackId);if(fb)fb.style.display='none';}
+  };
+  reader.readAsDataURL(file);
+}
+
+// ══════════════════════════════════════════════════════
+// ACTUALIZACIONES AUTOMÁTICAS — iOS compatible
+// iOS ignora reload(true), usamos navegación con cache-bust
+// ══════════════════════════════════════════════════════
+function initUpdateChecker(){
+  // Si llegamos con ?bust= en la URL, limpiar y guardar versión
+  const url=new URL(window.location.href);
+  if(url.searchParams.get('bust')){
+    localStorage.setItem('golfeados_version', APP_VERSION);
+    url.searchParams.delete('bust');
+    window.history.replaceState(null,'',url.toString());
   }
-  window.location.reload(true);
+
+  // Si la versión guardada no coincide → navegar con cache-bust (recarga real en iOS)
+  const stored=localStorage.getItem('golfeados_version');
+  if(stored && stored !== APP_VERSION){
+    localStorage.setItem('golfeados_version', APP_VERSION);
+    doHardReload();
+    return;
+  }
+  localStorage.setItem('golfeados_version', APP_VERSION);
+
+  // Chequeo periódico: descarga el HTML y compara versión
+  async function checkForUpdate(){
+    try{
+      const res=await fetch(window.location.pathname+'?nc='+Date.now(),{
+        cache:'no-store',
+        headers:{'Cache-Control':'no-cache','Pragma':'no-cache'}
+      });
+      const text=await res.text();
+      const match=text.match(/APP_VERSION\s*=\s*['"]([^'"]+)['"]/);
+      if(match && match[1] && match[1] !== APP_VERSION){
+        showUpdateBanner(match[1]);
+      }
+    }catch(e){ /* sin conexión, silencioso */ }
+  }
+
+  // Chequear 4s después de entrar, luego cada 3 minutos
+  setTimeout(checkForUpdate, 4000);
+  setInterval(checkForUpdate, 3*60*1000);
+
+  // Chequear al volver de segundo plano (iOS PWA)
+  document.addEventListener('visibilitychange',()=>{
+    if(document.visibilityState==='visible') setTimeout(checkForUpdate,1500);
+  });
+
+  // Chequear al recuperar conexión
+  window.addEventListener('online', ()=>setTimeout(checkForUpdate,2000));
+}
+
+function showUpdateBanner(newVer){
+  const banner=document.getElementById('updateBanner');
+  const sub=banner.querySelector('div div:last-child');
+  if(sub) sub.textContent='Versión '+newVer+' disponible — toca para instalar';
+  banner.style.display='flex';
+}
+
+function doHardReload(){
+  // iOS-compatible: navegar a la misma URL con parámetro nuevo (bypassa caché)
+  const url=new URL(window.location.href);
+  url.searchParams.set('bust', Date.now());
+  window.location.replace(url.toString());
+}
+
+function forceUpdate(){
+  // Limpiar caché del navegador si está disponible
+  if('caches' in window){
+    caches.keys().then(names=>{
+      names.forEach(n=>caches.delete(n));
+      // Después de limpiar, navegar
+      setTimeout(doHardReload, 300);
+    });
+  } else {
+    doHardReload();
+  }
 }
 
 // ══════════════════════════════════════════════════════
