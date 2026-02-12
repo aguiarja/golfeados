@@ -245,6 +245,10 @@ input,select,textarea{font-family:inherit;}
     </div>
     <div class="header-right">
       <span id="adminBadge" class="badge-admin" style="display:none;">ADMIN</span>
+      <div id="connPill" title="Estado de conexión" style="display:flex;align-items:center;gap:4px;padding:3px 8px;border-radius:20px;font-size:10px;font-weight:700;letter-spacing:0.5px;background:#E8F5E9;color:#2E7D32;border:1px solid #A5D6A7;transition:all 0.4s;">
+        <span id="connDot" style="width:6px;height:6px;border-radius:50%;background:#4CAF50;display:inline-block;"></span>
+        <span id="connLabel">EN VIVO</span>
+      </div>
       <span id="headerUser" class="header-user"></span>
       <button class="btn-logout" onclick="handleLogout()">Salir</button>
     </div>
@@ -455,6 +459,7 @@ function showApp(){
   document.getElementById('app').style.display='block';
   document.getElementById('headerUser').textContent = STATE.profile?.nombre||STATE.user?.email||'';
   document.getElementById('adminBadge').style.display = STATE.profile?.role==='admin'?'inline':'none';
+  initConnectionMonitor();
 }
 async function handleLogin(){
   const email=document.getElementById('loginEmail').value.trim();
@@ -487,17 +492,90 @@ function showLogin(){ document.getElementById('loginView').style.display='block'
 function initListeners(){
   stopListeners();
   STATE.unsubs.push(db.collection('torneos').orderBy('creado','desc').limit(1)
-    .onSnapshot(s=>{ STATE.torneo=s.empty?null:{id:s.docs[0].id,...s.docs[0].data()}; renderCurrentTab(); }));
+    .onSnapshot(s=>{ STATE.torneo=s.empty?null:{id:s.docs[0].id,...s.docs[0].data()}; if(STATE._connSetOnline)STATE._connSetOnline(); renderCurrentTab(); }));
   STATE.unsubs.push(db.collection('jugadores').orderBy('nombre')
     .onSnapshot(s=>{ STATE.jugadores=s.docs.map(d=>({id:d.id,...d.data()})); renderCurrentTab(); }));
   STATE.unsubs.push(db.collection('jornadas').orderBy('numero')
     .onSnapshot(s=>{ STATE.jornadas=s.docs.map(d=>({id:d.id,...d.data()})); renderCurrentTab(); }));
   STATE.unsubs.push(db.collection('resultados')
-    .onSnapshot(s=>{ STATE.resultados=s.docs.map(d=>({id:d.id,...d.data()})); renderCurrentTab(); }));
+    .onSnapshot(s=>{ STATE.resultados=s.docs.map(d=>({id:d.id,...d.data()})); if(STATE._connSetOnline)STATE._connSetOnline(); renderCurrentTab(); }));
   STATE.unsubs.push(db.collection('clubes').orderBy('nombre')
     .onSnapshot(s=>{ STATE.clubes=s.docs.map(d=>({id:d.id,...d.data()})); renderCurrentTab(); }));
 }
 function stopListeners(){ STATE.unsubs.forEach(u=>u()); STATE.unsubs=[]; }
+
+// ══════════════════════════════════════════════════════
+// MONITOR DE CONEXIÓN EN TIEMPO REAL
+// ══════════════════════════════════════════════════════
+function initConnectionMonitor(){
+  // Firestore network state via .info/connected (uses Realtime DB trick via Firestore itself)
+  // We use a heartbeat approach: check if snapshots arrive within expected time
+  let lastUpdate=Date.now();
+  let connTimer=null;
+  const pill=document.getElementById('connPill');
+  const dot=document.getElementById('connDot');
+  const label=document.getElementById('connLabel');
+
+  function setOnline(){
+    lastUpdate=Date.now();
+    if(pill){
+      pill.style.background='#E8F5E9';pill.style.color='#2E7D32';pill.style.borderColor='#A5D6A7';
+      dot.style.background='#4CAF50';dot.style.animation='';
+      label.textContent='EN VIVO';
+    }
+  }
+  function setOffline(){
+    if(pill){
+      pill.style.background='#FFF8E1';pill.style.color='#F57F17';pill.style.borderColor='#FFE082';
+      dot.style.background='#FFC107';dot.style.animation='pulse-dot 1s infinite';
+      label.textContent='RECONECTANDO';
+    }
+  }
+  function setSyncing(){
+    if(pill){
+      pill.style.background='#E3F2FD';pill.style.color='#1565C0';pill.style.borderColor='#90CAF9';
+      dot.style.background='#2196F3';
+      label.textContent='SINCRONIZANDO';
+    }
+    setTimeout(setOnline,1500);
+  }
+
+  // Patch initListeners to call setSyncing on each snapshot
+  const _origInit=initListeners;
+
+  // Monitor: if no update in 15s, show reconnecting
+  function heartbeat(){
+    const elapsed=Date.now()-lastUpdate;
+    if(elapsed>15000) setOffline();
+    else setOnline();
+  }
+  connTimer=setInterval(heartbeat,5000);
+
+  // Listen to window online/offline events
+  window.addEventListener('online',()=>{
+    setSyncing();
+    // Re-init listeners on reconnect
+    initListeners();
+  });
+  window.addEventListener('offline',setOffline);
+
+  // Firestore automatically reconnects — track with a lightweight doc listener
+  db.collection('torneos').limit(1).onSnapshot(
+    ()=>{ lastUpdate=Date.now(); },
+    ()=>{ setOffline(); }
+  );
+
+  // Expose setOnline so snapshot callbacks can call it
+  STATE._connSetOnline=setOnline;
+  STATE._connSetSyncing=setSyncing;
+}
+
+// CSS for pulsing dot
+(function(){
+  const s=document.createElement('style');
+  s.textContent='@keyframes pulse-dot{0%,100%{opacity:1;transform:scale(1);}50%{opacity:0.5;transform:scale(0.8);}}';
+  document.head.appendChild(s);
+})();
 
 // ══════════════════════════════════════════════════════
 // NAVEGACIÓN
