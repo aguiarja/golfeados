@@ -443,7 +443,6 @@ input,select,textarea{font-family:inherit;}
   <div id="nav">
     <button class="nav-btn active" data-tab="dashboard" onclick="goTab('dashboard')">🏠 Inicio</button>
     <button class="nav-btn" data-tab="mistorneos" onclick="goTab('mistorneos')">🏆 Mis Torneos</button>
-    <button class="nav-btn" data-tab="ranking" onclick="goTab('ranking')">📊 Ranking</button>
     <button class="nav-btn" data-tab="jornadas" onclick="goTab('jornadas')">📅 Jornadas</button>
     <button class="nav-btn" data-tab="jugadores" onclick="goTab('jugadores')">👤 Jugadores</button>
     <button class="nav-btn" data-tab="clubes" onclick="goTab('clubes')">🏌️ Clubes</button>
@@ -452,7 +451,6 @@ input,select,textarea{font-family:inherit;}
   <div id="content">
     <div id="tab-dashboard"></div>
     <div id="tab-mistorneos" style="display:none;"></div>
-    <div id="tab-ranking" style="display:none;"></div>
     <div id="tab-jornadas" style="display:none;"></div>
     <div id="tab-jugadores" style="display:none;"></div>
     <div id="tab-clubes" style="display:none;"></div>
@@ -825,7 +823,7 @@ input,select,textarea{font-family:inherit;}
 // ══════════════════════════════════════════════════════
 // VERSIÓN — cambia este número cada vez que subas cambios
 // ══════════════════════════════════════════════════════
-const APP_VERSION = '3.1.1';
+const APP_VERSION = '3.2.1';
 
 // ══════════════════════════════════════════════════════
 // FIREBASE CONFIG
@@ -1322,7 +1320,7 @@ function initConnectionMonitor(){
 function goTab(tab){
   STATE.currentTab=tab; STATE.cargarJornadaId=null;
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));
-  ['dashboard','mistorneos','ranking','jornadas','jugadores','clubes','cargar'].forEach(t=>{
+  ['dashboard','mistorneos','jornadas','jugadores','clubes','cargar'].forEach(t=>{
     const el=document.getElementById('tab-'+t);
     if(el) el.style.display=t===tab?'block':'none';
   });
@@ -1338,7 +1336,6 @@ function goCargar(jornadaId){
 function renderCurrentTab(){
   if(STATE.currentTab==='dashboard') renderDashboard();
   else if(STATE.currentTab==='mistorneos') renderMisTorneos();
-  else if(STATE.currentTab==='ranking') renderRanking();
   else if(STATE.currentTab==='jornadas') renderJornadas();
   else if(STATE.currentTab==='jugadores') renderJugadores();
   else if(STATE.currentTab==='clubes') renderClubes();
@@ -1711,17 +1708,49 @@ function renderMisTorneos(){
               <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
                 ${clubAvatarHTML(jn.sede)}
                 <div class="flex-1">
-                  <div class="text-13 font-bold">${jn.sede||'Sin sede'}${jn.cuentaRanking===false?' 🚫':''}</div>
+                  <div class="text-13 font-bold">${jn.sede||'Sin sede'}${jn.cuentaRanking===false?' 🚫':''}${jn.reglasOverride?' ⭐':''}</div>
                   <div class="text-11 text-muted">${fmtFecha(jn.fecha)}${jn.teeTime?' · ⏰ '+jn.teeTime:''}</div>
                 </div>
                 ${badgeHTML(jn.estado)}
               </div>`).join('')}
           </div>
 
+          <!-- Desglose por jornada -->
+          ${(()=>{
+            const jJugadas=jornadasT.filter(j=>j.estado!=='Planificada');
+            if(!jJugadas.length) return '';
+            const minW=80+jJugadas.length*60;
+            let html='<div style="border-top:1px solid var(--border);padding:14px 20px 8px;overflow-x:auto;">';
+            html+='<div class="text-11 text-muted font-bold" style="letter-spacing:1px;text-transform:uppercase;margin-bottom:10px;">Desglose por Jornada</div>';
+            html+='<table style="width:100%;border-collapse:collapse;font-size:12px;min-width:'+minW+'px;">';
+            html+='<tr><td style="padding:4px 8px;color:var(--muted);font-weight:700;white-space:nowrap;">Jugador</td>';
+            jJugadas.forEach(jn=>{html+='<td style="padding:4px 8px;text-align:center;color:var(--muted);font-weight:700;white-space:nowrap;">'+jn.sede+'<br/>'+badgeHTML(jn.estado)+'</td>';});
+            html+='<td style="padding:4px 8px;text-align:center;color:var(--green);font-weight:700;">TOT</td></tr>';
+            rk.forEach(j=>{
+              html+='<tr style="border-top:1px solid var(--border);">';
+              html+='<td style="padding:5px 8px;font-weight:600;white-space:nowrap;">'+j.nombre+'</td>';
+              jJugadas.forEach(jn=>{
+                const r=STATE.resultados.find(r=>r.jornada_id===jn.id&&r.jugador_id===j.id);
+                const val=r?(r.asistencia?fmtPts(r.pts):'—'):'?';
+                const col=r&&r.pts>=4?'var(--gold)':'var(--text)';
+                html+='<td style="padding:5px 8px;text-align:center;color:'+col+';">'+val+'</td>';
+              });
+              html+='<td style="padding:5px 8px;text-align:center;font-weight:800;color:'+(j.pos===1?'var(--gold)':'var(--text)')+';">'+fmtPts(j.ptsT)+'</td>';
+              html+='</tr>';
+            });
+            html+='</table></div>';
+            return html;
+          })()}
+
           <!-- Reglas del torneo -->
           <div style="border-top:1px solid var(--border);padding:14px 20px 8px;">
-            <div class="text-11 text-muted font-bold" style="letter-spacing:1px;text-transform:uppercase;margin-bottom:10px;">📋 Reglas</div>
+            <div class="text-11 text-muted font-bold" style="letter-spacing:1px;text-transform:uppercase;margin-bottom:10px;">Reglas</div>
             ${reglasResumenHTML(t)}
+            ${t.docURL?`<div style="margin-top:10px;">
+              <a href="${t.docURL}" target="_blank" style="display:inline-flex;align-items:center;gap:8px;padding:8px 14px;background:var(--cardL);border-radius:8px;border:1px solid var(--border);color:var(--blue);font-size:13px;font-weight:600;text-decoration:none;">
+                ${t.docType==='pdf'?'📄 Ver reglamento / documento':'🖼️ Ver imagen del torneo'}
+              </a>
+            </div>`:''}
           </div>
 
           <!-- Acciones -->
@@ -2070,7 +2099,7 @@ function renderJornadas(){
             <div class="flex items-center gap-12">
               ${clubAvatarHTML(jn.sede)}
               <div>
-                <div class="text-15 font-bold">${jn.sede||'Sin sede'}${jn.cuentaRanking===false?' 🚫':''}</div>
+                <div class="text-15 font-bold">${jn.sede||'Sin sede'}${jn.cuentaRanking===false?' 🚫':''}${jn.reglasOverride?' ⭐':''}</div>
                 <div class="text-12 text-muted">${fmtFecha(jn.fecha)}${jn.teeTime?' · ⏰ '+jn.teeTime:''}${jn.notas?' · '+jn.notas:''}</div>
                 ${(()=>{const t=STATE.torneos.find(t=>t.id===jn.torneo_id);return t?`<div class="text-11" style="color:var(--green);font-weight:600;margin-top:2px;">🏆 ${t.nombre}</div>`:'';})()} 
               </div>
@@ -2106,10 +2135,20 @@ function renderJornadas(){
                 ${jn.fotos&&jn.fotos.length>0?`
                 <div style="margin-top:12px;">
                   <div class="text-11 text-muted font-bold" style="letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;">📸 Fotos del día</div>
-                  <div style="display:grid;grid-template-columns:repeat(${Math.min(jn.fotos.length,3)},1fr);gap:8px;">
-                    ${jn.fotos.map(url=>`<img src="${url}" style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:10px;border:1px solid var(--border);cursor:pointer;" onclick="window.open('${url}','_blank')"/>`).join('')}
+                  <div style="position:relative;overflow:hidden;border-radius:12px;background:#000;" onclick="openCarousel('${jn.id}',carouselIdx['${jn.id}']||0)">
+                    <div id="carouselTrack_${jn.id}" style="display:flex;transition:transform 0.3s ease;">
+                      ${jn.fotos.map(url=>'<img src="'+url+'" style="width:100%;flex-shrink:0;aspect-ratio:4/3;object-fit:cover;cursor:pointer;"/>').join('')}
+                    </div>
+                    ${jn.fotos.length>1?`
+                    <button onclick="event.stopPropagation();slideCarousel('${jn.id}',-1)"
+                      style="position:absolute;left:8px;top:50%;transform:translateY(-50%);background:rgba(0,0,0,0.55);border:none;color:#fff;font-size:22px;border-radius:50%;width:34px;height:34px;cursor:pointer;display:flex;align-items:center;justify-content:center;">&#8249;</button>
+                    <button onclick="event.stopPropagation();slideCarousel('${jn.id}',1)"
+                      style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:rgba(0,0,0,0.55);border:none;color:#fff;font-size:22px;border-radius:50%;width:34px;height:34px;cursor:pointer;display:flex;align-items:center;justify-content:center;">&#8250;</button>
+                    <div style="position:absolute;bottom:8px;left:50%;transform:translateX(-50%);display:flex;gap:6px;">
+                      ${jn.fotos.map((_,di)=>`<div id="dot_${jn.id}_${di}" style="width:7px;height:7px;border-radius:50%;background:${di===0?'#fff':'rgba(255,255,255,0.4)'}"></div>`).join('')}
+                    </div>`:''}
                   </div>
-                </div>`:''}`
+                </div>`:''}` 
               :`<div style="padding:20px 0;text-align:center;color:var(--muted);font-size:13px;">
                 ${jn.estado==='Planificada'?'⏳ Pendiente · Presiona "Cargar Resultados" al finalizar':'Sin resultados cargados'}
               </div>`}
@@ -2640,7 +2679,16 @@ async function saveResultados(){
   const jornadaId=STATE.cargarJornadaId;
   const btn=document.getElementById('btnSave');
   const err=document.getElementById('cargarError');
-  err.style.display='none'; btn.disabled=true; btn.textContent='Guardando...';
+  err.style.display='none';
+  // Validate all asistentes have a position assigned
+  const asistentesActivos=cargarParticipantes.filter(p=>p.asistio&&!p.dq);
+  const asignadosIds=new Set(cargarPosiciones.filter(r=>r.jugador_id).map(r=>r.jugador_id));
+  const sinPos=asistentesActivos.filter(p=>!asignadosIds.has(p.jugador_id));
+  if(sinPos.length>0){
+    err.textContent='Faltan posiciones para: '+sinPos.map(p=>p.jugador.nombre).join(', ');
+    err.style.display='block'; return;
+  }
+  btn.disabled=true; btn.textContent='Guardando...';
   try{
     // Upload fotos if any new files selected
     let fotos=[...(STATE._jornadaFotosExistentes||[])];
@@ -2695,19 +2743,77 @@ async function saveResultados(){
     });
     await batch.commit();
     cargarEntries=[];
-    document.getElementById('tab-cargar').innerHTML=`
-      <div class="success-box">
-        <div style="font-size:48px;margin-bottom:14px;">✅</div>
-        <div style="color:var(--green);font-size:18px;font-weight:700;">¡Resultados guardados!</div>
-        <div style="color:var(--muted);font-size:13px;margin-top:8px;">Pendiente de Attest por otro jugador.</div>
-        <button class="btn-primary" style="margin-top:20px;" onclick="backFromCargar()">← Volver a Jornadas</button>
-      </div>`;
+    cargarParticipantes=[]; cargarPosiciones=[]; cargarStep=1;
+    // Go to jornadas and expand this jornada so user sees the summary
+    STATE.expandedJornada=jornadaId;
+    goTab('jornadas');
   }catch(e){
     err.textContent='Error: '+e.message; err.style.display='block';
     btn.disabled=false; btn.textContent='💾 Guardar y Enviar a Attest';
   }
 }
-function backFromCargar(){ cargarEntries=[]; goTab('jornadas'); }
+function backFromCargar(){
+  cargarEntries=[]; cargarParticipantes=[]; cargarPosiciones=[]; cargarStep=1;
+  goTab('jornadas');
+}
+
+// ── Carousel ──────────────────────────────────────────
+const carouselIdx={};
+function slideCarousel(jid,dir){
+  const track=document.getElementById('carouselTrack_'+jid);
+  if(!track) return;
+  const n=track.querySelectorAll('img').length;
+  carouselIdx[jid]=((carouselIdx[jid]||0)+dir+n)%n;
+  track.style.transform='translateX(-'+(carouselIdx[jid]*100)+'%)';
+  for(let i=0;i<n;i++){
+    const dot=document.getElementById('dot_'+jid+'_'+i);
+    if(dot) dot.style.background=i===carouselIdx[jid]?'#fff':'rgba(255,255,255,0.45)';
+  }
+}
+function openCarousel(jid,startIdx){
+  const jn=STATE.jornadas.find(j=>j.id===jid);
+  if(!jn||!jn.fotos||!jn.fotos.length) return;
+  let cur=startIdx||carouselIdx[jid]||0;
+  const n=jn.fotos.length;
+  const ov=document.createElement('div');
+  ov.id='lightbox';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.96);z-index:9999;display:flex;align-items:center;justify-content:center;';
+  ov.onclick=function(e){if(e.target===ov)ov.remove();};
+  function renderLB(){
+    // Build lightbox content without nested quote issues
+    const img=document.createElement('img');
+    img.src=jn.fotos[cur];
+    img.style.cssText='max-width:95vw;max-height:88vh;object-fit:contain;border-radius:8px;user-select:none;';
+    ov.innerHTML='';
+    ov.appendChild(img);
+    // Counter
+    const ctr=document.createElement('div');
+    ctr.style.cssText='position:absolute;bottom:18px;left:50%;transform:translateX(-50%);color:rgba(255,255,255,0.7);font-size:13px;';
+    ctr.textContent=(cur+1)+' / '+n;
+    ov.appendChild(ctr);
+    // Close button
+    const closeBtn=document.createElement('button');
+    closeBtn.textContent='✕';
+    closeBtn.style.cssText='position:absolute;top:14px;right:14px;background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:22px;border-radius:50%;width:42px;height:42px;cursor:pointer;display:flex;align-items:center;justify-content:center;';
+    closeBtn.onclick=function(){ov.remove();};
+    ov.appendChild(closeBtn);
+    // Nav buttons
+    if(n>1){
+      const prev=document.createElement('button');
+      prev.innerHTML='&#8249;';
+      prev.style.cssText='position:absolute;left:12px;top:50%;transform:translateY(-50%);background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:36px;border-radius:50%;width:52px;height:52px;cursor:pointer;display:flex;align-items:center;justify-content:center;';
+      prev.onclick=function(e){e.stopPropagation();cur=(cur-1+n)%n;renderLB();};
+      ov.appendChild(prev);
+      const next=document.createElement('button');
+      next.innerHTML='&#8250;';
+      next.style.cssText='position:absolute;right:12px;top:50%;transform:translateY(-50%);background:rgba(255,255,255,0.15);border:none;color:#fff;font-size:36px;border-radius:50%;width:52px;height:52px;cursor:pointer;display:flex;align-items:center;justify-content:center;';
+      next.onclick=function(e){e.stopPropagation();cur=(cur+1)%n;renderLB();};
+      ov.appendChild(next);
+    }
+  }
+  renderLB();
+  document.body.appendChild(ov);
+}
 
 // ══════════════════════════════════════════════════════
 // JUGADORES
