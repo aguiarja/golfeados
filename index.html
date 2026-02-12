@@ -5,6 +5,9 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
 <meta name="theme-color" content="#2E7D5E"/>
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
+<meta http-equiv="Pragma" content="no-cache"/>
+<meta http-equiv="Expires" content="0"/>
 <meta name="description" content="Golfeados Golf Club - Tournament Manager"/>
 <meta name="mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
@@ -233,6 +236,21 @@ input,select,textarea{font-family:inherit;}
   <div class="login-footer">PLAY · RELAX · ENJOY · SINCE 2024</div>
 </div>
 
+<!-- BANNER ACTUALIZACIÓN -->
+<div id="updateBanner" style="display:none;position:fixed;bottom:0;left:0;right:0;z-index:500;
+  background:linear-gradient(135deg,var(--green),var(--teal));
+  padding:14px 20px;display:flex;align-items:center;justify-content:space-between;
+  box-shadow:0 -4px 20px rgba(0,0,0,0.2);gap:12px;">
+  <div>
+    <div style="color:#fff;font-weight:700;font-size:14px;">🔄 Nueva versión disponible</div>
+    <div style="color:rgba(255,255,255,0.8);font-size:12px;margin-top:2px;">Toca para actualizar Golfeados</div>
+  </div>
+  <button onclick="forceUpdate()" style="background:#fff;color:var(--green);border:none;border-radius:8px;
+    padding:10px 18px;font-weight:800;font-size:13px;white-space:nowrap;cursor:pointer;">
+    Actualizar
+  </button>
+</div>
+
 <!-- APP -->
 <div id="app" style="display:none;">
   <div id="header">
@@ -402,6 +420,11 @@ input,select,textarea{font-family:inherit;}
 
 <script>
 // ══════════════════════════════════════════════════════
+// VERSIÓN — cambia este número cada vez que subas cambios
+// ══════════════════════════════════════════════════════
+const APP_VERSION = '1.0.7';
+
+// ══════════════════════════════════════════════════════
 // FIREBASE CONFIG
 // ══════════════════════════════════════════════════════
 const firebaseConfig = {
@@ -460,6 +483,7 @@ function showApp(){
   document.getElementById('headerUser').textContent = STATE.profile?.nombre||STATE.user?.email||'';
   document.getElementById('adminBadge').style.display = STATE.profile?.role==='admin'?'inline':'none';
   initConnectionMonitor();
+  initUpdateChecker();
 }
 async function handleLogin(){
   const email=document.getElementById('loginEmail').value.trim();
@@ -1310,6 +1334,62 @@ async function addJugador(){
 async function deleteJugador(id,nombre){
   if(!confirm(`¿Eliminar a ${nombre}?`))return;
   await db.collection('jugadores').doc(id).delete();
+}
+
+// ══════════════════════════════════════════════════════
+// ACTUALIZACIONES AUTOMÁTICAS — fuerza recarga si hay versión nueva
+// ══════════════════════════════════════════════════════
+function initUpdateChecker(){
+  // Save current version to localStorage
+  const storedVersion=localStorage.getItem('golfeados_version');
+  if(storedVersion&&storedVersion!==APP_VERSION){
+    // Version changed since last open — force hard reload
+    localStorage.setItem('golfeados_version',APP_VERSION);
+    window.location.reload(true);
+    return;
+  }
+  localStorage.setItem('golfeados_version',APP_VERSION);
+
+  // Periodically fetch index.html to check if server has newer version
+  async function checkForUpdate(){
+    try{
+      // Add timestamp to bypass cache
+      const res=await fetch(window.location.href+'?v='+Date.now(),{
+        method:'HEAD',
+        cache:'no-store',
+        headers:{'Cache-Control':'no-cache, no-store, must-revalidate','Pragma':'no-cache'}
+      });
+      const serverVer=res.headers.get('x-app-version');
+      // Alternatively, fetch the file and parse the version string
+      const res2=await fetch(window.location.href+'?nc='+Date.now(),{cache:'no-store'});
+      const text=await res2.text();
+      const match=text.match(/APP_VERSION\s*=\s*['"]([^'"]+)['"]/);
+      if(match&&match[1]&&match[1]!==APP_VERSION){
+        // New version detected — show banner
+        document.getElementById('updateBanner').style.display='flex';
+      }
+    }catch(e){
+      // Network error — silent fail
+    }
+  }
+
+  // Check on app open (after 3s)
+  setTimeout(checkForUpdate, 3000);
+  // Check every 5 minutes while app is open
+  setInterval(checkForUpdate, 5*60*1000);
+  // Check when app comes back to foreground (iOS PWA resumes)
+  document.addEventListener('visibilitychange',()=>{
+    if(document.visibilityState==='visible') checkForUpdate();
+  });
+}
+
+function forceUpdate(){
+  // Clear all caches and reload
+  localStorage.setItem('golfeados_version','');
+  if('caches' in window){
+    caches.keys().then(names=>names.forEach(n=>caches.delete(n)));
+  }
+  window.location.reload(true);
 }
 
 // ══════════════════════════════════════════════════════
