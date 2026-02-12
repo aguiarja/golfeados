@@ -495,11 +495,32 @@ input,select,textarea{font-family:inherit;}
             <label class="form-label">Tee Time</label>
             <div style="display:flex;gap:6px;align-items:center;">
               <select class="form-select" id="teeHH" style="width:75px;">
-                ${Array.from({length:17},(_,i)=>i+5).map(h=>`<option value="${String(h).padStart(2,'0')}">${String(h).padStart(2,'0')}</option>`).join('')}
+                <option value="05">05</option>
+                <option value="06">06</option>
+                <option value="07">07</option>
+                <option value="08">08</option>
+                <option value="09">09</option>
+                <option value="10">10</option>
+                <option value="11">11</option>
+                <option value="12">12</option>
+                <option value="13">13</option>
+                <option value="14">14</option>
+                <option value="15">15</option>
+                <option value="16">16</option>
+                <option value="17">17</option>
+                <option value="18">18</option>
+                <option value="19">19</option>
+                <option value="20">20</option>
+                <option value="21">21</option>
               </select>
               <span style="font-weight:700;color:var(--text);">:</span>
               <select class="form-select" id="teeMM" style="width:75px;">
-                ${['00','10','20','30','40','50'].map(m=>`<option value="${m}">${m}</option>`).join('')}
+                <option value="00">00</option>
+                <option value="10">10</option>
+                <option value="20">20</option>
+                <option value="30">30</option>
+                <option value="40">40</option>
+                <option value="50">50</option>
               </select>
             </div>
           </div>
@@ -525,11 +546,20 @@ input,select,textarea{font-family:inherit;}
             </div>
           </div>
           <div id="reglasEspecialesPanel" style="display:none;background:var(--cardL);border-radius:10px;padding:14px;border:1px solid var(--border);">
-            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;">
+            <div class="text-11 text-muted font-bold" style="letter-spacing:1px;text-transform:uppercase;margin-bottom:10px;">Puntos por posición</div>
+            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px;">
               <div style="text-align:center;"><div style="font-size:16px;">🥇</div><input type="number" class="form-input" id="jrPts1" placeholder="4" min="0" style="text-align:center;padding:6px 4px;"/></div>
               <div style="text-align:center;"><div style="font-size:16px;">🥈</div><input type="number" class="form-input" id="jrPts2" placeholder="3" min="0" style="text-align:center;padding:6px 4px;"/></div>
               <div style="text-align:center;"><div style="font-size:16px;">🥉</div><input type="number" class="form-input" id="jrPts3" placeholder="2" min="0" style="text-align:center;padding:6px 4px;"/></div>
               <div style="text-align:center;"><div style="font-size:11px;color:var(--muted);margin-bottom:4px;">Resto</div><input type="number" class="form-input" id="jrPtsResto" placeholder="1" min="0" style="text-align:center;padding:6px 4px;"/></div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+              <div><label class="form-label">✅ Bonus asistencia</label>
+                <div style="display:flex;align-items:center;gap:6px;"><input type="number" class="form-input" id="jrBonus" value="0" min="0" style="width:65px;text-align:center;"/><span class="text-11 text-muted">pts</span></div></div>
+              <div><label class="form-label">❌ Penal no asistencia</label>
+                <div style="display:flex;align-items:center;gap:6px;"><input type="number" class="form-input" id="jrPenalNoAsist" value="0" style="width:65px;text-align:center;"/><span class="text-11 text-muted">pts</span></div></div>
+              <div><label class="form-label">🚫 Penal DQ</label>
+                <div style="display:flex;align-items:center;gap:6px;"><input type="number" class="form-input" id="jrPenalDQ" value="0" style="width:65px;text-align:center;"/><span class="text-11 text-muted">pts</span></div></div>
             </div>
           </div>
         </div>
@@ -795,7 +825,7 @@ input,select,textarea{font-family:inherit;}
 // ══════════════════════════════════════════════════════
 // VERSIÓN — cambia este número cada vez que subas cambios
 // ══════════════════════════════════════════════════════
-const APP_VERSION = '3.0.0';
+const APP_VERSION = '3.1.1';
 
 // ══════════════════════════════════════════════════════
 // FIREBASE CONFIG
@@ -1942,42 +1972,58 @@ async function saveModalTorneo(){
 // ══════════════════════════════════════════════════════
 function renderRanking(){
   const el=document.getElementById('tab-ranking');
-  const rk=calcRanking();
-  const ofic=STATE.jornadas.filter(j=>j.estado==='Oficial');
-  const jugadasAll=STATE.jornadas.filter(j=>j.estado!=='Planificada');
+  const torneoId=STATE.activeTorneoId||STATE.torneos[0]?.id||null;
+  if(!torneoId||STATE.torneos.length===0){
+    el.innerHTML='<div class="card"><div class="card-body" style="text-align:center;color:var(--muted);padding:40px;">Sin torneos.<br/><button class="btn-green" style="margin-top:12px;" onclick="openModalTorneo()">+ Crear Torneo</button></div></div>';
+    return;
+  }
+  const torneo=STATE.torneos.find(t=>t.id===torneoId)||STATE.torneos[0];
+  const rk=calcRankingTorneo(torneoId);
+  const jornadasT=STATE.jornadas.filter(j=>j.torneo_id===torneoId||(!j.torneo_id&&torneoId===STATE.torneo?.id));
+  const oficiales=jornadasT.filter(j=>j.estado==='Oficial').length;
+  const jugadasAll=jornadasT.filter(j=>j.estado!=='Planificada');
+  const selectorOpts=STATE.torneos.map(t=>`<option value="${t.id}" ${t.id===torneoId?'selected':''}>${t.nombre}</option>`).join('');
 
   el.innerHTML=`
+    <div style="margin-bottom:14px;">
+      <label class="form-label">Torneo</label>
+      <select class="form-select" style="width:100%;font-size:14px;" onchange="STATE.activeTorneoId=this.value;renderRanking()">
+        ${selectorOpts}
+      </select>
+    </div>
     <div class="card">
-      <div class="card-header"><span class="card-title">Tabla de Posiciones</span><span class="text-11 text-muted">${ofic.length} jornadas oficiales</span></div>
-      <div class="rank-head"><span>#</span><span>Jugador</span><span>Ofic.</span><span>Total</span><span>Asist.</span></div>
+      <div class="card-header">
+        <span class="card-title">🏆 ${torneo.nombre}</span>
+        <span class="text-11 text-muted">${oficiales}/${jugadasAll.length} jornadas oficiales</span>
+      </div>
+      <div class="rank-head"><span>#</span><span>Jugador</span><span>Asist.</span><span>Total</span></div>
       ${rk.map(j=>`
         <div class="rank-row ${j.pos<=3?'top':''}">
           <div>${medal(j.pos)}</div>
           <div class="flex items-center gap-8">${j.fotoURL?`<img src="${j.fotoURL}" style="width:32px;height:32px;border-radius:50%;object-fit:cover;flex-shrink:0;border:2px solid ${j.pos===1?'var(--gold)':'var(--border)'}"/>`:avatarHTML(j.foto,j.pos,'sm')}<div><div class="text-13 font-bold">${j.nombre}</div><div class="text-11 text-muted">${j.alias||''}</div></div></div>
-          <div class="text-14 font-bold">${j.ptsOf}</div>
-          <div style="font-size:15px;font-weight:800;color:${j.pos===1?'var(--gold)':'var(--text)'};">${j.ptsT}</div>
           <div class="text-13 text-muted">${j.asist}✓</div>
+          <div style="font-size:15px;font-weight:800;color:${j.pos===1?'var(--gold)':'var(--text)'};">${fmtPts(j.ptsT)}</div>
         </div>`).join('')}
     </div>
-
+    ${jugadasAll.length>0?`
     <div class="card">
-      <div class="card-header"><span class="card-title">Desglose por Jornada</span></div>
-      <div class="card-body overflow-x" style="padding:12px;">
-        <table class="breakdown-table">
+      <div class="card-header"><span class="card-title">📊 Desglose por Jornada</span></div>
+      <div style="overflow-x:auto;padding:12px;">
+        <table class="breakdown-table" style="min-width:${100+jugadasAll.length*80}px;">
           <tr>
-            <td style="padding:6px 8px;color:var(--muted);font-weight:700;">Jugador</td>
-            ${jugadasAll.map(jn=>`<td style="padding:6px 8px;text-align:center;color:var(--muted);font-weight:700;white-space:nowrap;">${jn.sede}<br/>${badgeHTML(jn.estado)}</td>`).join('')}
+            <td style="padding:6px 8px;color:var(--muted);font-weight:700;white-space:nowrap;">Jugador</td>
+            ${jugadasAll.map(jn=>`<td style="padding:6px 8px;text-align:center;color:var(--muted);font-weight:700;white-space:nowrap;min-width:70px;">${jn.sede}<br/>${badgeHTML(jn.estado)}</td>`).join('')}
             <td style="padding:6px 8px;text-align:center;color:var(--green);font-weight:700;">TOTAL</td>
           </tr>
           ${rk.map(j=>`
             <tr>
               <td style="padding:8px;font-weight:600;white-space:nowrap;">${j.nombre}</td>
               ${jugadasAll.map(jn=>{const r=STATE.resultados.find(r=>r.jornada_id===jn.id&&r.jugador_id===j.id);const val=r?(r.asistencia?fmtPts(r.pts):'—'):'?';const col=r&&r.pts>=4?'var(--gold)':'var(--text)';return`<td style="padding:8px;text-align:center;color:${r?col:'var(--muted)'};">${val}</td>`;}).join('')}
-              <td style="padding:8px;text-align:center;font-weight:800;color:${j.pos===1?'var(--gold)':'var(--text)'};">${j.ptsT}</td>
+              <td style="padding:8px;text-align:center;font-weight:800;color:${j.pos===1?'var(--gold)':'var(--text)'};">${fmtPts(j.ptsT)}</td>
             </tr>`).join('')}
         </table>
       </div>
-    </div>
+    </div>`:''}
   `;
 }
 
@@ -2024,8 +2070,9 @@ function renderJornadas(){
             <div class="flex items-center gap-12">
               ${clubAvatarHTML(jn.sede)}
               <div>
-                <div class="text-15 font-bold">${jn.sede||'Sin sede'}</div>
+                <div class="text-15 font-bold">${jn.sede||'Sin sede'}${jn.cuentaRanking===false?' 🚫':''}</div>
                 <div class="text-12 text-muted">${fmtFecha(jn.fecha)}${jn.teeTime?' · ⏰ '+jn.teeTime:''}${jn.notas?' · '+jn.notas:''}</div>
+                ${(()=>{const t=STATE.torneos.find(t=>t.id===jn.torneo_id);return t?`<div class="text-11" style="color:var(--green);font-weight:600;margin-top:2px;">🏆 ${t.nombre}</div>`:'';})()} 
               </div>
             </div>
             <div class="flex items-center gap-8">
@@ -2213,6 +2260,19 @@ async function saveJornada(){
   const teeHH=document.getElementById('teeHH')?.value||'';
   const teeMM=document.getElementById('teeMM')?.value||'00';
   const teeTime=teeHH?(teeHH+':'+teeMM):'';
+  const cuentaRanking=document.getElementById('jornadaCuentaRanking')?.checked!==false;
+  const tieneReglasEsp=document.getElementById('jornadaReglasEspeciales')?.checked||false;
+  const reglasOverride=tieneReglasEsp?{
+    puntos:{
+      1:Number(document.getElementById('jrPts1')?.value)||4,
+      2:Number(document.getElementById('jrPts2')?.value)||3,
+      3:Number(document.getElementById('jrPts3')?.value)||2,
+      resto:Number(document.getElementById('jrPtsResto')?.value)||1,
+    },
+    bonusAsistencia:Number(document.getElementById('jrBonus')?.value)||0,
+    penalNoAsistencia:Number(document.getElementById('jrPenalNoAsist')?.value)||0,
+    penalDQ:Number(document.getElementById('jrPenalDQ')?.value)||0,
+  }:null;
   const err=document.getElementById('modalJornadaError');
   const btn=document.getElementById('btnGuardarJornada');
   err.style.display='none';
@@ -2237,14 +2297,17 @@ async function saveJornada(){
 
     if(STATE.editingJornadaId){
       await db.collection('jornadas').doc(STATE.editingJornadaId).update({
-        sede:club, fecha, estado, notas, teeTime, fotos,
+        sede:club, fecha, estado, notas, teeTime, fotos, cuentaRanking,
+        ...(reglasOverride?{reglasOverride}:{reglasOverride:null}),
         updated_at:firebase.firestore.FieldValue.serverTimestamp()
       });
     } else {
       const numero=(STATE.jornadas.length>0?Math.max(...STATE.jornadas.map(j=>j.numero||0)):0)+1;
+      const torneoIdParaJornada=STATE._modalTorneoId||STATE.activeTorneoId||STATE.torneo?.id||'';
       await db.collection('jornadas').add({
-        numero, nombre:`J${numero}`, sede:club, fecha, estado, notas, teeTime, fotos, cuentaRanking, ...(reglasOverride?{reglasOverride}:{}), torneo_id:STATE._modalTorneoId||STATE.torneo?.id||'',
-        torneo_id:STATE.torneo?.id||'',
+        numero, nombre:`J${numero}`, sede:club, fecha, estado, notas, teeTime, fotos,
+        cuentaRanking, ...(reglasOverride?{reglasOverride}:{}),
+        torneo_id:torneoIdParaJornada,
         creado:firebase.firestore.FieldValue.serverTimestamp()
       });
     }
@@ -2429,40 +2492,49 @@ function renderCargar(){
     // ── STEP 2: Posiciones ─────────────────────────────
     const asistentes=cargarParticipantes.filter(p=>p.asistio&&!p.dq);
     if(cargarPosiciones.length===0){
-      // Initialize positions 1..N for all attendees
-      cargarPosiciones=asistentes.map((p,i)=>({pos:i+1,jugador_id:p.jugador_id,empate:false}));
+      // Start with ONE empty row
+      cargarPosiciones=[{pos:1,jugador_id:'',empate:false}];
     }
 
-    const jugadoresOpts=asistentes.map(p=>`<option value="${p.jugador_id}">${p.jugador.nombre}</option>`).join('');
+    // Build set of already-used jugador_ids (one per row)
+    const usados=new Set(cargarPosiciones.map(r=>r.jugador_id).filter(Boolean));
+    const sinAsignar=asistentes.filter(p=>!usados.has(p.jugador_id));
+    const totalAsistentes=asistentes.length;
+    const totalAsignados=cargarPosiciones.filter(r=>r.jugador_id).length;
+    const todoAsignado=totalAsignados>=totalAsistentes;
 
     el.innerHTML=header+`
+    <div class="info-attest" style="background:#E3F2FD;border-color:#90CAF9;color:#1565C0;">
+      📋 Asigna las posiciones de los <strong>${totalAsistentes}</strong> jugadores que participaron.
+      ${todoAsignado?'<strong>✅ Todos asignados</strong>':`Faltan <strong>${totalAsistentes-totalAsignados}</strong>`}
+    </div>
     <div class="card mb-16">
       <div class="card-header">
         <span class="card-title">2️⃣ Posiciones</span>
         <button class="btn-outline" style="font-size:11px;padding:4px 10px;" onclick="cargarStep=1;renderCargar()">← Volver</button>
       </div>
       <div style="padding:14px 16px;display:flex;flex-direction:column;gap:10px;">
-        ${cargarPosiciones.map((row,idx)=>{
-          const usados=cargarPosiciones.filter((_,i)=>i!==idx).map(r=>r.jugador_id);
-          const opts=asistentes.map(p=>`<option value="${p.jugador_id}" ${row.jugador_id===p.jugador_id?'selected':''}>${p.jugador.nombre}</option>`).join('');
-          const isLast=idx===cargarPosiciones.length-1;
-          const nextSamePos=cargarPosiciones[idx+1]&&cargarPosiciones[idx+1].pos===row.pos;
-          return`
-          <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--cardL);border-radius:10px;border:1px solid var(--border);">
-            <div style="width:32px;height:32px;border-radius:8px;background:${row.pos===1?'var(--gold)':row.pos===2?'#78909C':row.pos===3?'#8D6E63':'var(--green)'};
-              display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:13px;flex-shrink:0;">${row.pos}°</div>
-            <select class="form-select" style="flex:1;" onchange="setPosJugador(${idx},this.value)">
-              <option value="">— Jugador —</option>
-              ${opts}
-            </select>
-            <label style="display:flex;align-items:center;gap:4px;font-size:11px;white-space:nowrap;cursor:pointer;">
-              <input type="checkbox" ${nextSamePos?'checked':''} style="accent-color:var(--blue);"
-                onchange="toggleEmpate(${idx},this.checked)"/> Empate
-            </label>
-            ${cargarPosiciones.length>1?`<button onclick="removePosRow(${idx})" style="background:none;border:none;color:var(--muted);font-size:16px;cursor:pointer;">✕</button>`:''}
-          </div>`;
-        }).join('')}
-        <button class="btn-outline" onclick="addPosRow()" style="font-size:13px;">+ Agregar posición</button>
+        ${(()=>{
+          return cargarPosiciones.map((row,idx)=>{
+            const otherUsed=new Set(cargarPosiciones.filter((_,i)=>i!==idx).map(r=>r.jugador_id).filter(Boolean));
+            const opts=asistentes
+              .filter(p=>!otherUsed.has(p.jugador_id)||p.jugador_id===row.jugador_id)
+              .map(p=>'<option value="'+p.jugador_id+'" '+(row.jugador_id===p.jugador_id?'selected':'')+'>'+p.jugador.nombre+'</option>').join('');
+            const nextSamePos=!!(cargarPosiciones[idx+1]&&cargarPosiciones[idx+1].pos===row.pos);
+            const posBg=row.pos===1?'var(--gold)':row.pos===2?'#78909C':row.pos===3?'#8D6E63':'var(--green)';
+            return '<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--cardL);border-radius:10px;border:1px solid var(--border);">'+
+              '<div style="width:36px;height:36px;border-radius:8px;background:'+posBg+';flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:13px;">'+row.pos+'\u00b0</div>'+
+              '<select class="form-select" style="flex:1;" onchange="setPosJugador('+idx+',this.value)">'+
+                '<option value="">— Seleccionar —</option>'+opts+
+              '</select>'+
+              '<label style="display:flex;align-items:center;gap:4px;font-size:11px;white-space:nowrap;cursor:pointer;">'+
+                '<input type="checkbox" '+(nextSamePos?'checked':'')+' style="accent-color:var(--blue);" onchange="toggleEmpate('+idx+',this.checked)"/> Empate'+
+              '</label>'+
+              '<button onclick="removePosRow('+idx+')" style="background:none;border:none;color:var(--muted);font-size:16px;cursor:pointer;">\u2715</button>'+
+            '</div>';
+          }).join('');
+        })()}
+        ${!todoAsignado?`<button class="btn-outline" onclick="addPosRow()" style="font-size:13px;">+ Siguiente posición</button>`:''}
       </div>
     </div>
 
@@ -2518,23 +2590,19 @@ function setPosJugador(idx,jugadorId){
 
 function toggleEmpate(idx,checked){
   if(checked){
-    // Insert a new row with same pos after idx
     const samePos=cargarPosiciones[idx].pos;
-    const asistentes=cargarParticipantes.filter(p=>p.asistio&&!p.dq);
-    const used=new Set(cargarPosiciones.map(r=>r.jugador_id));
-    const nextFree=asistentes.find(p=>!used.has(p.jugador_id));
-    cargarPosiciones.splice(idx+1,0,{pos:samePos,jugador_id:nextFree?.jugador_id||'',empate:true});
-    // Shift subsequent positions up by 1 to account for the tie
-    for(let i=idx+2;i<cargarPosiciones.length;i++){
-      cargarPosiciones[i].pos++;
-    }
+    // Insert empty row with SAME position right after
+    cargarPosiciones.splice(idx+1,0,{pos:samePos,jugador_id:'',empate:true});
+    // Subsequent rows: shift pos by 1 each (one extra player consumed this position)
+    for(let i=idx+2;i<cargarPosiciones.length;i++) cargarPosiciones[i].pos++;
   } else {
-    // Remove the next row with same pos if exists
-    if(cargarPosiciones[idx+1]&&cargarPosiciones[idx+1].pos===cargarPosiciones[idx].pos){
+    // Remove next row with same pos ONLY if it was added as empate
+    if(cargarPosiciones[idx+1]&&cargarPosiciones[idx+1].pos===cargarPosiciones[idx].pos&&cargarPosiciones[idx+1].empate){
+      const hadPlayer=!!cargarPosiciones[idx+1].jugador_id;
       cargarPosiciones.splice(idx+1,1);
-      // Shift positions back
-      for(let i=idx+1;i<cargarPosiciones.length;i++){
-        cargarPosiciones[i].pos--;
+      if(hadPlayer){
+        // Restore subsequent positions
+        for(let i=idx+1;i<cargarPosiciones.length;i++) cargarPosiciones[i].pos--;
       }
     }
   }
@@ -2542,8 +2610,11 @@ function toggleEmpate(idx,checked){
 }
 
 function addPosRow(){
-  const lastPos=cargarPosiciones.length>0?cargarPosiciones[cargarPosiciones.length-1].pos+1:1;
-  cargarPosiciones.push({pos:lastPos,jugador_id:'',empate:false});
+  const last=cargarPosiciones[cargarPosiciones.length-1];
+  // Next position = last pos + number of players at last pos (to account for empates)
+  const sameAsLast=cargarPosiciones.filter(r=>r.pos===last?.pos).length;
+  const nextPos=last?(last.pos+sameAsLast):1;
+  cargarPosiciones.push({pos:nextPos,jugador_id:'',empate:false});
   renderCargar();
 }
 
@@ -2919,8 +2990,14 @@ function initUpdateChecker(){
   if(url.searchParams.get('bust')){
     localStorage.setItem('golfeados_version', APP_VERSION);
     localStorage.setItem('golfeados_dismissed_ver', APP_VERSION);
+    document.getElementById('updateBanner').style.display='none';
     url.searchParams.delete('bust');
     window.history.replaceState(null,'',url.toString());
+  }
+  // Also hide banner immediately if current version was dismissed
+  const alreadyDismissed=localStorage.getItem('golfeados_dismissed_ver');
+  if(alreadyDismissed===APP_VERSION){
+    document.getElementById('updateBanner').style.display='none';
   }
 
   // Si la versión guardada no coincide → navegar con cache-bust (recarga real en iOS)
