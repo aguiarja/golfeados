@@ -626,7 +626,7 @@ input,select,textarea{font-family:inherit;}
 // ══════════════════════════════════════════════════════
 // VERSIÓN — cambia este número cada vez que subas cambios
 // ══════════════════════════════════════════════════════
-const APP_VERSION = '2.0.0';
+const APP_VERSION = '2.0.1';
 
 // ══════════════════════════════════════════════════════
 // FIREBASE CONFIG
@@ -849,7 +849,8 @@ async function handleRegister(){
     await cred.user.updateProfile({displayName:nombre});
 
     // Save profile to Firestore
-    const telefonoCompleto=tel?(codigo+tel):'';
+    const telNorm=normalizeTelVE(tel,codigo);
+    const telefonoCompleto=telNorm?(codigo+telNorm):'';
     const profile={
       email, nombre, username, role:'jugador', jugador_id:null,
       telefono:tel||'', codigoPais:tel?codigo:'', telefonoCompleto,
@@ -1822,7 +1823,7 @@ function openModalJugador(jugadorId){
     const codigoPais=j.codigoPais||'+58';
     document.getElementById('editPaisCodigo').value=codigoPais;
     document.getElementById('editTelefono').value=tel;
-    document.getElementById('telefonoHint').textContent='Solo números, sin espacios ni guiones. Ej: 4141234567';
+    document.getElementById('telefonoHint').textContent='Sin el 0 inicial con +58. Ej: 4141234567 (no 04141234567)';
     document.getElementById('telefonoHint').style.color='var(--muted)';
   }
   document.getElementById('modalJugador').style.display='flex';
@@ -1831,11 +1832,19 @@ function openModalJugador(jugadorId){
 function closeModalJugador(){ document.getElementById('modalJugador').style.display='none'; editingJugadorId=null; }
 
 function validarFormatoTel(num, codigo){
-  // Min 7 digits, max 15 (E.164 standard minus country code)
   if(!/^\d{7,15}$/.test(num)) return false;
-  // Venezuela: must start with 04 or 02, 10 digits total
-  if(codigo==='+58') return /^(04|02)\d{8}$/.test(num);
+  if(codigo==='+58'){
+    // Accept with leading 0: 0412... (10 digits)
+    // OR without leading 0: 412...  (10 digits, international style)
+    return /^(04|02)\d{8}$/.test(num) || /^(4|2)\d{9}$/.test(num);
+  }
   return num.length>=7&&num.length<=15;
+}
+
+function normalizeTelVE(num, codigo){
+  // Remove leading 0 for international storage: 04122746658 → 4122746658
+  if(codigo==='+58' && /^0(4|2)/.test(num)) return num.slice(1);
+  return num;
 }
 
 function validarTelefonoNew(input){
@@ -1849,7 +1858,7 @@ function validarTelefonoNew(input){
     hint.style.color='var(--green)';
     input.style.borderColor='var(--green)';
   } else {
-    const tip=codigo==='+58'?'Venezuela: debe empezar con 04xx o 02xx, 10 dígitos':'Entre 7 y 15 dígitos numéricos';
+    const tip=codigo==='+58'?'Sin 0 inicial: 4xxxxxxxxx o 2xxxxxxxxx (10 dígitos)':'Entre 7 y 15 dígitos numéricos';
     hint.textContent='⚠️ '+tip;
     hint.style.color='var(--red)';
     input.style.borderColor='var(--red)';
@@ -1867,7 +1876,7 @@ function validarTelefono(input){
     hint.style.color='var(--green)';
     input.style.borderColor='var(--green)';
   } else {
-    const tip=codigo==='+58'?'Venezuela: debe empezar con 04xx o 02xx, 10 dígitos':'Entre 7 y 15 dígitos numéricos';
+    const tip=codigo==='+58'?'Sin 0 inicial: 4xxxxxxxxx o 2xxxxxxxxx (10 dígitos)':'Entre 7 y 15 dígitos numéricos';
     hint.textContent='⚠️ '+tip;
     hint.style.color='var(--red)';
     input.style.borderColor='var(--red)';
@@ -1879,8 +1888,9 @@ async function saveJugador(){
   const alias=document.getElementById('editAlias').value.trim();
   const foto=document.getElementById('editFoto').value.trim().toUpperCase().slice(0,2);
   const handicap=document.getElementById('editHandicap').value;
-  const telefono=document.getElementById('editTelefono').value.trim().replace(/\D/g,'');
+  let telefono=document.getElementById('editTelefono').value.trim().replace(/\D/g,'');
   const codigoPais=document.getElementById('editPaisCodigo').value;
+  telefono=normalizeTelVE(telefono,codigoPais);
   const err=document.getElementById('modalJugadorError');
   // Validate phone
   if(telefono&&!validarFormatoTel(telefono,codigoPais)){
@@ -1909,8 +1919,9 @@ async function addJugador(){
   const nombre=document.getElementById('newNombre').value.trim();
   const alias=document.getElementById('newAlias').value.trim();
   const foto=document.getElementById('newFoto').value.trim().toUpperCase().slice(0,2);
-  const telefono=document.getElementById('newTelefono').value.trim().replace(/\D/g,'');
+  let telefono=document.getElementById('newTelefono').value.trim().replace(/\D/g,'');
   const codigoPais=document.getElementById('newPaisCodigo').value;
+  telefono=normalizeTelVE(telefono,codigoPais);
   const err=document.getElementById('addJugadorError');
   if(!nombre){err.textContent='El nombre es obligatorio.';err.style.display='block';return;}
   if(telefono&&!validarFormatoTel(telefono,codigoPais)){
