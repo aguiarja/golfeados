@@ -827,7 +827,7 @@ input,select,textarea{font-family:inherit;}
 // ══════════════════════════════════════════════════════
 // VERSIÓN — cambia este número cada vez que subas cambios
 // ══════════════════════════════════════════════════════
-const APP_VERSION = '3.6.0';
+const APP_VERSION = '3.6.1';
 
 // ══════════════════════════════════════════════════════
 // FIREBASE CONFIG
@@ -1491,20 +1491,17 @@ function avatarHTML(foto,pos,size='md'){
   return`<div class="avatar" style="width:${sz};background:${bg};${shadow}">${foto||'?'}</div>`;
 }
 function fmtPts(n){ return Number.isInteger(n)?String(n):n.toFixed(1); }
-function fmtFecha(dateStr){
-  if(!dateStr) return '—';
+function fmtFecha(v){
+  if(!v) return '—';
   let d;
-  // Handle Firestore Timestamp objects {seconds, nanoseconds}
-  if(typeof dateStr==='object' && dateStr.seconds){
-    d=new Date(dateStr.seconds*1000);
-  } else if(typeof dateStr==='object' && dateStr.toDate){
-    d=dateStr.toDate();
-  } else {
-    // String: YYYY-MM-DD — append noon to avoid timezone shift
-    d=new Date(String(dateStr).substring(0,10)+'T12:00:00');
-  }
-  if(!d||isNaN(d.getTime())) return '—';
-  return d.toLocaleDateString('es-ES',{day:'numeric',month:'short',year:'numeric'});
+  if(typeof v==='object' && v.seconds) d=new Date(v.seconds*1000);
+  else if(typeof v==='object' && v.toDate) d=v.toDate();
+  else if(typeof v==='string'||typeof v==='number') d=new Date(String(v).length<=10?v+'T12:00:00':v);
+  else d=new Date(v);
+  return (!d||isNaN(d.getTime())) ? '—' : d.toLocaleDateString('es-ES',{day:'numeric',month:'short',year:'numeric'});
+}
+function fmtFechaJornada(jn){
+  return fmtFecha(jn.fecha||jn.creado||null);
 }
 
 // ══════════════════════════════════════════════════════
@@ -1576,7 +1573,7 @@ function torneoCardHTML(torneo, compact=false){
             ${clubAvatarHTML(jn.sede)}
             <div class="flex-1">
               <div class="text-13 font-bold">${jn.sede||'Sin sede'}</div>
-              <div class="text-11 text-muted">${fmtFecha(jn.fecha)}${jn.teeTime?' · ⏰ '+jn.teeTime:''}</div>
+              <div class="text-11 text-muted">${fmtFechaJornada(jn)}${jn.teeTime?' · ⏰ '+jn.teeTime:''}</div>
             </div>
           </div>`).join('')}
       </div>`:''}
@@ -1732,7 +1729,7 @@ function renderMisTorneos(){
           <div style="border-top:1px solid var(--border);padding:14px 20px 8px;">
             <div class="text-11 text-muted font-bold" style="letter-spacing:1px;text-transform:uppercase;margin-bottom:10px;">📅 Jornadas</div>
             ${jornadasT.length===0?`<div class="text-13 text-muted">Sin jornadas aún.</div>`:''}
-            ${[...jornadasT].sort((a,b)=>new Date(a.fecha)-new Date(b.fecha)).map(jn=>jornadaRowMT(jn)).join('')}
+            ${[...jornadasT].sort((a,b)=>{const fa=a.fecha&&typeof a.fecha==='object'&&a.fecha.seconds?new Date(a.fecha.seconds*1000):new Date(a.fecha||0);const fb=b.fecha&&typeof b.fecha==='object'&&b.fecha.seconds?new Date(b.fecha.seconds*1000):new Date(b.fecha||0);return fa-fb;}).map(jn=>jornadaRowMT(jn)).join('')}
           </div>
 
           <!-- Desglose por jornada -->
@@ -1744,7 +1741,7 @@ function renderMisTorneos(){
             html+='<div class="text-11 text-muted font-bold" style="letter-spacing:1px;text-transform:uppercase;margin-bottom:10px;">Desglose por Jornada</div>';
             html+='<table style="width:100%;border-collapse:collapse;font-size:12px;min-width:'+minW+'px;">';
             html+='<tr><td style="padding:4px 8px;color:var(--muted);font-weight:700;white-space:nowrap;">Jugador</td>';
-            jJugadas.forEach(jn=>{html+='<td style="padding:4px 8px;text-align:center;color:var(--muted);font-weight:700;white-space:nowrap;">'+jn.sede+(jn.reglasOverride?' ⭐':'')+'<br/><span style="font-size:10px;opacity:0.75;">'+fmtFecha(jn.fecha)+'</span><br/>'+badgeHTML(jn.estado)+'</td>';});
+            jJugadas.forEach(jn=>{html+='<td style="padding:4px 8px;text-align:center;color:var(--muted);font-weight:700;white-space:nowrap;">'+jn.sede+(jn.reglasOverride?' ⭐':'')+'<br/><span style="font-size:10px;opacity:0.75;">'+fmtFechaJornada(jn)+'</span><br/>'+badgeHTML(jn.estado)+'</td>';});
             html+='<td style="padding:4px 8px;text-align:center;color:var(--green);font-weight:700;">TOT</td></tr>';
             rk.forEach(j=>{
               html+='<tr style="border-top:1px solid var(--border);">';
@@ -1811,7 +1808,7 @@ function jornadaRowMT(jn){
   if(jn.cuentaRanking===false) html+=' 🚫';
   if(jn.reglasOverride) html+=' <span style="background:#FEF3C7;color:#92400E;font-size:10px;font-weight:700;padding:1px 4px;border-radius:4px;">⭐ Especial</span>';
   html+='</div>';
-  html+='<div style="font-size:11px;color:var(--muted);margin-top:1px;">'+fmtFecha(jn.fecha)+(jn.teeTime?' · ⏰ '+jn.teeTime:'')+'</div>';
+  html+='<div style="font-size:11px;color:var(--muted);margin-top:1px;">'+fmtFechaJornada(jn)+(jn.teeTime?' · ⏰ '+jn.teeTime:'')+'</div>';
   html+='</div>';
   html+='<div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">';
   html+=badgeHTML(jn.estado);
@@ -1855,8 +1852,37 @@ function jornadaRowMT(jn){
     html+='<div style="padding:14px;text-align:center;color:var(--muted);font-size:12px;border-top:1px solid var(--border);">Sin resultados cargados aún</div>';
   }
 
+  // ── FOTOS ──
+  if(isOpen){
+    if(jn.fotos && jn.fotos.length>0){
+      html+='<div style="border-top:1px solid var(--border);padding:12px 14px;background:var(--bg);">';
+      html+='<div style="font-size:10px;font-weight:700;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;">📸 Fotos del día</div>';
+      html+='<div style="position:relative;overflow:hidden;border-radius:10px;background:#111;cursor:pointer;" onclick="openCarousel(\''+jn.id+'\',0)">';
+      html+='<div id="cmt_'+jn.id+'" style="display:flex;transition:transform 0.35s ease;">';
+      jn.fotos.forEach(function(url){ html+='<img src="'+url+'" style="width:100%;flex-shrink:0;aspect-ratio:4/3;object-fit:cover;"/>'; });
+      html+='</div>';
+      if(jn.fotos.length>1){
+        html+='<button onclick="event.stopPropagation();slideCMT(\''+jn.id+'\',-1)" style="position:absolute;left:8px;top:50%;transform:translateY(-50%);background:rgba(0,0,0,0.5);border:none;color:#fff;font-size:26px;border-radius:50%;width:36px;height:36px;cursor:pointer;display:flex;align-items:center;justify-content:center;">&#8249;</button>';
+        html+='<button onclick="event.stopPropagation();slideCMT(\''+jn.id+'\',1)" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:rgba(0,0,0,0.5);border:none;color:#fff;font-size:26px;border-radius:50%;width:36px;height:36px;cursor:pointer;display:flex;align-items:center;justify-content:center;">&#8250;</button>';
+        html+='<div style="position:absolute;bottom:6px;left:50%;transform:translateX(-50%);display:flex;gap:5px;">';
+        jn.fotos.forEach(function(_,di){ html+='<div id="cmt_dot_'+jn.id+'_'+di+'" style="width:7px;height:7px;border-radius:50%;background:'+(di===0?'#fff':'rgba(255,255,255,0.4)')+'"></div>'; });
+        html+='</div>';
+      }
+      html+='</div></div>';
+    }
+  }
+
   html+='</div>'; // end card
   return html;
+}
+
+const _cmtIdx={};
+function slideCMT(jid,dir){
+  const t=document.getElementById('cmt_'+jid); if(!t) return;
+  const n=t.querySelectorAll('img').length;
+  _cmtIdx[jid]=((_cmtIdx[jid]||0)+dir+n)%n;
+  t.style.transform='translateX(-'+(_cmtIdx[jid]*100)+'%)';
+  for(let i=0;i<n;i++){const d=document.getElementById('cmt_dot_'+jid+'_'+i);if(d)d.style.background=i===_cmtIdx[jid]?'#fff':'rgba(255,255,255,0.4)';}
 }
 
 function reglasResumenHTML(torneo){
@@ -2164,8 +2190,10 @@ function renderJornadas(){
   const misTorneoIds=new Set(STATE.torneos.map(t=>t.id));
   const misJornadas=STATE.jornadas.filter(j=>!j.torneo_id||misTorneoIds.has(j.torneo_id));
   const jornadasOrdenadas=[...misJornadas].sort((a,b)=>{
-    if(!a.fecha)return 1;if(!b.fecha)return -1;
-    return new Date(a.fecha)-new Date(b.fecha);
+    const da=a.fecha?(typeof a.fecha==='object'&&a.fecha.seconds?new Date(a.fecha.seconds*1000):new Date(a.fecha)):null;
+    const db_=b.fecha?(typeof b.fecha==='object'&&b.fecha.seconds?new Date(b.fecha.seconds*1000):new Date(b.fecha)):null;
+    if(!da) return 1; if(!db_) return -1;
+    return da-db_;
   });
 
   el.innerHTML=`
@@ -2191,7 +2219,7 @@ function renderJornadas(){
                 <div class="text-14 font-bold" style="line-height:1.3;">
                   ${jn.sede||'Sin sede'}${jn.cuentaRanking===false?' 🚫':''}${jn.reglasOverride?` <span style="background:#FEF3C7;color:#92400E;font-size:10px;font-weight:700;padding:1px 5px;border-radius:4px;white-space:nowrap;">⭐ Especial</span>`:''}
                 </div>
-                <div style="font-size:12px;color:var(--text2);font-weight:600;margin-top:2px;">${fmtFecha(jn.fecha)}${jn.teeTime?' · ⏰ '+jn.teeTime:''}</div>
+                <div style="font-size:12px;color:var(--text2);font-weight:600;margin-top:2px;">${fmtFechaJornada(jn)}${jn.teeTime?' · ⏰ '+jn.teeTime:''}</div>
                 ${jn.notas?`<div class="text-11 text-muted">${jn.notas}</div>`:''}
                 ${(()=>{const t=STATE.torneos.find(t=>t.id===jn.torneo_id);return t?`<div class="text-11" style="color:var(--green);font-weight:600;margin-top:1px;">🏆 ${t.nombre}</div>`:'';})()} 
               </div>
