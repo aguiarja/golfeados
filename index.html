@@ -848,7 +848,7 @@ input,select,textarea{font-family:inherit;}
 // ══════════════════════════════════════════════════════
 // VERSIÓN — cambia este número cada vez que subas cambios
 // ══════════════════════════════════════════════════════
-const APP_VERSION = '3.8.1';
+const APP_VERSION = '3.8.2';
 
 // ══════════════════════════════════════════════════════
 // FIREBASE CONFIG
@@ -921,9 +921,11 @@ function showVincular(){
 }
 function skipVincular(){
   // User skips — goes to main app without jugador linked
-  document.getElementById('login-screen').style.display='none';
-  document.getElementById('app').style.display='flex';
-  renderCurrentTab();
+  // Mark as skipped so we don't ask again every login
+  if(STATE.user) db.collection('users').doc(STATE.user.uid).update({vincular_skipped:true}).catch(()=>{});
+  if(STATE.profile) STATE.profile.vincular_skipped=true;
+  showApp_();
+  initListeners();
 }
 async function handleVincular(){
   const code=document.getElementById('vincularCodigo').value.trim().toUpperCase();
@@ -941,12 +943,12 @@ async function handleVincular(){
     // Link: update jugador + user profile
     const uid=STATE.user.uid;
     await db.collection('jugadores').doc(jugDoc.id).update({ user_uid:uid });
-    await db.collection('users').doc(uid).update({ jugador_id:jugDoc.id });
+    await db.collection('users').doc(uid).update({ jugador_id:jugDoc.id, vincular_skipped:false });
     STATE.profile.jugador_id=jugDoc.id;
+    STATE.profile.vincular_skipped=false;
     // Enter app
-    document.getElementById('login-screen').style.display='none';
-    document.getElementById('app').style.display='flex';
-    renderCurrentTab();
+    showApp_();
+    initListeners();
   }catch(e){
     err.textContent='Error: '+e.message; err.style.display='block';
     btn.disabled=false; btn.textContent='Vincular mi perfil 🏌️';
@@ -991,10 +993,10 @@ auth.onAuthStateChanged(async user=>{
         STATE.profile.verified=true;
       }
     }
-    // If user has no jugador_id → show vincular screen (skip for admins)
-    if(!STATE.profile.jugador_id && STATE.profile.role!=='admin'){
+    // If user has no jugador_id → show vincular screen (skip for admins and users who already skipped)
+    if(!STATE.profile.jugador_id && STATE.profile.role!=='admin' && !STATE.profile.vincular_skipped){
       document.getElementById('app').style.display='none';
-      document.getElementById('login-screen').style.display='flex';
+      document.getElementById('loginScreen').style.display='flex';
       showLoginView('vincularView');
       return;
     }
