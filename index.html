@@ -472,21 +472,9 @@ input,select,textarea{font-family:inherit;}
           <label class="form-label">Club / Sede *</label>
           <select class="form-select" id="jornadaClub" style="width:100%;"></select>
         </div>
-        <div style="display:flex;gap:12px;">
-          <div style="flex:1;">
-            <label class="form-label">Fecha *</label>
-            <input type="date" class="form-input" id="jornadaFecha"/>
-          </div>
-          <div style="width:100px;">
-            <label class="form-label">Estado</label>
-            <select class="form-select" id="jornadaEstado" style="width:100%;">
-              <option value="Planificada">Planificada</option>
-              <option value="En Juego">En Juego</option>
-              <option value="Pendiente Attest">Pendiente Attest</option>
-              <option value="Jugado">Jugado</option>
-              <option value="Oficial">Oficial</option>
-            </select>
-          </div>
+        <div>
+          <label class="form-label">Fecha *</label>
+          <input type="date" class="form-input" id="jornadaFecha"/>
         </div>
         <div style="display:flex;gap:12px;">
           <div style="flex:1;">
@@ -827,7 +815,7 @@ input,select,textarea{font-family:inherit;}
 // ══════════════════════════════════════════════════════
 // VERSIÓN — cambia este número cada vez que subas cambios
 // ══════════════════════════════════════════════════════
-const APP_VERSION = '3.6.3';
+const APP_VERSION = '3.7.1';
 
 // ══════════════════════════════════════════════════════
 // FIREBASE CONFIG
@@ -1482,7 +1470,7 @@ function medal(pos){
   return`<span style="color:var(--muted);font-weight:700;font-size:14px;width:22px;display:inline-block;text-align:center;">${pos}</span>`;
 }
 function badgeHTML(estado){
-  const m={'Oficial':'badge-oficial','Jugado':'badge-validar','Por Validar':'badge-validar','Pendiente Attest':'badge-attest','Planificada':'badge-planificada','En Juego':'badge-enjuego','Activo':'badge-activo'};
+  const m={'Oficial':'badge-oficial','Jugado':'badge-validar','Por Validar':'badge-validar','Pendiente Attest':'badge-attest','Planificada':'badge-planificada','En Juego':'badge-enjuego','Activo':'badge-activo','Borrador':'badge-planificada'};
   return`<span class="badge ${m[estado]||'badge-planificada'}">${estado}</span>`;
 }
 function avatarHTML(foto,pos,size='md'){
@@ -1503,6 +1491,24 @@ function fmtFecha(v){
 }
 function fmtFechaJornada(jn){
   return fmtFecha(jn.fecha||jn.creado||null);
+}
+
+// Returns the LIVE estado for a jornada (auto En Juego when date arrives)
+function getEstadoJornada(jn){
+  const stored=jn.estado||'Planificada';
+  // Terminal states: never auto-change
+  if(stored==='Pendiente Attest'||stored==='Jugado'||stored==='Oficial'||stored==='Por Validar') return stored;
+  // Auto-transition: if fecha is today or past → En Juego
+  // Uses LOCAL date (not UTC) so Venezuela/Miami time is respected
+  if(jn.fecha){
+    const fechaStr=typeof jn.fecha==='object'&&jn.fecha.seconds
+      ? new Date(jn.fecha.seconds*1000).toLocaleDateString('en-CA')  // YYYY-MM-DD in local tz
+      : String(jn.fecha).substring(0,10);
+    const now=new Date();
+    const today=now.toLocaleDateString('en-CA');  // YYYY-MM-DD in local tz
+    if(fechaStr<=today) return 'En Juego';
+  }
+  return 'Planificada';
 }
 
 // ══════════════════════════════════════════════════════
@@ -1796,6 +1802,7 @@ function toggleJornadaMT(jid){
 // Returns HTML string for a clickable jornada row inside Mis Torneos
 function jornadaRowMT(jn){
   const isOpen=STATE.expandedJornadaMT===jn.id;
+  const est=getEstadoJornada(jn);
   const res=STATE.resultados.filter(r=>r.jornada_id===jn.id).sort((a,b)=>a.pos-b.pos);
   const hasResults=res.length>0;
   const hasFotos=Array.isArray(jn.fotos)&&jn.fotos.length>0;
@@ -2212,11 +2219,12 @@ function renderJornadas(){
       const cargador=STATE.jugadores.find(j=>j.id===jn.cargado_por);
       const attestador=STATE.jugadores.find(j=>j.id===jn.attest_por);
       const myJugadorId=STATE.profile?.jugador_id;
-      const canAttest=(jn.estado==='Pendiente Attest'||jn.estado==='Por Validar')&&jn.cargado_por!==myJugadorId&&(isAdmin||STATE.resultados.some(r=>r.jornada_id===jn.id&&r.jugador_id===myJugadorId));
+      const est=getEstadoJornada(jn);  // live computed estado
+      const canAttest=(est==='Pendiente Attest'||est==='Por Validar')&&jn.cargado_por!==myJugadorId&&(isAdmin||STATE.resultados.some(r=>r.jornada_id===jn.id&&r.jugador_id===myJugadorId));
 
       return`
-        <div class="jornada-card" style="${jn.estado==='Jugado'||jn.estado==='Por Validar'?'border:2px solid #C8E6C9;':''}">
-          <div class="jornada-header" onclick="toggleJornada('${jn.id}')" style="${jn.estado==='Jugado'||jn.estado==='Por Validar'?'background:linear-gradient(135deg,#F1F8E9,#E8F5E9);':''}"  >
+        <div class="jornada-card" style="${est==='Jugado'||est==='Por Validar'?'border:2px solid #C8E6C9;':est==='En Juego'?'border:2px solid #FFE082;':''}">
+          <div class="jornada-header" onclick="toggleJornada('${jn.id}')" style="${est==='Jugado'||est==='Por Validar'?'background:linear-gradient(135deg,#F1F8E9,#E8F5E9);':est==='En Juego'?'background:linear-gradient(135deg,#FFFDE7,#FFF8E1);':''}"  >
             <div class="flex items-center gap-10" style="flex:1;min-width:0;">
               ${clubAvatarHTML(jn.sede)}
               <div style="flex:1;min-width:0;">
@@ -2230,18 +2238,18 @@ function renderJornadas(){
               ${jn.fotos&&jn.fotos.length>0?`<div style="display:flex;flex-direction:row;gap:0;flex-shrink:0;margin-left:4px;cursor:pointer;" onclick="event.stopPropagation();toggleJornada('${jn.id}')">${jn.fotos.slice(0,3).map((url,fi)=>'<img src="'+url+'" style="width:34px;height:34px;object-fit:cover;border-radius:6px;border:2px solid var(--white);'+(fi>0?'margin-left:-8px;':'')+'box-shadow:0 1px 3px rgba(0,0,0,0.15);"/>').join('')}</div>`:''}
             </div>
             <div class="flex items-center gap-6" style="flex-shrink:0;margin-left:8px;">
-              ${badgeHTML(jn.estado)}
+              ${badgeHTML(est)}
               ${isAdmin?`<button class="btn-outline" style="padding:4px 10px;font-size:12px;" onclick="event.stopPropagation();openModalJornada('${jn.id}')">✏️</button>`:''}
               <span style="color:var(--muted);font-size:13px;">${isOpen?'▲':'▼'}</span>
             </div></div>
           ${isOpen?`
             <div class="jornada-body">
               <div class="jornada-actions">
-                ${jn.estado==='Planificada'?`<button class="btn-primary" onclick="goCargar('${jn.id}')">📋 Cargar Resultados</button>`:''}
-                ${(jn.estado==='Pendiente Attest'||jn.estado==='Por Validar')&&canAttest?`<button class="btn-attest" onclick="handleAttest('${jn.id}')">✍️ Marcar como Jugada</button>`:''}
-                ${(jn.estado==='Pendiente Attest'||jn.estado==='Por Validar')&&!canAttest&&res.length>0?`<div class="text-11 text-muted" style="padding:4px 0;">⏳ Esperando attest de otro jugador</div>`:''}
-                ${(jn.estado==='Pendiente Attest'||jn.estado==='Por Validar')?`<button class="btn-outline" onclick="goCargar('${jn.id}')">✏️ Editar resultados</button>`:''}
-                ${(jn.estado==='Jugado'||jn.estado==='Por Validar'||jn.estado==='Oficial')&&res.length===0?`<div class="text-11 text-muted" style="padding:4px 0;">Sin resultados registrados</div>`:''}
+                ${est==='En Juego'?`<button class="btn-primary" onclick="goCargar('${jn.id}')">📋 Cargar Resultados</button>`:''}
+                ${est==='Planificada'?`<div class="text-11 text-muted" style="padding:4px 0;">⏳ Aún no es el día de juego</div>`:''}
+                ${(est==='Pendiente Attest'||est==='Por Validar')&&canAttest?`<button class="btn-attest" onclick="handleAttest('${jn.id}')">✍️ Marcar como Jugada</button>`:''}
+                ${(est==='Pendiente Attest'||est==='Por Validar')&&!canAttest&&res.length>0?`<div class="text-11 text-muted" style="padding:4px 0;">⏳ Esperando confirmación</div>`:''}
+                ${(est==='Pendiente Attest'||est==='Por Validar')?`<button class="btn-outline" onclick="goCargar('${jn.id}')">✏️ Editar resultados</button>`:''}
                 ${isAdmin?`<button class="btn-danger" onclick="deleteJornada('${jn.id}')">🗑️ Eliminar</button>`:''}
               </div>
               ${res.length>0?`
@@ -2364,7 +2372,7 @@ function openModalJornada(jornadaId=null, torneoId=null){
     if(jn){
       document.getElementById('jornadaClub').value=jn.sede||'';
       document.getElementById('jornadaFecha').value=jn.fecha||'';
-      document.getElementById('jornadaEstado').value=jn.estado||'Planificada';
+      // estado managed automatically
       document.getElementById('jornadaNotas').value=jn.notas||'';
       const tParts=(jn.teeTime||'').split(':');
       if(document.getElementById('teeHH')) document.getElementById('teeHH').value=tParts[0]||'07';
@@ -2374,7 +2382,7 @@ function openModalJornada(jornadaId=null, torneoId=null){
     title.textContent='Nueva Jornada';
     document.getElementById('jornadaClub').value='';
     document.getElementById('jornadaFecha').value='';
-    document.getElementById('jornadaEstado').value='Planificada';
+    // estado is automatic
     document.getElementById('jornadaNotas').value='';
     if(document.getElementById('teeHH')) document.getElementById('teeHH').value='07';
     if(document.getElementById('teeMM')) document.getElementById('teeMM').value='00';
@@ -2437,7 +2445,9 @@ function closeModalJornada(event){
 async function saveJornada(){
   const club=document.getElementById('jornadaClub').value.trim();
   const fecha=document.getElementById('jornadaFecha').value;
-  const estado=document.getElementById('jornadaEstado').value;
+  // Estado is automatic — read from existing jornada when editing, or 'Planificada' for new
+  const _existingJornada=STATE.editingJornadaId?STATE.jornadas.find(j=>j.id===STATE.editingJornadaId):null;
+  const estado=_existingJornada?.estado||'Planificada';
   const notas=document.getElementById('jornadaNotas').value.trim();
   const teeHH=document.getElementById('teeHH')?.value||'';
   const teeMM=document.getElementById('teeMM')?.value||'00';
