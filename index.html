@@ -483,7 +483,7 @@ input,select,textarea{font-family:inherit;}
               <option value="Planificada">Planificada</option>
               <option value="En Juego">En Juego</option>
               <option value="Pendiente Attest">Pendiente Attest</option>
-              <option value="Por Validar">Por Validar</option>
+              <option value="Jugado">Jugado</option>
               <option value="Oficial">Oficial</option>
             </select>
           </div>
@@ -671,7 +671,7 @@ input,select,textarea{font-family:inherit;}
 
 <!-- MODAL TORNEO — Crear / Editar -->
 <div id="modalTorneo" class="modal-overlay" style="display:none;" onclick="closeModalTorneo(event)">
-  <div class="modal-box" style="max-width:500px;max-height:90vh;overflow-y:auto;" onclick="event.stopPropagation()">
+  <div class="modal-box" onclick="event.stopPropagation()">
     <div class="modal-header">
       <div class="modal-title" id="modalTorneoTitle">Nuevo Torneo</div>
       <button onclick="closeModalTorneo()" style="background:none;border:none;font-size:20px;color:var(--muted);cursor:pointer;">✕</button>
@@ -827,7 +827,7 @@ input,select,textarea{font-family:inherit;}
 // ══════════════════════════════════════════════════════
 // VERSIÓN — cambia este número cada vez que subas cambios
 // ══════════════════════════════════════════════════════
-const APP_VERSION = '3.4.0';
+const APP_VERSION = '3.5.0';
 
 // ══════════════════════════════════════════════════════
 // FIREBASE CONFIG
@@ -1342,12 +1342,6 @@ function goCargar(jornadaId){
   const ct=document.getElementById('tab-cargar');
   if(ct) ct.style.display='block';
   renderCargar();
-  setTimeout(()=>{
-    const jn=STATE.jornadas.find(j=>j.id===jornadaId);
-    const fotos=jn?.fotos||[];
-    STATE._jornadaFotosExistentes=[...fotos];
-    [0,1,2].forEach(i=>{if(fotos[i]) setJornadaFotoSlot(i,fotos[i]); else resetJornadaFotoSlot(i);});
-  },150);
 }
 function renderCurrentTab(){
   if(STATE.currentTab==='dashboard') renderDashboard();
@@ -1486,7 +1480,7 @@ function medal(pos){
   return`<span style="color:var(--muted);font-weight:700;font-size:14px;width:22px;display:inline-block;text-align:center;">${pos}</span>`;
 }
 function badgeHTML(estado){
-  const m={'Oficial':'badge-oficial','Por Validar':'badge-validar','Pendiente Attest':'badge-attest','Planificada':'badge-planificada','En Juego':'badge-enjuego','Activo':'badge-activo'};
+  const m={'Oficial':'badge-oficial','Jugado':'badge-validar','Pendiente Attest':'badge-attest','Planificada':'badge-planificada','En Juego':'badge-enjuego','Activo':'badge-activo'};
   return`<span class="badge ${m[estado]||'badge-planificada'}">${estado}</span>`;
 }
 function avatarHTML(foto,pos,size='md'){
@@ -2114,7 +2108,7 @@ function renderJornadas(){
       const cargador=STATE.jugadores.find(j=>j.id===jn.cargado_por);
       const attestador=STATE.jugadores.find(j=>j.id===jn.attest_por);
       const myJugadorId=STATE.profile?.jugador_id;
-      const canAttest=jn.estado==='Pendiente Attest'&&jn.cargado_por!==myJugadorId&&STATE.resultados.some(r=>r.jornada_id===jn.id&&r.jugador_id===myJugadorId);
+      const canAttest=jn.estado==='Pendiente Attest'&&jn.cargado_por!==myJugadorId&&(isAdmin||STATE.resultados.some(r=>r.jornada_id===jn.id&&r.jugador_id===myJugadorId));
 
       return`
         <div class="jornada-card">
@@ -2139,45 +2133,56 @@ function renderJornadas(){
           ${isOpen?`
             <div class="jornada-body">
               <div class="jornada-actions">
-                ${(jn.estado==='Planificada'||jn.estado==='En Juego')?`<button class="btn-primary" onclick="goCargar('${jn.id}')">📋 Cargar Resultados</button>`:''}
-                ${canAttest?`<button class="btn-attest" onclick="handleAttest('${jn.id}')">✍️ Attest (Confirmar)</button>`:''}
-                ${isAdmin&&jn.estado==='Por Validar'?`<button class="btn-approve" onclick="handleAprobar('${jn.id}')">✅ Aprobar Oficial</button>`:''}
-                ${jn.estado!=='Planificada'?`<button class="btn-outline" onclick="goCargar('${jn.id}')">✏️ Editar resultados</button>`:''}
+                ${jn.estado==='Planificada'?`<button class="btn-primary" onclick="goCargar('${jn.id}')">📋 Cargar Resultados</button>`:''}
+                ${jn.estado==='Pendiente Attest'&&canAttest?`<button class="btn-attest" onclick="handleAttest('${jn.id}')">✍️ Marcar como Jugada</button>`:''}
+                ${jn.estado==='Pendiente Attest'&&!canAttest&&res.length>0?`<div class="text-11 text-muted" style="padding:4px 0;">⏳ Esperando attest de otro jugador</div>`:''}
+                ${jn.estado==='Pendiente Attest'?`<button class="btn-outline" onclick="goCargar('${jn.id}')">✏️ Editar resultados</button>`:''}
                 ${isAdmin?`<button class="btn-danger" onclick="deleteJornada('${jn.id}')">🗑️ Eliminar</button>`:''}
               </div>
               ${res.length>0?`
-                ${res.map(r=>{const jug=STATE.jugadores.find(j=>j.id===r.jugador_id);return`
-                  <div class="result-row">
-                    <span style="font-size:18px;">${medal(r.pos)}</span>
+                ${res.map(r=>{
+                  const jug=STATE.jugadores.find(j=>j.id===r.jugador_id);
+                  const isTop=r.pos===1;
+                  const isDQ=r.dq;
+                  const noAsistio=!r.asistencia;
+                  return`
+                  <div class="result-row" style="${isTop?'background:linear-gradient(135deg,#FFFDE7,#FFF9C4);border-color:#F9A825;':''}${noAsistio?'opacity:0.6;':''}">
+                    <div style="min-width:28px;text-align:center;">
+                      ${r.pos<=3&&!noAsistio&&!isDQ?`<span style="font-size:20px;">${medal(r.pos)}</span>`:`<span style="background:var(--bg);border-radius:6px;padding:2px 6px;font-size:12px;font-weight:700;color:var(--muted);">${noAsistio?'–':isDQ?'DQ':r.pos+'°'}</span>`}
+                    </div>
                     ${avatarHTML(jug?.foto||'?',r.pos,'sm')}
-                    <div class="flex-1 text-13 font-bold">${jug?.nombre||'Desconocido'}</div>
-                    <div class="text-11" style="color:${r.asistencia?'var(--muted)':'var(--red)'};">${r.asistencia?'Jugó':'No asistió'}</div>
-                    <div style="font-size:16px;font-weight:800;color:${r.pos===1?'var(--gold)':'var(--text)'};">${fmtPts(r.pts)}<span class="text-11 text-muted"> pts</span></div>
+                    <div class="flex-1">
+                      <div class="text-13 font-bold">${jug?.nombre||'Desconocido'}</div>
+                      ${noAsistio?`<div class="text-11" style="color:var(--red);">No asistió</div>`:''}
+                      ${isDQ?`<div class="text-11" style="color:var(--red);">Descalificado</div>`:''}
+                    </div>
+                    ${!noAsistio?`<div style="font-size:17px;font-weight:800;color:${isTop?'#B8860B':'var(--text)'};">${fmtPts(r.pts)}<span style="font-size:11px;font-weight:400;color:var(--muted);"> pts</span></div>`:''}
                   </div>`;}).join('')}
                 <div style="margin-top:10px;padding:8px 12px;background:var(--cardL);border-radius:8px;font-size:11px;color:var(--muted);border:1px solid var(--border);">
                   ${cargador?`📋 Cargado por <strong style="color:var(--text);">${cargador.nombre}</strong>`:''}
                   ${attestador?` · ✍️ Attest: <strong style="color:#7B1FA2;">${attestador.nombre}</strong>`:''}
                 </div>
-                ${jn.fotos&&jn.fotos.length>0?`
-                <div style="margin-top:12px;">
-                  <div class="text-11 text-muted font-bold" style="letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;">📸 Fotos del día</div>
-                  <div style="position:relative;overflow:hidden;border-radius:12px;background:#000;" onclick="openCarousel('${jn.id}',carouselIdx['${jn.id}']||0)">
-                    <div id="carouselTrack_${jn.id}" style="display:flex;transition:transform 0.3s ease;">
-                      ${jn.fotos.map(url=>'<img src="'+url+'" style="width:100%;flex-shrink:0;aspect-ratio:4/3;object-fit:cover;cursor:pointer;"/>').join('')}
-                    </div>
-                    ${jn.fotos.length>1?`
-                    <button onclick="event.stopPropagation();slideCarousel('${jn.id}',-1)"
-                      style="position:absolute;left:8px;top:50%;transform:translateY(-50%);background:rgba(0,0,0,0.55);border:none;color:#fff;font-size:22px;border-radius:50%;width:34px;height:34px;cursor:pointer;display:flex;align-items:center;justify-content:center;">&#8249;</button>
-                    <button onclick="event.stopPropagation();slideCarousel('${jn.id}',1)"
-                      style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:rgba(0,0,0,0.55);border:none;color:#fff;font-size:22px;border-radius:50%;width:34px;height:34px;cursor:pointer;display:flex;align-items:center;justify-content:center;">&#8250;</button>
-                    <div style="position:absolute;bottom:8px;left:50%;transform:translateX(-50%);display:flex;gap:6px;">
-                      ${jn.fotos.map((_,di)=>`<div id="dot_${jn.id}_${di}" style="width:7px;height:7px;border-radius:50%;background:${di===0?'#fff':'rgba(255,255,255,0.4)'}"></div>`).join('')}
-                    </div>`:''}
-                  </div>
-                </div>`:''}` 
+` 
               :`<div style="padding:20px 0;text-align:center;color:var(--muted);font-size:13px;">
                 ${jn.estado==='Planificada'?'⏳ Pendiente · Presiona "Cargar Resultados" al finalizar':'Sin resultados cargados'}
               </div>`}
+              ${jn.fotos&&jn.fotos.length>0?`
+              <div style="margin-top:12px;">
+                <div class="text-11 text-muted font-bold" style="letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;">📸 Fotos del día</div>
+                <div style="position:relative;overflow:hidden;border-radius:12px;background:#111;cursor:pointer;" onclick="openCarousel('${jn.id}',0)">
+                  <div id="carouselTrack_${jn.id}" style="display:flex;transition:transform 0.35s ease;">
+                    ${jn.fotos.map(url=>'<img src="'+url+'" style="width:100%;flex-shrink:0;aspect-ratio:4/3;object-fit:cover;"/>').join('')}
+                  </div>
+                  ${jn.fotos.length>1?`
+                  <button onclick="event.stopPropagation();slideCarousel('${jn.id}',-1)"
+                    style="position:absolute;left:8px;top:50%;transform:translateY(-50%);background:rgba(0,0,0,0.5);border:none;color:#fff;font-size:26px;border-radius:50%;width:38px;height:38px;cursor:pointer;line-height:1;display:flex;align-items:center;justify-content:center;">&#8249;</button>
+                  <button onclick="event.stopPropagation();slideCarousel('${jn.id}',1)"
+                    style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:rgba(0,0,0,0.5);border:none;color:#fff;font-size:26px;border-radius:50%;width:38px;height:38px;cursor:pointer;line-height:1;display:flex;align-items:center;justify-content:center;">&#8250;</button>
+                  <div style="position:absolute;bottom:6px;left:50%;transform:translateX(-50%);display:flex;gap:5px;">
+                    ${jn.fotos.map((_,di)=>`<div id="dot_${jn.id}_${di}" style="width:7px;height:7px;border-radius:50%;background:${di===0?'#fff':'rgba(255,255,255,0.4)'}"></div>`).join('')}
+                  </div>`:''}
+                </div>
+              </div>`:''}
             </div>`:``}
         </div>`;
     }).join('')}
@@ -2188,7 +2193,7 @@ function toggleJornada(id){ STATE.expandedJornada=STATE.expandedJornada===id?nul
 
 async function handleAttest(jornadaId){
   await db.collection('jornadas').doc(jornadaId).update({
-    estado:'Por Validar', attest_por:STATE.profile?.jugador_id||STATE.user.uid,
+    estado:'Jugado', attest_por:STATE.profile?.jugador_id||STATE.user.uid,
     attest_at:firebase.firestore.FieldValue.serverTimestamp()
   });
 }
@@ -2599,7 +2604,7 @@ function renderCargar(){
             '</div>';
           }).join('');
         })()}
-        ${!todoAsignado?`<button class="btn-outline" onclick="addPosRow()" style="font-size:13px;">+ Siguiente posición</button>`:''}
+
       </div>
     </div>
 
@@ -2640,13 +2645,11 @@ function goCargarStep2(){
   cargarStep=2;
   cargarPosiciones=[];
   renderCargar();
-  // Load existing photos
-  setTimeout(()=>{
-    const jn=STATE.jornadas.find(j=>j.id===STATE.cargarJornadaId);
-    const fotos=jn?.fotos||[];
-    STATE._jornadaFotosExistentes=[...fotos];
-    [0,1,2].forEach(i=>{ if(fotos[i]) setJornadaFotoSlot(i,fotos[i]); else resetJornadaFotoSlot(i); });
-  },80);
+  // Initialize foto slots immediately after render (DOM is ready)
+  const jn=STATE.jornadas.find(j=>j.id===STATE.cargarJornadaId);
+  const fotos=jn?.fotos||[];
+  STATE._jornadaFotosExistentes=[...fotos];
+  [0,1,2].forEach(i=>{ if(fotos[i]) setJornadaFotoSlot(i,fotos[i]); else resetJornadaFotoSlot(i); });
 }
 
 function setPosJugador(idx,jugadorId){
