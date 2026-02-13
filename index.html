@@ -848,7 +848,7 @@ input,select,textarea{font-family:inherit;}
 // ══════════════════════════════════════════════════════
 // VERSIÓN — cambia este número cada vez que subas cambios
 // ══════════════════════════════════════════════════════
-const APP_VERSION = '3.8.0';
+const APP_VERSION = '3.8.1';
 
 // ══════════════════════════════════════════════════════
 // FIREBASE CONFIG
@@ -865,6 +865,16 @@ firebase.initializeApp(firebaseConfig);
 const auth    = firebase.auth();
 const db      = firebase.firestore();
 const storage = firebase.storage();
+
+// Handle Google redirect result (fires after page reloads from Google auth)
+auth.getRedirectResult().then(result=>{
+  // result.user will be null if no redirect in progress
+  // onAuthStateChanged handles the actual login flow
+}).catch(e=>{
+  if(e.code&&e.code!=='auth/no-current-user'){
+    console.error('Google redirect error:',e.message);
+  }
+});
 
 // ══════════════════════════════════════════════════════
 // ESTADO GLOBAL
@@ -896,10 +906,10 @@ async function handleGoogleSignIn(){
     const provider=new firebase.auth.GoogleAuthProvider();
     provider.addScope('email');
     provider.addScope('profile');
-    await auth.signInWithPopup(provider);
-    // onAuthStateChanged handles the rest
+    // Use redirect (works on all mobile browsers including Safari)
+    await auth.signInWithRedirect(provider);
+    // Page will reload — onAuthStateChanged handles the result
   }catch(e){
-    if(e.code==='auth/popup-closed-by-user') return;
     const err=document.getElementById('loginError')||document.getElementById('registerError');
     if(err){ err.textContent='Error con Google: '+e.message; err.style.display='block'; }
   }
