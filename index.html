@@ -827,7 +827,7 @@ input,select,textarea{font-family:inherit;}
 // ══════════════════════════════════════════════════════
 // VERSIÓN — cambia este número cada vez que subas cambios
 // ══════════════════════════════════════════════════════
-const APP_VERSION = '3.5.1';
+const APP_VERSION = '3.5.4';
 
 // ══════════════════════════════════════════════════════
 // FIREBASE CONFIG
@@ -1480,7 +1480,7 @@ function medal(pos){
   return`<span style="color:var(--muted);font-weight:700;font-size:14px;width:22px;display:inline-block;text-align:center;">${pos}</span>`;
 }
 function badgeHTML(estado){
-  const m={'Oficial':'badge-oficial','Jugado':'badge-validar','Pendiente Attest':'badge-attest','Planificada':'badge-planificada','En Juego':'badge-enjuego','Activo':'badge-activo'};
+  const m={'Oficial':'badge-oficial','Jugado':'badge-validar','Por Validar':'badge-validar','Pendiente Attest':'badge-attest','Planificada':'badge-planificada','En Juego':'badge-enjuego','Activo':'badge-activo'};
   return`<span class="badge ${m[estado]||'badge-planificada'}">${estado}</span>`;
 }
 function avatarHTML(foto,pos,size='md'){
@@ -1492,7 +1492,17 @@ function avatarHTML(foto,pos,size='md'){
 function fmtPts(n){ return Number.isInteger(n)?String(n):n.toFixed(1); }
 function fmtFecha(dateStr){
   if(!dateStr) return '—';
-  const d=new Date(dateStr+'T12:00:00');
+  let d;
+  // Handle Firestore Timestamp objects {seconds, nanoseconds}
+  if(typeof dateStr==='object' && dateStr.seconds){
+    d=new Date(dateStr.seconds*1000);
+  } else if(typeof dateStr==='object' && dateStr.toDate){
+    d=dateStr.toDate();
+  } else {
+    // String: YYYY-MM-DD — append noon to avoid timezone shift
+    d=new Date(String(dateStr).substring(0,10)+'T12:00:00');
+  }
+  if(!d||isNaN(d.getTime())) return '—';
   return d.toLocaleDateString('es-ES',{day:'numeric',month:'short',year:'numeric'});
 }
 
@@ -2108,11 +2118,11 @@ function renderJornadas(){
       const cargador=STATE.jugadores.find(j=>j.id===jn.cargado_por);
       const attestador=STATE.jugadores.find(j=>j.id===jn.attest_por);
       const myJugadorId=STATE.profile?.jugador_id;
-      const canAttest=jn.estado==='Pendiente Attest'&&jn.cargado_por!==myJugadorId&&(isAdmin||STATE.resultados.some(r=>r.jornada_id===jn.id&&r.jugador_id===myJugadorId));
+      const canAttest=(jn.estado==='Pendiente Attest'||jn.estado==='Por Validar')&&jn.cargado_por!==myJugadorId&&(isAdmin||STATE.resultados.some(r=>r.jornada_id===jn.id&&r.jugador_id===myJugadorId));
 
       return`
-        <div class="jornada-card">
-          <div class="jornada-header" onclick="toggleJornada('${jn.id}')">
+        <div class="jornada-card" style="${jn.estado==='Jugado'||jn.estado==='Por Validar'?'border:2px solid #C8E6C9;':''}">
+          <div class="jornada-header" onclick="toggleJornada('${jn.id}')" style="${jn.estado==='Jugado'||jn.estado==='Por Validar'?'background:linear-gradient(135deg,#F1F8E9,#E8F5E9);':''}"  >
             <div class="flex items-center gap-10" style="flex:1;min-width:0;">
               ${clubAvatarHTML(jn.sede)}
               <div style="flex:1;min-width:0;">
@@ -2123,7 +2133,7 @@ function renderJornadas(){
                 ${jn.notas?`<div class="text-11 text-muted">${jn.notas}</div>`:''}
                 ${(()=>{const t=STATE.torneos.find(t=>t.id===jn.torneo_id);return t?`<div class="text-11" style="color:var(--green);font-weight:600;margin-top:1px;">🏆 ${t.nombre}</div>`:'';})()} 
               </div>
-              ${jn.fotos&&jn.fotos.length>0?`<div style="display:flex;flex-direction:row;gap:0;flex-shrink:0;margin-left:4px;cursor:pointer;" onclick="event.stopPropagation();toggleJornada('${jn.id}')">${jn.fotos.slice(0,3).map((url,fi)=>'<img src="'+url+'" style="width:34px;height:34px;object-fit:cover;border-radius:6px;border:2px solid var(--white);'+(fi>0?'margin-left:-8px':'')+'box-shadow:0 1px 3px rgba(0,0,0,0.15);"/>').join('')}</div>`:''}
+              ${jn.fotos&&jn.fotos.length>0?`<div style="display:flex;flex-direction:row;gap:0;flex-shrink:0;margin-left:4px;cursor:pointer;" onclick="event.stopPropagation();toggleJornada('${jn.id}')">${jn.fotos.slice(0,3).map((url,fi)=>'<img src="'+url+'" style="width:34px;height:34px;object-fit:cover;border-radius:6px;border:2px solid var(--white);'+(fi>0?'margin-left:-8px;':'')+'box-shadow:0 1px 3px rgba(0,0,0,0.15);"/>').join('')}</div>`:''}
             </div>
             <div class="flex items-center gap-6" style="flex-shrink:0;margin-left:8px;">
               ${badgeHTML(jn.estado)}
@@ -2134,9 +2144,10 @@ function renderJornadas(){
             <div class="jornada-body">
               <div class="jornada-actions">
                 ${jn.estado==='Planificada'?`<button class="btn-primary" onclick="goCargar('${jn.id}')">📋 Cargar Resultados</button>`:''}
-                ${jn.estado==='Pendiente Attest'&&canAttest?`<button class="btn-attest" onclick="handleAttest('${jn.id}')">✍️ Marcar como Jugada</button>`:''}
-                ${jn.estado==='Pendiente Attest'&&!canAttest&&res.length>0?`<div class="text-11 text-muted" style="padding:4px 0;">⏳ Esperando attest de otro jugador</div>`:''}
-                ${jn.estado==='Pendiente Attest'?`<button class="btn-outline" onclick="goCargar('${jn.id}')">✏️ Editar resultados</button>`:''}
+                ${(jn.estado==='Pendiente Attest'||jn.estado==='Por Validar')&&canAttest?`<button class="btn-attest" onclick="handleAttest('${jn.id}')">✍️ Marcar como Jugada</button>`:''}
+                ${(jn.estado==='Pendiente Attest'||jn.estado==='Por Validar')&&!canAttest&&res.length>0?`<div class="text-11 text-muted" style="padding:4px 0;">⏳ Esperando attest de otro jugador</div>`:''}
+                ${(jn.estado==='Pendiente Attest'||jn.estado==='Por Validar')?`<button class="btn-outline" onclick="goCargar('${jn.id}')">✏️ Editar resultados</button>`:''}
+                ${(jn.estado==='Jugado'||jn.estado==='Por Validar'||jn.estado==='Oficial')&&res.length===0?`<div class="text-11 text-muted" style="padding:4px 0;">Sin resultados registrados</div>`:''}
                 ${isAdmin?`<button class="btn-danger" onclick="deleteJornada('${jn.id}')">🗑️ Eliminar</button>`:''}
               </div>
               ${res.length>0?`
