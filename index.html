@@ -827,7 +827,7 @@ input,select,textarea{font-family:inherit;}
 // ══════════════════════════════════════════════════════
 // VERSIÓN — cambia este número cada vez que subas cambios
 // ══════════════════════════════════════════════════════
-const APP_VERSION = '3.5.4';
+const APP_VERSION = '3.6.0';
 
 // ══════════════════════════════════════════════════════
 // FIREBASE CONFIG
@@ -855,6 +855,7 @@ let STATE = {
   jugadores:[], jornadas:[], resultados:[], clubes:[],
   currentTab:'dashboard', cargarJornadaId:null,
   expandedJornada:null, expandedTorneo:null,
+  expandedJornadaMT:null,  // jornada expanded inside Mis Torneos
   chartInstance:null, editingJornadaId:null,
   activeTorneoId:null,  // torneo being viewed in detail
   unsubs:[]
@@ -1727,19 +1728,11 @@ function renderMisTorneos(){
               </div>`).join('')}
           </div>
 
-          <!-- Jornadas del torneo -->
+          <!-- Jornadas del torneo — clickeables -->
           <div style="border-top:1px solid var(--border);padding:14px 20px 8px;">
             <div class="text-11 text-muted font-bold" style="letter-spacing:1px;text-transform:uppercase;margin-bottom:10px;">📅 Jornadas</div>
             ${jornadasT.length===0?`<div class="text-13 text-muted">Sin jornadas aún.</div>`:''}
-            ${[...jornadasT].sort((a,b)=>new Date(a.fecha)-new Date(b.fecha)).map(jn=>`
-              <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
-                ${clubAvatarHTML(jn.sede)}
-                <div class="flex-1">
-                  <div class="text-13 font-bold">${jn.sede||'Sin sede'}${jn.cuentaRanking===false?' 🚫':''}${jn.reglasOverride?' ⭐ Especial':''}</div>
-                  <div class="text-11 text-muted">${fmtFecha(jn.fecha)}${jn.teeTime?' · ⏰ '+jn.teeTime:''}</div>
-                </div>
-                ${badgeHTML(jn.estado)}
-              </div>`).join('')}
+            ${[...jornadasT].sort((a,b)=>new Date(a.fecha)-new Date(b.fecha)).map(jn=>jornadaRowMT(jn)).join('')}
           </div>
 
           <!-- Desglose por jornada -->
@@ -1795,6 +1788,75 @@ function toggleTorneoMis(torneoId){
   STATE.expandedTorneo=STATE.expandedTorneo===torneoId?null:torneoId;
   STATE.activeTorneoId=torneoId;
   renderMisTorneos();
+}
+
+function toggleJornadaMT(jid){
+  STATE.expandedJornadaMT=STATE.expandedJornadaMT===jid?null:jid;
+  renderMisTorneos();
+}
+
+// Returns HTML string for a clickable jornada row inside Mis Torneos
+function jornadaRowMT(jn){
+  const isOpen=STATE.expandedJornadaMT===jn.id;
+  const res=STATE.resultados.filter(r=>r.jornada_id===jn.id).sort((a,b)=>a.pos-b.pos);
+  const hasResults=res.length>0;
+  const isAdmin=STATE.profile?.role==='admin';
+
+  // Header row
+  let html='<div style="border-radius:10px;overflow:hidden;margin-bottom:8px;border:1px solid var(--border);">';
+  html+='<div onclick="toggleJornadaMT(\''+jn.id+'\')" style="display:flex;align-items:center;gap:10px;padding:10px 12px;cursor:pointer;background:'+(isOpen?'var(--cardL)':'var(--white)')+';">';
+  html+=clubAvatarHTML(jn.sede);
+  html+='<div style="flex:1;min-width:0;">';
+  html+='<div style="font-size:13px;font-weight:700;">'+(jn.sede||'Sin sede');
+  if(jn.cuentaRanking===false) html+=' 🚫';
+  if(jn.reglasOverride) html+=' <span style="background:#FEF3C7;color:#92400E;font-size:10px;font-weight:700;padding:1px 4px;border-radius:4px;">⭐ Especial</span>';
+  html+='</div>';
+  html+='<div style="font-size:11px;color:var(--muted);margin-top:1px;">'+fmtFecha(jn.fecha)+(jn.teeTime?' · ⏰ '+jn.teeTime:'')+'</div>';
+  html+='</div>';
+  html+='<div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">';
+  html+=badgeHTML(jn.estado);
+  if(hasResults) html+='<span style="color:var(--muted);font-size:12px;">'+(isOpen?'▲':'▼')+'</span>';
+  html+='</div>';
+  html+='</div>'; // end header row
+
+  // Expanded results
+  if(isOpen && hasResults){
+    html+='<div style="border-top:1px solid var(--border);background:var(--bg);">';
+    res.forEach(function(r){
+      const jug=STATE.jugadores.find(j=>j.id===r.jugador_id);
+      const isTop=r.pos===1;
+      const noAsist=!r.asistencia;
+      const isDQ=r.dq;
+      html+='<div style="display:flex;align-items:center;gap:10px;padding:9px 14px;border-bottom:1px solid var(--border);'+(isTop?'background:linear-gradient(90deg,#FFFDE7,transparent);':'')+(noAsist?'opacity:0.55;':'')+'">';
+      // Position
+      html+='<div style="min-width:32px;text-align:center;">';
+      if(r.pos<=3&&!noAsist&&!isDQ){
+        html+='<span style="font-size:18px;">'+medal(r.pos)+'</span>';
+      } else {
+        html+='<span style="background:var(--border);border-radius:5px;padding:2px 6px;font-size:11px;font-weight:700;color:var(--muted);">'+(noAsist?'—':isDQ?'DQ':r.pos+'°')+'</span>';
+      }
+      html+='</div>';
+      // Avatar
+      html+=avatarHTML(jug&&jug.foto?jug.foto:'?',r.pos,'sm');
+      // Name
+      html+='<div style="flex:1;min-width:0;">';
+      html+='<div style="font-size:13px;font-weight:600;">'+(jug?jug.nombre:'Desconocido')+'</div>';
+      if(noAsist) html+='<div style="font-size:11px;color:var(--red);">No asistió</div>';
+      if(isDQ) html+='<div style="font-size:11px;color:var(--red);">Descalificado</div>';
+      html+='</div>';
+      // Points
+      if(!noAsist){
+        html+='<div style="font-size:16px;font-weight:800;color:'+(isTop?'#B8860B':'var(--text)')+';">'+fmtPts(r.pts)+'<span style="font-size:11px;font-weight:400;color:var(--muted);"> pts</span></div>';
+      }
+      html+='</div>';
+    });
+    html+='</div>';
+  } else if(isOpen && !hasResults){
+    html+='<div style="padding:14px;text-align:center;color:var(--muted);font-size:12px;border-top:1px solid var(--border);">Sin resultados cargados aún</div>';
+  }
+
+  html+='</div>'; // end card
+  return html;
 }
 
 function reglasResumenHTML(torneo){
