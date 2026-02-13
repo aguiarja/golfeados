@@ -75,6 +75,11 @@ input,select,textarea{font-family:inherit;}
 .field input{width:100%;padding:11px 14px;background:var(--bg);border:1.5px solid var(--border);border-radius:10px;color:var(--text);font-size:15px;outline:none;transition:border-color 0.2s;}
 .field input:focus{border-color:var(--green);background:var(--white);}
 .btn-login{width:100%;padding:13px;border-radius:10px;border:none;background:var(--green);color:#fff;font-weight:700;font-size:16px;font-family:Georgia,serif;letter-spacing:1px;box-shadow:0 4px 14px rgba(46,125,94,0.3);transition:opacity 0.2s;margin-top:4px;}
+.btn-google{width:100%;padding:12px;border-radius:10px;border:2px solid #e0e0e0;background:#fff;color:#3c4043;font-weight:600;font-size:15px;font-family:Georgia,serif;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;margin-top:10px;box-shadow:0 1px 4px rgba(0,0,0,0.1);}
+.btn-google:hover{background:#f8f8f8;border-color:#dadce0;}
+.btn-google:active{background:#f0f0f0;}
+.login-or{display:flex;align-items:center;gap:10px;margin:14px 0;color:var(--muted);font-size:12px;}
+.login-or::before,.login-or::after{content:'';flex:1;height:1px;background:var(--border);}
 .btn-login:disabled{opacity:0.6;cursor:not-allowed;}
 .btn-link{background:none;border:none;color:var(--muted);font-size:13px;text-align:center;display:block;width:100%;margin-top:14px;}
 .error-box{background:var(--redPale);border:1px solid #FFCDD2;border-radius:8px;padding:10px 14px;color:var(--red);font-size:13px;margin-bottom:12px;}
@@ -262,6 +267,11 @@ input,select,textarea{font-family:inherit;}
         </div>
       </div>
       <button class="btn-login" id="loginBtn" onclick="handleLogin()">Entrar al Club</button>
+      <div class="login-or">o</div>
+      <button class="btn-google" onclick="handleGoogleSignIn()">
+        <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.08 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.35-8.16 2.35-6.26 0-11.57-3.59-13.46-8.83l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+        Continuar con Google
+      </button>
       <div class="login-divider"><span>¿No tienes cuenta?</span></div>
       <button class="btn-login" style="background:transparent;border:2px solid var(--green);color:var(--green);box-shadow:none;" onclick="showRegister()">Crear cuenta</button>
       <button class="btn-link" onclick="showReset()">¿Olvidaste tu contraseña?</button>
@@ -314,6 +324,11 @@ input,select,textarea{font-family:inherit;}
         <div id="strengthLabel" style="font-size:11px;color:var(--muted);margin-top:4px;"></div>
       </div>
       <button class="btn-login" id="regBtn" onclick="handleRegister()">Continuar →</button>
+      <div class="login-or">o regístrate con</div>
+      <button class="btn-google" onclick="handleGoogleSignIn()">
+        <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.08 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.35-8.16 2.35-6.26 0-11.57-3.59-13.46-8.83l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+        Continuar con Google
+      </button>
       <button class="btn-link" onclick="showLogin()">← Ya tengo cuenta</button>
     </div>
 
@@ -375,6 +390,24 @@ input,select,textarea{font-family:inherit;}
     </div>
 
     <!-- ⑥ VERIFICACIÓN PENDIENTE (usuario ya registrado pero no verificó) -->
+    <!-- VINCULAR CUENTA CON CÓDIGO DE INVITACIÓN -->
+    <div id="vincularView" style="display:none;">
+      <div style="text-align:center;padding:10px 0 20px;">
+        <div style="font-size:48px;margin-bottom:12px;">⛳</div>
+        <div style="font-size:16px;font-weight:700;color:var(--green);margin-bottom:8px;">¡Bienvenido al club!</div>
+        <div style="font-size:13px;color:var(--muted);line-height:1.5;">Si el administrador ya cargó tu perfil de jugador,<br/>ingresa tu código de invitación para vincularte.</div>
+      </div>
+      <div id="vincularError" class="error-box" style="display:none;margin-bottom:12px;"></div>
+      <div class="field">
+        <label>Código de invitación</label>
+        <input type="text" id="vincularCodigo" placeholder="GOLF-XXXX" 
+          style="text-transform:uppercase;letter-spacing:2px;font-size:18px;text-align:center;font-weight:700;"
+          oninput="this.value=this.value.toUpperCase().replace(/[^A-Z0-9-]/g,'')"/>
+      </div>
+      <button class="btn-login" id="vincularBtn" onclick="handleVincular()">Vincular mi perfil 🏌️</button>
+      <button class="btn-link" style="margin-top:10px;" onclick="skipVincular()">Saltar por ahora →</button>
+    </div>
+
     <div id="pendingVerifyView" style="display:none;">
       <div style="text-align:center;padding:10px 0 20px;">
         <div style="font-size:48px;margin-bottom:12px;">⚠️</div>
@@ -815,7 +848,7 @@ input,select,textarea{font-family:inherit;}
 // ══════════════════════════════════════════════════════
 // VERSIÓN — cambia este número cada vez que subas cambios
 // ══════════════════════════════════════════════════════
-const APP_VERSION = '3.7.1';
+const APP_VERSION = '3.8.0';
 
 // ══════════════════════════════════════════════════════
 // FIREBASE CONFIG
@@ -857,9 +890,70 @@ let STATE = {
 // ══════════════════════════════════════════════════════
 
 // Show/hide login views
+// ── Google Sign-In ─────────────────────────────────
+async function handleGoogleSignIn(){
+  try{
+    const provider=new firebase.auth.GoogleAuthProvider();
+    provider.addScope('email');
+    provider.addScope('profile');
+    await auth.signInWithPopup(provider);
+    // onAuthStateChanged handles the rest
+  }catch(e){
+    if(e.code==='auth/popup-closed-by-user') return;
+    const err=document.getElementById('loginError')||document.getElementById('registerError');
+    if(err){ err.textContent='Error con Google: '+e.message; err.style.display='block'; }
+  }
+}
+
+// ── Invite Code (Vincular cuenta) ──────────────────
+function showVincular(){
+  showLoginView('vincularView');
+}
+function skipVincular(){
+  // User skips — goes to main app without jugador linked
+  document.getElementById('login-screen').style.display='none';
+  document.getElementById('app').style.display='flex';
+  renderCurrentTab();
+}
+async function handleVincular(){
+  const code=document.getElementById('vincularCodigo').value.trim().toUpperCase();
+  const err=document.getElementById('vincularError');
+  const btn=document.getElementById('vincularBtn');
+  err.style.display='none';
+  if(!code||code.length<6){ err.textContent='Ingresa el código de invitación.'; err.style.display='block'; return; }
+  btn.disabled=true; btn.textContent='Verificando...';
+  try{
+    // Find jugador with this invite_code
+    const snap=await db.collection('jugadores').where('invite_code','==',code).limit(1).get();
+    if(snap.empty){ err.textContent='Código inválido. Verifica con tu administrador.'; err.style.display='block'; btn.disabled=false; btn.textContent='Vincular mi perfil 🏌️'; return; }
+    const jugDoc=snap.docs[0];
+    if(jugDoc.data().user_uid){ err.textContent='Este código ya fue usado.'; err.style.display='block'; btn.disabled=false; btn.textContent='Vincular mi perfil 🏌️'; return; }
+    // Link: update jugador + user profile
+    const uid=STATE.user.uid;
+    await db.collection('jugadores').doc(jugDoc.id).update({ user_uid:uid });
+    await db.collection('users').doc(uid).update({ jugador_id:jugDoc.id });
+    STATE.profile.jugador_id=jugDoc.id;
+    // Enter app
+    document.getElementById('login-screen').style.display='none';
+    document.getElementById('app').style.display='flex';
+    renderCurrentTab();
+  }catch(e){
+    err.textContent='Error: '+e.message; err.style.display='block';
+    btn.disabled=false; btn.textContent='Vincular mi perfil 🏌️';
+  }
+}
+
+// ── Generate invite code ────────────────────────────
+function generateInviteCode(){
+  const chars='ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no confusing chars (0,O,1,I)
+  let code='GOLF-';
+  for(let i=0;i<4;i++) code+=chars[Math.floor(Math.random()*chars.length)];
+  return code;
+}
+
 function showLoginView(id){
   ['loginView','registerView','verifyChoiceView','smsCodeView',
-   'emailSentView','pendingVerifyView','resetView'].forEach(v=>{
+   'emailSentView','pendingVerifyView','resetView','vincularView'].forEach(v=>{
     const el=document.getElementById(v);
     if(el) el.style.display=v===id?'block':'none';
   });
@@ -880,6 +974,21 @@ auth.onAuthStateChanged(async user=>{
       await db.collection('users').doc(user.uid).set(p);
       STATE.profile=p;
     }
+    // Google sign-in: user is auto-verified, set verified flag
+    if(STATE.user.providerData&&STATE.user.providerData[0]&&STATE.user.providerData[0].providerId==='google.com'){
+      if(!STATE.profile.verified){
+        await db.collection('users').doc(STATE.user.uid).update({verified:true});
+        STATE.profile.verified=true;
+      }
+    }
+    // If user has no jugador_id → show vincular screen (skip for admins)
+    if(!STATE.profile.jugador_id && STATE.profile.role!=='admin'){
+      document.getElementById('app').style.display='none';
+      document.getElementById('login-screen').style.display='flex';
+      showLoginView('vincularView');
+      return;
+    }
+
     // Check if verified
     await user.reload();
     const emailVerif=user.emailVerified;
@@ -3055,7 +3164,14 @@ function renderJugadores(){
             <div class="flex-1">
               <div class="text-14 font-bold">${j.nombre}</div>
               <div class="text-12 text-muted">${j.alias||'—'}${j.handicap!==undefined?' · HCP '+j.handicap:''}</div>
-              ${j.telefonoCompleto?`<div class="text-11 text-muted" style="margin-top:2px;">📱 ${j.telefonoCompleto}</div>`:``}
+              ${j.telefonoCompleto?`<div class="text-11 text-muted" style="margin-top:2px;">📱 ${j.telefonoCompleto}</div>`:''}
+              ${isAdmin&&j.invite_code?`
+                <div style="margin-top:4px;display:flex;align-items:center;gap:6px;">
+                  ${!j.user_uid
+                    ?`<span style="background:#E8F5E9;color:#2E7D32;font-size:11px;font-weight:700;padding:3px 8px;border-radius:6px;letter-spacing:1px;font-family:monospace;">🔑 ${j.invite_code}</span>
+                      <span style="font-size:10px;color:var(--muted);">Sin vincular</span>`
+                    :`<span style="background:#E3F2FD;color:#1565C0;font-size:10px;padding:2px 7px;border-radius:6px;">✅ Cuenta vinculada</span>`}
+                </div>`:''}
             </div>
             <div style="text-align:right;min-width:40px;">
               <div style="font-size:18px;font-weight:800;color:${rk?.pos===1?'var(--gold)':'var(--text)'};">${rk?.ptsT||0}</div>
@@ -3199,7 +3315,12 @@ async function addJugador(){
   }
   const initials=foto||nombre.split(' ').map(n=>n[0]).join('').toUpperCase().slice(0,2);
   const id=nombre.toLowerCase().replace(/\s+/g,'_')+'_'+Date.now();
-  const data={nombre,alias:alias||nombre.split(' ')[0],foto:initials,creado:firebase.firestore.FieldValue.serverTimestamp()};
+  let invite_code=generateInviteCode();
+  const codeSnap=await db.collection('jugadores').where('invite_code','==',invite_code).get();
+  if(!codeSnap.empty) invite_code=generateInviteCode();
+  const data={nombre,alias:alias||nombre.split(' ')[0],foto:initials,
+              invite_code, user_uid:null,
+              creado:firebase.firestore.FieldValue.serverTimestamp()};
   if(telefono){data.telefono=telefono;data.codigoPais=codigoPais;data.telefonoCompleto=codigoPais+telefono;}
   await db.collection('jugadores').doc(id).set(data);
   showAddJugador=false;
