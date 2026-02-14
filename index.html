@@ -848,7 +848,7 @@ input,select,textarea{font-family:inherit;}
 // ══════════════════════════════════════════════════════
 // VERSIÓN — cambia este número cada vez que subas cambios
 // ══════════════════════════════════════════════════════
-const APP_VERSION = '3.9.1';
+const APP_VERSION = '3.9.2';
 
 // ══════════════════════════════════════════════════════
 // FIREBASE CONFIG
@@ -915,8 +915,49 @@ async function handleGoogleSignIn(){
 }
 
 // ── Invite Code (Vincular cuenta) ──────────────────
-function showVincular(){
-  showLoginView('vincularView');
+function showVincular(){ showLoginView('vincularView'); }
+function showVincularModal(){
+  const existing=document.getElementById('vincularModal');
+  if(existing){ existing.style.display='flex'; return; }
+  const m=document.createElement('div');
+  m.id='vincularModal';
+  m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
+  m.innerHTML=`<div style="background:var(--white);border-radius:20px;padding:28px 24px;max-width:360px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+    <div style="text-align:center;margin-bottom:20px;">
+      <div style="font-size:40px;margin-bottom:8px;">⛳</div>
+      <div style="font-size:16px;font-weight:700;color:var(--green);">Vincular perfil de jugador</div>
+      <div style="font-size:12px;color:var(--muted);margin-top:6px;line-height:1.5;">Ingresa el código que te envió el administrador para ver tus estadísticas y puntos.</div>
+    </div>
+    <div id="vincularModalError" class="error-box" style="display:none;margin-bottom:12px;"></div>
+    <input type="text" id="vincularModalCodigo" placeholder="GOLF-XXXX"
+      style="width:100%;padding:14px;text-align:center;font-size:20px;font-weight:700;letter-spacing:3px;text-transform:uppercase;border:2px solid var(--border);border-radius:10px;background:var(--bg);color:var(--text);margin-bottom:12px;"
+      oninput="this.value=this.value.toUpperCase().replace(/[^A-Z0-9-]/g,'')"/>
+    <button class="btn-login" id="vincularModalBtn" onclick="handleVincularModal()">Vincular 🏌️</button>
+    <button class="btn-link" style="margin-top:8px;" onclick="document.getElementById('vincularModal').style.display='none'">Saltar por ahora</button>
+  </div>`;
+  document.body.appendChild(m);
+}
+async function handleVincularModal(){
+  const code=document.getElementById('vincularModalCodigo').value.trim().toUpperCase();
+  const err=document.getElementById('vincularModalError');
+  const btn=document.getElementById('vincularModalBtn');
+  err.style.display='none';
+  if(!code||code.length<6){err.textContent='Ingresa el código.';err.style.display='block';return;}
+  btn.disabled=true;btn.textContent='Verificando...';
+  try{
+    const snap=await db.collection('jugadores').where('invite_code','==',code).limit(1).get();
+    if(snap.empty){err.textContent='Código inválido. Verifica con tu admin.';err.style.display='block';btn.disabled=false;btn.textContent='Vincular 🏌️';return;}
+    const jugDoc=snap.docs[0];
+    if(jugDoc.data().user_uid){err.textContent='Este código ya fue usado.';err.style.display='block';btn.disabled=false;btn.textContent='Vincular 🏌️';return;}
+    const uid=STATE.user.uid;
+    await db.collection('jugadores').doc(jugDoc.id).update({user_uid:uid});
+    await db.collection('users').doc(uid).update({jugador_id:jugDoc.id});
+    STATE.profile.jugador_id=jugDoc.id;
+    document.getElementById('vincularModal').style.display='none';
+    const vb=document.getElementById('vincularBadge');
+    if(vb) vb.style.display='none';
+    renderCurrentTab();
+  }catch(e){err.textContent='Error: '+e.message;err.style.display='block';btn.disabled=false;btn.textContent='Vincular 🏌️';}
 }
 function skipVincular(){
   // User skips — goes to main app without jugador linked
@@ -1010,15 +1051,8 @@ auth.onAuthStateChanged(async user=>{
     // All good — enter app
     showApp_();
     initListeners();
-    // Show vincular screen AFTER entering app, as a non-blocking overlay
-    // (only for non-admins without jugador_id who haven't skipped)
-    if(!STATE.profile.jugador_id && STATE.profile.role!=='admin' && !STATE.profile.vincular_skipped){
-      setTimeout(()=>{
-        document.getElementById('loginScreen').style.display='flex';
-        document.getElementById('app').style.display='none';
-        showLoginView('vincularView');
-      }, 100);
-    }
+    // Note: vincular (invite code linking) is done from INSIDE the app
+    // We never block entry to show vincular — users enter app directly
   } else {
     // user is null — but wait for redirect result first
     // (prevents flashing login screen during Google redirect)
@@ -1044,6 +1078,9 @@ function showApp_(){
   document.getElementById('app').style.display='block';
   document.getElementById('headerUser').textContent=STATE.profile?.nombre||STATE.user?.email||'';
   document.getElementById('adminBadge').style.display=STATE.profile?.role==='admin'?'inline':'none';
+  // Show vincular badge if no jugador linked
+  const vBadge=document.getElementById('vincularBadge');
+  if(vBadge) vBadge.style.display=(!STATE.profile?.jugador_id&&STATE.profile?.role!=='admin')?'inline-flex':'none';
   initConnectionMonitor();
   initUpdateChecker();
 }
