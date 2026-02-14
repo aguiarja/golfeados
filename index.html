@@ -848,7 +848,7 @@ input,select,textarea{font-family:inherit;}
 // ══════════════════════════════════════════════════════
 // VERSIÓN — cambia este número cada vez que subas cambios
 // ══════════════════════════════════════════════════════
-const APP_VERSION = '3.8.6';
+const APP_VERSION = '3.8.7';
 
 // ══════════════════════════════════════════════════════
 // FIREBASE CONFIG
@@ -1447,7 +1447,7 @@ function goCargar(jornadaId){
   STATE._jornadaFotoFiles=[null,null,null];  // store File objects here
   cargarParticipantes=[]; cargarPosiciones=[]; cargarStep=1;
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
-  ['dashboard','mistorneos','partidas','jugadores','clubes'].forEach(t=>{
+  ['dashboard','mistorneos','jornadas','jugadores','clubes','cargar'].forEach(t=>{
     const el=document.getElementById('tab-'+t); if(el) el.style.display='none';
   });
   const ct=document.getElementById('tab-cargar');
@@ -1869,7 +1869,7 @@ function renderMisTorneos(){
             html+='<div class="text-11 text-muted font-bold" style="letter-spacing:1px;text-transform:uppercase;margin-bottom:10px;">Desglose por Partida</div>';
             html+='<table style="width:100%;border-collapse:collapse;font-size:12px;min-width:'+minW+'px;">';
             html+='<tr><td style="padding:4px 8px;color:var(--muted);font-weight:700;white-space:nowrap;">Jugador</td>';
-            jJugadas.forEach(jn=>{html+='<td style="padding:4px 8px;text-align:center;color:var(--muted);font-weight:700;white-space:nowrap;">'+jn.sede+(jn.reglasOverride?' ⭐':'')+'<br/><span style="font-size:10px;opacity:0.75;">'+fmtFechaJornada(jn)+'</span><br/>'+badgeHTML(jn.estado)+'</td>';});
+            jJugadas.forEach(jn=>{html+='<td style="padding:4px 8px;text-align:center;color:var(--muted);font-weight:700;white-space:nowrap;">'+jn.sede+(jn.reglasOverride?' ⭐':'')+'<br/><span style="font-size:10px;opacity:0.75;">'+fmtFechaJornada(jn)+'</span><br/>'+badgeHTML(getEstadoJornada(jn))+'</td>';});
             html+='<td style="padding:4px 8px;text-align:center;color:var(--green);font-weight:700;">TOT</td></tr>';
             rk.forEach(j=>{
               html+='<tr style="border-top:1px solid var(--border);">';
@@ -1943,7 +1943,7 @@ function jornadaRowMT(jn){
   // Right side: badge + foto count + arrow
   html+='<div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">';
   if(hasFotos) html+='<span style="background:#E3F2FD;color:#1565C0;font-size:10px;font-weight:700;padding:2px 6px;border-radius:10px;">📷'+jn.fotos.length+'</span>';
-  html+=badgeHTML(jn.estado);
+  html+=badgeHTML(getEstadoJornada(jn));
   html+='<span style="color:var(--muted);font-size:12px;min-width:10px;">'+(isOpen?'▲':'▼')+'</span>';
   html+='</div>';
   html+='</div>'; // end clickable header
@@ -2288,7 +2288,7 @@ function renderRanking(){
         <table class="breakdown-table" style="min-width:${100+jugadasAll.length*80}px;">
           <tr>
             <td style="padding:6px 8px;color:var(--muted);font-weight:700;white-space:nowrap;">Jugador</td>
-            ${jugadasAll.map(jn=>`<td style="padding:6px 8px;text-align:center;color:var(--muted);font-weight:700;white-space:nowrap;min-width:70px;">${jn.sede}<br/>${badgeHTML(jn.estado)}</td>`).join('')}
+            ${jugadasAll.map(jn=>`<td style="padding:6px 8px;text-align:center;color:var(--muted);font-weight:700;white-space:nowrap;min-width:70px;">${jn.sede}<br/>${badgeHTML(getEstadoJornada(jn))}</td>`).join('')}
             <td style="padding:6px 8px;text-align:center;color:var(--green);font-weight:700;">TOTAL</td>
           </tr>
           ${rk.map(j=>`
@@ -2342,6 +2342,14 @@ function renderJornadas(){
       const myJugadorId=STATE.profile?.jugador_id;
       const est=getEstadoJornada(jn);  // live computed estado
       const canAttest=(est==='Pendiente Attest'||est==='Por Validar')&&jn.cargado_por!==myJugadorId&&(isAdmin||STATE.resultados.some(r=>r.jornada_id===jn.id&&r.jugador_id===myJugadorId));
+      // Who can cargar: get torneo rules
+      const torneoDeJornada=STATE.torneos.find(t=>t.id===jn.torneo_id);
+      const quienCarga=torneoDeJornada?.quienCargaResultados||'admins';
+      const canCargar=est==='En Juego'&&(isAdmin||(quienCarga==='cualquiera'&&STATE.profile?.jugador_id&&STATE.resultados.some(r=>r.jornada_id===jn.id&&r.jugador_id===myJugadorId)));
+      // Build "quién puede cargar" label
+      const adminsDelTorneo=torneoDeJornada?STATE.jugadores.filter(j=>j.id===torneoDeJornada.admin_id||(torneoDeJornada.admins&&torneoDeJornada.admins.includes(j.id))):[];
+      const quienPuedeMsj=quienCarga==='cualquiera'?'Cualquier participante puede cargar los resultados':
+        'Solo el admin del torneo puede cargar: '+(adminsDelTorneo.map(j=>j.nombre).join(', ')||'el administrador');
 
       return`
         <div class="partida-card" style="${est==='Jugado'||est==='Por Validar'?'border:2px solid #C8E6C9;':est==='En Juego'?'border:2px solid #FFE082;':''}">
@@ -2366,11 +2374,12 @@ function renderJornadas(){
           ${isOpen?`
             <div class="partida-body">
               <div class="partida-actions">
-                ${est==='En Juego'?`<button class="btn-primary" onclick="goCargar('${jn.id}')">📋 Cargar Resultados</button>`:''}
+                ${est==='En Juego'&&(isAdmin||quienCarga==='cualquiera')?`<button class="btn-primary" onclick="event.stopPropagation();goCargar('${jn.id}')">📋 Cargar Resultados</button>`:''}
+                ${est==='En Juego'&&!isAdmin&&quienCarga!=='cualquiera'?`<div style="padding:6px 10px;background:#FFF8E1;border-radius:8px;border:1px solid #FFE082;font-size:12px;color:#5D4037;line-height:1.5;">⛳ <strong>Partida en juego</strong><br/>${quienPuedeMsj}</div>`:''}
                 ${est==='Planificada'?`<div class="text-11 text-muted" style="padding:4px 0;">⏳ Aún no es el día de juego</div>`:''}
-                ${(est==='Pendiente Attest'||est==='Por Validar')&&canAttest?`<button class="btn-attest" onclick="handleAttest('${jn.id}')">✍️ Marcar como Jugada</button>`:''}
+                ${(est==='Pendiente Attest'||est==='Por Validar')&&canAttest?`<button class="btn-attest" onclick="event.stopPropagation();handleAttest('${jn.id}')">✍️ Marcar como Jugada</button>`:''}
                 ${(est==='Pendiente Attest'||est==='Por Validar')&&!canAttest&&res.length>0?`<div class="text-11 text-muted" style="padding:4px 0;">⏳ Esperando confirmación</div>`:''}
-                ${(est==='Pendiente Attest'||est==='Por Validar')?`<button class="btn-outline" onclick="goCargar('${jn.id}')">✏️ Editar resultados</button>`:''}
+                ${(est==='Pendiente Attest'||est==='Por Validar')?`<button class="btn-outline" onclick="event.stopPropagation();goCargar('${jn.id}')">✏️ Editar resultados</button>`:''}
                 ${isAdmin?`<button class="btn-danger" onclick="deleteJornada('${jn.id}')">🗑️ Eliminar</button>`:''}
               </div>
               ${res.length>0?`
