@@ -884,7 +884,7 @@ input,select,textarea{font-family:inherit;}
 // ══════════════════════════════════════════════════════
 // VERSIÓN — cambia este número cada vez que subas cambios
 // ══════════════════════════════════════════════════════
-const APP_VERSION = '4.0.3';
+const APP_VERSION = '4.0.4';
 
 // ══════════════════════════════════════════════════════
 // FIREBASE CONFIG
@@ -1446,14 +1446,16 @@ function showReset(){
 // ══════════════════════════════════════════════════════
 function initListeners(){
   stopListeners();
-  // Torneos
-  STATE.unsubs.push(db.collection('torneos').orderBy('creado','desc')
+  // Torneos donde el usuario es admin o co-admin (solo los suyos)
+  const uid=STATE.user.uid;
+  STATE.unsubs.push(db.collection('torneos')
+    .where('admins','array-contains',uid)
+    .orderBy('creado','desc')
     .onSnapshot(s=>{
       STATE.torneos=s.docs.map(d=>({id:d.id,...d.data()}));
       STATE.torneo=STATE.torneos.find(t=>t.estado==='Activo'||t.estado==='activo')||STATE.torneos[0]||null;
       if(!STATE.activeTorneoId&&STATE.torneo) STATE.activeTorneoId=STATE.torneo.id;
       if(STATE._connSetOnline)STATE._connSetOnline();
-      // Re-subscribe participantes when torneo list changes
       subscribeParticipantes();
       renderCurrentTab();
     }));
@@ -1642,13 +1644,12 @@ function normalizeStr(str){
 }
 
 function setActiveTorneo(torneoId){
+  if(STATE.activeTorneoId===torneoId) return; // nothing to do
   STATE.activeTorneoId=torneoId;
   STATE.torneo=STATE.torneos.find(t=>t.id===torneoId)||null;
   STATE.jugadores=[];
-  // Force re-subscribe by resetting the current torneo ID
   _participantesTorneoId=null;
-  subscribeParticipantes();
-  renderCurrentTab();
+  subscribeParticipantes(); // will call renderCurrentTab when data arrives
 }
 
 function getActiveTorneo(){
@@ -2508,9 +2509,18 @@ function renderJornadas(){
   const el=document.getElementById('tab-jornadas');
   const torneo_=getActiveTorneo();
   const isAdmin=isTorneoAdmin(torneo_);
-  // Show only partidas from torneos the user is in
-  const misTorneoIds=new Set(STATE.torneos.map(t=>t.id));
-  const misJornadas=STATE.jornadas.filter(j=>!j.torneo_id||misTorneoIds.has(j.torneo_id));
+  // Show only partidas from torneos the user admins or participates in
+  const misTorneoIds=new Set(STATE.torneos.map(t=>t.id)); // ya filtrado por admins
+  const myJugId=STATE.profile?.jugador_id;
+  // Include jornada if: user is admin of its torneo OR user has a result in it
+  const jornadasConResultado=myJugId?new Set(
+    STATE.resultados.filter(r=>r.jugador_id===myJugId).map(r=>r.jornada_id)
+  ):new Set();
+  const misJornadas=STATE.jornadas.filter(j=>{
+    if(j.torneo_id && misTorneoIds.has(j.torneo_id)) return true;  // admin del torneo
+    if(jornadasConResultado.has(j.id)) return true;                // tiene resultado
+    return false;
+  });
   const jornadasOrdenadas=[...misJornadas].sort((a,b)=>{
     const da=a.fecha?(typeof a.fecha==='object'&&a.fecha.seconds?new Date(a.fecha.seconds*1000):new Date(a.fecha)):null;
     const db_=b.fecha?(typeof b.fecha==='object'&&b.fecha.seconds?new Date(b.fecha.seconds*1000):new Date(b.fecha)):null;
@@ -3447,19 +3457,29 @@ function renderJugadores(){
 
 
 function openAgregarJugadorModal(torneoId){
-  if(torneoId) setActiveTorneo(torneoId);
-  const m=document.getElementById('agregarJugadorModal');
-  if(m){ m.style.display='flex'; }
-  const t=getActiveTorneo();
-  const title=document.getElementById('modalAgregarTitle');
-  if(title&&t) title.textContent='Agregar a: '+t.nombre;
-  // Load global jugadores for search
-  if(STATE.jugadores_global.length===0){
-    db.collection('jugadores').orderBy('nombre').get().then(s=>{
-      STATE.jugadores_global=s.docs.map(d=>({id:d.id,...d.data()}));
-    });
+  // Update active torneo WITHOUT triggering renderCurrentTab (that destroys the modal DOM)
+  if(torneoId && torneoId!==STATE.activeTorneoId){
+    STATE.activeTorneoId=torneoId;
+    STATE.torneo=STATE.torneos.find(t=>t.id===torneoId)||null;
+    _participantesTorneoId=null;
+    subscribeParticipantes(); // re-subscribe silently
   }
-  setTimeout(()=>{ const inp=document.getElementById('buscarJugadorInput'); if(inp) inp.focus(); },100);
+  // Show modal — use requestAnimationFrame to ensure DOM is stable
+  requestAnimationFrame(()=>{
+    const m=document.getElementById('agregarJugadorModal');
+    if(!m) return;
+    m.style.display='flex';
+    const t=getActiveTorneo();
+    const title=document.getElementById('modalAgregarTitle');
+    if(title&&t) title.textContent='Agregar a: '+t.nombre;
+    // Load global jugadores for search
+    if(STATE.jugadores_global.length===0){
+      db.collection('jugadores').orderBy('nombre').get().then(s=>{
+        STATE.jugadores_global=s.docs.map(d=>({id:d.id,...d.data()}));
+      });
+    }
+    setTimeout(()=>{ const inp=document.getElementById('buscarJugadorInput'); if(inp) inp.focus(); },100);
+  });
 }
 function closeAgregarJugadorModal(){
   const m=document.getElementById('agregarJugadorModal');
