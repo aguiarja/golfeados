@@ -884,7 +884,7 @@ input,select,textarea{font-family:inherit;}
 // ══════════════════════════════════════════════════════
 // VERSIÓN — cambia este número cada vez que subas cambios
 // ══════════════════════════════════════════════════════
-const APP_VERSION = '3.9.4';
+const APP_VERSION = '4.0.1';
 
 // ══════════════════════════════════════════════════════
 // FIREBASE CONFIG
@@ -912,7 +912,7 @@ let STATE = {
   user:null, profile:null,
   torneo:null,          // legacy single-torneo (kept for compatibility)
   torneos:[],           // all torneos
-  jugadores:[], partidas:[], resultados:[], clubes:[],
+  jugadores:[], jugadores_global:[], partidas:[], resultados:[], clubes:[],
   currentTab:'dashboard', cargarJornadaId:null,
   expandedJornada:null, expandedTorneo:null,
   expandedJornadaMT:null,  // partida expanded inside Mis Torneos
@@ -1446,18 +1446,18 @@ function showReset(){
 // ══════════════════════════════════════════════════════
 function initListeners(){
   stopListeners();
-  // Load ALL torneos (sorted: active first, then by creation date)
+  // Torneos
   STATE.unsubs.push(db.collection('torneos').orderBy('creado','desc')
     .onSnapshot(s=>{
       STATE.torneos=s.docs.map(d=>({id:d.id,...d.data()}));
-      // Legacy: keep STATE.torneo as the first active one
       STATE.torneo=STATE.torneos.find(t=>t.estado==='Activo'||t.estado==='activo')||STATE.torneos[0]||null;
       if(!STATE.activeTorneoId&&STATE.torneo) STATE.activeTorneoId=STATE.torneo.id;
       if(STATE._connSetOnline)STATE._connSetOnline();
+      // Re-subscribe participantes when torneo list changes
+      subscribeParticipantes();
       renderCurrentTab();
     }));
-  STATE.unsubs.push(db.collection('jugadores').orderBy('nombre')
-    .onSnapshot(s=>{ STATE.jugadores=s.docs.map(d=>({id:d.id,...d.data()})); renderCurrentTab(); }));
+  // Jornadas, resultados, clubes — unchanged
   STATE.unsubs.push(db.collection('jornadas').orderBy('fecha')
     .onSnapshot(s=>{ STATE.jornadas=s.docs.map(d=>({id:d.id,...d.data()})); renderCurrentTab(); }));
   STATE.unsubs.push(db.collection('resultados')
@@ -1465,7 +1465,39 @@ function initListeners(){
   STATE.unsubs.push(db.collection('clubes').orderBy('nombre')
     .onSnapshot(s=>{ STATE.clubes=s.docs.map(d=>({id:d.id,...d.data()})); renderCurrentTab(); }));
 }
-function stopListeners(){ STATE.unsubs.forEach(u=>u()); STATE.unsubs=[]; }
+
+// Subscribe to participantes subcollection of active torneo
+let _participantesUnsub=null;
+let _participantesTorneoId=null;
+function subscribeParticipantes(){
+  const tid=STATE.activeTorneoId;
+  if(!tid||tid===_participantesTorneoId) return;
+  if(_participantesUnsub){ _participantesUnsub(); _participantesUnsub=null; }
+  _participantesTorneoId=tid;
+  _participantesUnsub=db.collection('torneos').doc(tid)
+    .collection('participantes').orderBy('nombre')
+    .onSnapshot(s=>{
+      STATE.jugadores=s.docs.map(d=>({id:d.id,...d.data()}));
+      renderCurrentTab();
+    });
+}
+
+// Call when active torneo changes (tab switch, etc)
+function switchActiveTorneo(tid){
+  if(STATE.activeTorneoId===tid) return;
+  STATE.activeTorneoId=tid;
+  STATE.torneo=STATE.torneos.find(t=>t.id===tid)||null;
+  STATE.jugadores=[];
+  _participantesTorneoId=null;
+  subscribeParticipantes();
+  renderCurrentTab();
+}
+
+function stopListeners(){
+  STATE.unsubs.forEach(u=>u()); STATE.unsubs=[];
+  if(_participantesUnsub){ _participantesUnsub(); _participantesUnsub=null; }
+  _participantesTorneoId=null;
+}
 
 // ══════════════════════════════════════════════════════
 // MONITOR DE CONEXIÓN EN TIEMPO REAL
@@ -1580,6 +1612,39 @@ function renderCurrentTab(){
 // ══════════════════════════════════════════════════════
 
 // Reglas por defecto del torneo
+// ── Permission helpers ───────────────────────────────
+function isTorneoAdmin(torneo){
+  if(!torneo||!STATE.user) return false;
+  if(STATE.profile?.role==='admin') return true; // plataforma admin
+  const uid=STATE.user.uid;
+  return torneo.creado_por===uid || torneo.adminId===uid ||
+         (torneo.admins||[]).includes(uid);
+}
+function isCargador(torneo){
+  if(!torneo||!STATE.user) return false;
+  if(isTorneoAdmin(torneo)) return true;
+  return (torneo.cargadores||[]).includes(STATE.user.uid);
+}
+// Normaliza texto quitando acentos y caracteres especiales
+function normalizeStr(str){
+  return (str||'').toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g,'')  // remove diacritics
+    .replace(/[^a-z0-9 ]/g,' ')
+    .replace(/\s+/g,' ').trim();
+}
+
+function setActiveTorneo(torneoId){
+  STATE.activeTorneoId=torneoId;
+  STATE.torneo=STATE.torneos.find(t=>t.id===torneoId)||null;
+  STATE.jugadores=[];
+  attachParticipantesListener(torneoId);
+}
+
+function getActiveTorneo(){
+  return STATE.torneos.find(t=>t.id===STATE.activeTorneoId)||STATE.torneo||null;
+}
+
 function getReglas(torneoId){
   const t=STATE.torneos.find(t=>t.id===torneoId)||STATE.torneo;
   return Object.assign({
@@ -1760,7 +1825,7 @@ function torneoCardHTML(torneo, compact=false){
   const rk=calcRankingTorneo(tid);
   const myJugadorId=STATE.profile?.jugador_id;
   const myPos=rk.find(r=>r.id===myJugadorId);
-  const isAdmin=STATE.profile?.role==='admin'||(torneo.admins||[]).includes(STATE.user?.uid)||torneo.adminId===STATE.user?.uid;
+  const isAdmin=isTorneoAdmin(torneo);
 
   const estadoColor={'Activo':'var(--green)','activo':'var(--green)','Finalizado':'var(--muted)','finalizado':'var(--muted)','Borrador':'var(--gold)','borrador':'var(--gold)'}[torneo.estado]||'var(--blue)';
 
@@ -2341,10 +2406,12 @@ async function saveModalTorneo(){
       await db.collection('torneos').doc(editingTorneoId).update(data);
     } else {
       data.adminId=STATE.user.uid;
+      data.creado_por=STATE.user.uid;
       data.admins=[STATE.user.uid];
+      data.cargadores=[];
       data.creado=firebase.firestore.FieldValue.serverTimestamp();
       const ref=await db.collection('torneos').add(data);
-      STATE.activeTorneoId=ref.id;
+      switchActiveTorneo(ref.id);
     }
     closeModalTorneo();
     goTab('mistorneos');
@@ -2429,7 +2496,8 @@ function clubAvatarHTML(sede){
 
 function renderJornadas(){
   const el=document.getElementById('tab-jornadas');
-  const isAdmin=STATE.profile?.role==='admin';
+  const torneo_=getActiveTorneo();
+  const isAdmin=isTorneoAdmin(torneo_);
   // Show only partidas from torneos the user is in
   const misTorneoIds=new Set(STATE.torneos.map(t=>t.id));
   const misJornadas=STATE.jornadas.filter(j=>!j.torneo_id||misTorneoIds.has(j.torneo_id));
@@ -2456,6 +2524,7 @@ function renderJornadas(){
       const canAttest=(est==='Pendiente Attest'||est==='Por Validar')&&jn.cargado_por!==myJugadorId&&(isAdmin||STATE.resultados.some(r=>r.jornada_id===jn.id&&r.jugador_id===myJugadorId));
       // Who can cargar: get torneo rules
       const torneoDeJornada=STATE.torneos.find(t=>t.id===jn.torneo_id);
+      const isAdmin=isTorneoAdmin(torneoDeJornada)||isCargador(torneoDeJornada);
       const quienCarga=torneoDeJornada?.quienCargaResultados||'admins';
       const canCargar=est==='En Juego'&&(isAdmin||(quienCarga==='cualquiera'&&STATE.profile?.jugador_id&&STATE.resultados.some(r=>r.jornada_id===jn.id&&r.jugador_id===myJugadorId)));
       // Build "quién puede cargar" label
@@ -3245,16 +3314,91 @@ let editingJugadorId=null;
 
 function renderJugadores(){
   const el=document.getElementById('tab-jugadores');
-  const isAdmin=STATE.profile?.role==='admin';
+  const torneo=getActiveTorneo();
+  const canManage=isTorneoAdmin(torneo);
   const myJugadorId=STATE.profile?.jugador_id;
+  const jugadores=STATE.jugadores||[];
+
+  if(!torneo){
+    el.innerHTML='<div style="padding:20px;color:var(--muted);text-align:center;">Selecciona un torneo para ver sus jugadores.</div>';
+    return;
+  }
+
+  const rows=jugadores.map(j=>{
+    const isMe=j.id===myJugadorId||j.jugador_id===myJugadorId;
+    const foto=j.fotoURL
+      ?`<img src="${j.fotoURL}" style="width:40px;height:40px;border-radius:50%;object-fit:cover;"/>`
+      :`<div class="avatar-initials">${j.foto||j.alias?.slice(0,2)||j.nombre?.slice(0,2)||'?'}</div>`;
+    return `<div class="card mb-8" style="display:flex;align-items:center;gap:12px;padding:12px;">
+      ${foto}
+      <div style="flex:1;min-width:0;">
+        <div style="font-weight:700;font-size:14px;">${j.nombre||''}${isMe?' <span style="font-size:10px;background:#E8F5E9;color:#2E7D32;padding:1px 6px;border-radius:8px;">Tú</span>':''}</div>
+        <div style="font-size:12px;color:var(--muted);">${j.alias||''} ${j.telefonoCompleto?'· '+j.telefonoCompleto:''}</div>
+        ${j.invite_code&&canManage?`<div style="margin-top:3px;">${!j.user_uid
+          ?`<span style="background:#E8F5E9;color:#2E7D32;font-size:10px;font-weight:700;padding:2px 7px;border-radius:6px;font-family:monospace;">🔑 ${j.invite_code}</span>`
+          :`<span style="background:#E3F2FD;color:#1565C0;font-size:10px;padding:2px 7px;border-radius:6px;">✅ Cuenta vinculada</span>`
+        }</div>`:''}
+      </div>
+      ${canManage?`<button onclick="removeParticipante('${j.id}','${(j.nombre||'').replace(/'/g,"\\'")}',event)"
+        style="background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;padding:4px;">✕</button>`:''}
+    </div>`;
+  }).join('');
+
+  // Torneos donde el usuario es admin
+  const misTorneos=STATE.torneos.filter(t=>isTorneoAdmin(t));
 
   el.innerHTML=`
-    ${isAdmin?`
-      <button class="btn-green mb-16" onclick="toggleAddJugador()">${showAddJugador?'✕ Cancelar':'+ Agregar Jugador'}</button>
-      ${showAddJugador?`
-        <div class="card mb-16">
-          <div class="card-header"><span class="card-title">Nuevo Jugador</span></div>
-          <div class="card-body" style="display:flex;flex-direction:column;gap:12px;">
+    <div style="margin-bottom:16px;">
+      ${misTorneos.length>1?`
+        <div style="margin-bottom:10px;">
+          <label style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;font-weight:700;">Selecciona torneo</label>
+          <select class="form-select" style="width:100%;margin-top:4px;" onchange="setActiveTorneo(this.value)">
+            ${STATE.torneos.map(t=>`
+              <option value="${t.id}" ${t.id===torneo.id?'selected':''}>${t.nombre}</option>
+            `).join('')}
+          </select>
+        </div>
+      `:`<div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">${torneo.nombre}</div>`}
+      <div style="display:flex;align-items:center;justify-content:space-between;">
+        <div style="font-size:18px;font-weight:800;">Jugadores <span style="color:var(--muted);font-size:14px;">(${jugadores.length})</span></div>
+        ${canManage?`<button class="btn-green" onclick="openAgregarJugadorModal()" style="font-size:13px;padding:8px 14px;">+ Agregar</button>`:''}
+      </div>
+    </div>
+    </div>
+    ${jugadores.length===0
+      ?`<div style="text-align:center;padding:40px 20px;color:var(--muted);">
+          <div style="font-size:40px;margin-bottom:12px;">🏌️</div>
+          <div style="font-size:15px;font-weight:600;">Sin jugadores aún</div>
+          ${canManage?`<div style="font-size:13px;margin-top:6px;">Toca "+ Agregar" para sumar jugadores al torneo</div>`:''}
+        </div>`
+      :rows}
+
+    <!-- Modal Agregar Jugador -->
+    <div id="agregarJugadorModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9999;align-items:flex-end;justify-content:center;">
+      <div style="background:var(--white);border-radius:20px 20px 0 0;width:100%;max-width:500px;padding:24px 20px 32px;max-height:85vh;overflow-y:auto;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+          <div style="font-size:16px;font-weight:800;">Agregar a: <span style="color:var(--green);">${torneo.nombre}</span></div>
+          <button onclick="closeAgregarJugadorModal()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--muted);">✕</button>
+        </div>
+        <!-- Tabs: Buscar / Crear nuevo -->
+        <div style="display:flex;gap:8px;margin-bottom:16px;">
+          <button id="tabBuscar" onclick="switchAgregarTab('buscar')"
+            style="flex:1;padding:8px;border-radius:8px;border:2px solid var(--green);background:var(--green);color:#fff;font-weight:700;font-size:13px;cursor:pointer;">🔍 Buscar</button>
+          <button id="tabCrear" onclick="switchAgregarTab('crear')"
+            style="flex:1;padding:8px;border-radius:8px;border:2px solid var(--border);background:transparent;color:var(--text);font-weight:700;font-size:13px;cursor:pointer;">+ Crear nuevo</button>
+        </div>
+
+        <!-- Panel Buscar -->
+        <div id="panelBuscar">
+          <input type="text" id="buscarJugadorInput" placeholder="Buscar por nombre, alias, teléfono o email..."
+            style="width:100%;padding:12px;border:2px solid var(--border);border-radius:10px;background:var(--bg);color:var(--text);font-size:14px;"
+            oninput="buscarJugadorGlobal(this.value)"/>
+          <div id="buscarResultados" style="margin-top:12px;"></div>
+        </div>
+
+        <!-- Panel Crear nuevo -->
+        <div id="panelCrear" style="display:none;">
+          <div style="display:flex;flex-direction:column;gap:12px;">
             <div><label class="form-label">Nombre Completo *</label><input class="form-input" id="newNombre" placeholder="Ej: Daniel Badell"/></div>
             <div style="display:flex;gap:12px;">
               <div style="flex:1;"><label class="form-label">Alias</label><input class="form-input" id="newAlias" placeholder="Ej: Badell"/></div>
@@ -3269,172 +3413,113 @@ function renderJugadores(){
                   <option value="+34">🇪🇸 +34</option>
                   <option value="+52">🇲🇽 +52</option>
                   <option value="+57">🇨🇴 +57</option>
-                  <option value="+51">🇵🇪 +51</option>
-                  <option value="+54">🇦🇷 +54</option>
-                  <option value="+56">🇨🇱 +56</option>
-                  <option value="+55">🇧🇷 +55</option>
-                  <option value="+507">🇵🇦 +507</option>
                 </select>
                 <input class="form-input" id="newTelefono" type="tel" placeholder="4141234567" style="flex:1;" oninput="validarTelefonoNew(this)"/>
               </div>
-              <div id="newTelefonoHint" style="font-size:11px;color:var(--muted);margin-top:4px;">Opcional · Solo números, sin espacios ni guiones</div>
             </div>
             <div id="addJugadorError" class="error-box" style="display:none;"></div>
-            <button class="btn-green" onclick="addJugador()">Agregar al Club</button>
+            <button class="btn-green" onclick="crearYAgregarJugador()">Crear y agregar al torneo 🏌️</button>
           </div>
-        </div>`:''}
-    `:''}
-    <div style="display:flex;flex-direction:column;gap:10px;">
-      ${STATE.jugadores.map(j=>{
-        const canEdit=isAdmin||(myJugadorId===j.id);
-        const rk=calcRanking().find(r=>r.id===j.id);
-        return`
-        <div class="card" style="margin-bottom:0;">
-          <div style="padding:14px 18px;display:flex;align-items:center;gap:14px;">
-            ${j.fotoURL
-              ?`<img src="${j.fotoURL}" class="foto-perfil-circle" style="width:42px;height:42px;"/>`
-              :avatarHTML(j.foto,rk?.pos||99,'lg')}
-            <div class="flex-1">
-              <div class="text-14 font-bold">${j.nombre}</div>
-              <div class="text-12 text-muted">${j.alias||'—'}${j.handicap!==undefined?' · HCP '+j.handicap:''}</div>
-              ${j.telefonoCompleto?`<div class="text-11 text-muted" style="margin-top:2px;">📱 ${j.telefonoCompleto}</div>`:''}
-              ${isAdmin&&j.invite_code?`
-                <div style="margin-top:4px;display:flex;align-items:center;gap:6px;">
-                  ${!j.user_uid
-                    ?`<span style="background:#E8F5E9;color:#2E7D32;font-size:11px;font-weight:700;padding:3px 8px;border-radius:6px;letter-spacing:1px;font-family:monospace;">🔑 ${j.invite_code}</span>
-                      <span style="font-size:10px;color:var(--muted);">Sin vincular</span>`
-                    :`<span style="background:#E3F2FD;color:#1565C0;font-size:10px;padding:2px 7px;border-radius:6px;">✅ Cuenta vinculada</span>`}
-                </div>`:''}
-            </div>
-            <div style="text-align:right;min-width:40px;">
-              <div style="font-size:18px;font-weight:800;color:${rk?.pos===1?'var(--gold)':'var(--text)'};">${rk?.ptsT||0}</div>
-              <div class="text-10 text-muted">pts</div>
-            </div>
-            ${canEdit?`<button class="btn-outline" style="padding:5px 12px;font-size:12px;" onclick="openModalJugador('${j.id}')">✏️</button>`:''}
-            ${isAdmin?`<button class="btn-danger" onclick="deleteJugador('${j.id}','${j.nombre}')">Eliminar</button>`:''}
-          </div>
-        </div>`;}).join('')}
+        </div>
+      </div>
     </div>
   `;
 }
 
-function toggleAddJugador(){ showAddJugador=!showAddJugador; renderJugadores(); }
+function openAgregarJugadorModal(){
+  const m=document.getElementById('agregarJugadorModal');
+  if(m){ m.style.display='flex'; }
+  // Load global jugadores for search
+  if(STATE.jugadores_global.length===0){
+    db.collection('jugadores').orderBy('nombre').get().then(s=>{
+      STATE.jugadores_global=s.docs.map(d=>({id:d.id,...d.data()}));
+    });
+  }
+  setTimeout(()=>{ const inp=document.getElementById('buscarJugadorInput'); if(inp) inp.focus(); },100);
+}
+function closeAgregarJugadorModal(){
+  const m=document.getElementById('agregarJugadorModal');
+  if(m) m.style.display='none';
+}
+function switchAgregarTab(tab){
+  const isBuscar=tab==='buscar';
+  document.getElementById('panelBuscar').style.display=isBuscar?'block':'none';
+  document.getElementById('panelCrear').style.display=isBuscar?'none':'block';
+  document.getElementById('tabBuscar').style.background=isBuscar?'var(--green)':'transparent';
+  document.getElementById('tabBuscar').style.color=isBuscar?'#fff':'var(--text)';
+  document.getElementById('tabBuscar').style.borderColor=isBuscar?'var(--green)':'var(--border)';
+  document.getElementById('tabCrear').style.background=isBuscar?'transparent':'var(--green)';
+  document.getElementById('tabCrear').style.color=isBuscar?'var(--text)':'#fff';
+  document.getElementById('tabCrear').style.borderColor=isBuscar?'var(--border)':'var(--green)';
+}
 
-function openModalJugador(jugadorId){
-  editingJugadorId=jugadorId;
-  document.getElementById('modalJugadorError').style.display='none';
-  const j=STATE.jugadores.find(j=>j.id===jugadorId);
-  if(j){
-    document.getElementById('editNombre').value=j.nombre||'';
-    document.getElementById('editAlias').value=j.alias||'';
-    document.getElementById('editFoto').value=j.foto||'';
-    document.getElementById('editHandicap').value=j.handicap??'';
-    if(j.fotoURL){
-      document.getElementById('jugadorFotoPreview').src=j.fotoURL;
-      document.getElementById('jugadorFotoPreview').style.display='block';
-      document.getElementById('jugadorFotoFallback').style.display='none';
-    } else {
-      document.getElementById('jugadorFotoPreview').style.display='none';
-      document.getElementById('jugadorFotoFallback').style.display='flex';
+let _buscarTimer=null;
+function buscarJugadorGlobal(q){
+  clearTimeout(_buscarTimer);
+  const res=document.getElementById('buscarResultados');
+  if(!q||q.length<2){ res.innerHTML='<div style="color:var(--muted);font-size:13px;text-align:center;padding:12px;">Escribe al menos 2 caracteres</div>'; return; }
+  res.innerHTML='<div style="color:var(--muted);font-size:13px;text-align:center;padding:12px;">Buscando...</div>';
+  _buscarTimer=setTimeout(()=>{
+    const ql=normalizeStr(q);
+    // Search in already-loaded global (normalized — ignores accents/diacritics)
+    let found=STATE.jugadores_global.filter(j=>{
+      return normalizeStr(j.nombre).includes(ql)
+          || normalizeStr(j.alias).includes(ql)
+          || (j.telefonoCompleto||'').includes(ql)
+          || (j.telefono||'').includes(ql)
+          || normalizeStr(j.email).includes(ql);
+    });
+    // Exclude already in torneo
+    const inTorneo=new Set((STATE.jugadores||[]).map(j=>j.id||j.jugador_id));
+    found=found.filter(j=>!inTorneo.has(j.id));
+    if(found.length===0){
+      res.innerHTML=`<div style="text-align:center;padding:16px;color:var(--muted);">
+        <div style="font-size:13px;">No encontrado.</div>
+        <button class="btn-link" style="margin-top:8px;" onclick="switchAgregarTab('crear')">+ Crear jugador nuevo</button>
+      </div>`;
+      return;
     }
-    document.getElementById('jugadorFotoInput').value='';
-    const tel=j.telefono||'';
-    const codigoPais=j.codigoPais||'+58';
-    document.getElementById('editPaisCodigo').value=codigoPais;
-    document.getElementById('editTelefono').value=tel;
-    document.getElementById('telefonoHint').textContent='Sin el 0 inicial con +58. Ej: 4141234567 (no 04141234567)';
-    document.getElementById('telefonoHint').style.color='var(--muted)';
-  }
-  document.getElementById('modalJugador').style.display='flex';
+    res.innerHTML=found.slice(0,8).map(j=>`
+      <div onclick="agregarParticipante('${j.id}')" style="display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:10px;border:1px solid var(--border);margin-bottom:8px;cursor:pointer;background:var(--cardL);">
+        <div class="avatar-initials" style="width:38px;height:38px;font-size:13px;">${j.foto||j.alias?.slice(0,2)||j.nombre?.slice(0,2)||'?'}</div>
+        <div style="flex:1;">
+          <div style="font-weight:700;font-size:14px;">${j.nombre}</div>
+          <div style="font-size:12px;color:var(--muted);">${j.alias||''} ${j.telefonoCompleto?'· '+j.telefonoCompleto:''}</div>
+        </div>
+        <span style="color:var(--green);font-size:20px;">+</span>
+      </div>`).join('');
+  }, 300);
 }
 
-function closeModalJugador(){ document.getElementById('modalJugador').style.display='none'; editingJugadorId=null; }
-
-function validarFormatoTel(num, codigo){
-  if(!/^\d{7,15}$/.test(num)) return false;
-  if(codigo==='+58'){
-    // Accept with leading 0: 0412... (10 digits)
-    // OR without leading 0: 412...  (10 digits, international style)
-    return /^(04|02)\d{8}$/.test(num) || /^(4|2)\d{9}$/.test(num);
-  }
-  return num.length>=7&&num.length<=15;
-}
-
-function normalizeTelVE(num, codigo){
-  // Remove leading 0 for international storage: 04122746658 → 4122746658
-  if(codigo==='+58' && /^0(4|2)/.test(num)) return num.slice(1);
-  return num;
-}
-
-function validarTelefonoNew(input){
-  const hint=document.getElementById('newTelefonoHint');
-  const codigo=document.getElementById('newPaisCodigo').value;
-  const val=input.value.replace(/\D/g,'');
-  input.value=val;
-  if(!val){hint.textContent='Opcional · Solo números, sin espacios ni guiones';hint.style.color='var(--muted)';return;}
-  if(validarFormatoTel(val,codigo)){
-    hint.textContent='✅ Formato válido · '+codigo+val;
-    hint.style.color='var(--green)';
-    input.style.borderColor='var(--green)';
-  } else {
-    const tip=codigo==='+58'?'Sin 0 inicial: 4xxxxxxxxx o 2xxxxxxxxx (10 dígitos)':'Entre 7 y 15 dígitos numéricos';
-    hint.textContent='⚠️ '+tip;
-    hint.style.color='var(--red)';
-    input.style.borderColor='var(--red)';
-  }
-}
-
-function validarTelefono(input){
-  const hint=document.getElementById('telefonoHint');
-  const codigo=document.getElementById('editPaisCodigo').value;
-  const val=input.value.replace(/\D/g,'');
-  input.value=val; // strip non-digits live
-  if(!val){hint.textContent='Solo números, sin espacios ni guiones. Ej: 4141234567';hint.style.color='var(--muted)';return;}
-  if(validarFormatoTel(val,codigo)){
-    hint.textContent='✅ Formato válido · '+codigo+val;
-    hint.style.color='var(--green)';
-    input.style.borderColor='var(--green)';
-  } else {
-    const tip=codigo==='+58'?'Sin 0 inicial: 4xxxxxxxxx o 2xxxxxxxxx (10 dígitos)':'Entre 7 y 15 dígitos numéricos';
-    hint.textContent='⚠️ '+tip;
-    hint.style.color='var(--red)';
-    input.style.borderColor='var(--red)';
-  }
-}
-
-async function saveJugador(){
-  const nombre=document.getElementById('editNombre').value.trim();
-  const alias=document.getElementById('editAlias').value.trim();
-  const foto=document.getElementById('editFoto').value.trim().toUpperCase().slice(0,2);
-  const handicap=document.getElementById('editHandicap').value;
-  let telefono=document.getElementById('editTelefono').value.trim().replace(/\D/g,'');
-  const codigoPais=document.getElementById('editPaisCodigo').value;
-  telefono=normalizeTelVE(telefono,codigoPais);
-  const err=document.getElementById('modalJugadorError');
-  // Validate phone
-  if(telefono&&!validarFormatoTel(telefono,codigoPais)){
-    err.textContent='Formato de teléfono inválido. Solo números, entre 7 y 15 dígitos.';
-    err.style.display='block';return;
-  }
-  const btn=document.getElementById('btnGuardarJugador');
-  if(!nombre){err.textContent='El nombre es obligatorio.';err.style.display='block';return;}
-  btn.disabled=true; btn.textContent='Guardando...';
+async function agregarParticipante(jugadorId){
+  const torneo=getActiveTorneo();
+  if(!torneo) return;
+  const j=STATE.jugadores_global.find(x=>x.id===jugadorId);
+  if(!j) return;
   try{
-    const upd={nombre,alias:alias||nombre.split(' ')[0],foto:foto||nombre.split(' ').map(n=>n[0]).join('').toUpperCase().slice(0,2),updated_at:firebase.firestore.FieldValue.serverTimestamp()};
-    if(handicap!=='')upd.handicap=Number(handicap);
-    if(telefono){upd.telefono=telefono;upd.codigoPais=codigoPais;upd.telefonoCompleto=codigoPais+telefono;}
-    const fotoFile=document.getElementById('jugadorFotoInput').files[0];
-    if(fotoFile){
-      const compressed=await resizeAndCompress(fotoFile,400,0.85);
-      upd.fotoURL=await uploadPhoto(compressed,'jugadores/'+editingJugadorId+'.jpg');
-    }
-    await db.collection('jugadores').doc(editingJugadorId).update(upd);
-    closeModalJugador();
-  }catch(e){err.textContent='Error: '+e.message;err.style.display='block';}
-  finally{btn.disabled=false;btn.textContent='Guardar';}
+    await db.collection('torneos').doc(torneo.id)
+      .collection('participantes').doc(jugadorId).set({
+        jugador_id: jugadorId,
+        nombre: j.nombre||'',
+        alias: j.alias||'',
+        foto: j.foto||'',
+        fotoURL: j.fotoURL||null,
+        telefonoCompleto: j.telefonoCompleto||null,
+        invite_code: j.invite_code||null,
+        user_uid: j.user_uid||null,
+        handicap: j.handicap||0,
+        activo: true,
+        fecha_ingreso: firebase.firestore.FieldValue.serverTimestamp()
+      });
+    // Update count on torneo
+    await db.collection('torneos').doc(torneo.id).update({
+      jugadores_count: firebase.firestore.FieldValue.increment(1)
+    });
+    closeAgregarJugadorModal();
+  }catch(e){ alert('Error: '+e.message); }
 }
 
-async function addJugador(){
+async function crearYAgregarJugador(){
   const nombre=document.getElementById('newNombre').value.trim();
   const alias=document.getElementById('newAlias').value.trim();
   const foto=document.getElementById('newFoto').value.trim().toUpperCase().slice(0,2);
@@ -3442,27 +3527,56 @@ async function addJugador(){
   const codigoPais=document.getElementById('newPaisCodigo').value;
   telefono=normalizeTelVE(telefono,codigoPais);
   const err=document.getElementById('addJugadorError');
+  err.style.display='none';
   if(!nombre){err.textContent='El nombre es obligatorio.';err.style.display='block';return;}
   if(telefono&&!validarFormatoTel(telefono,codigoPais)){
     err.textContent='Formato de teléfono inválido.';err.style.display='block';return;
   }
+  const torneo=getActiveTorneo();
+  if(!torneo){err.textContent='No hay torneo activo.';err.style.display='block';return;}
   const initials=foto||nombre.split(' ').map(n=>n[0]).join('').toUpperCase().slice(0,2);
-  const id=nombre.toLowerCase().replace(/\s+/g,'_')+'_'+Date.now();
-  let invite_code=generateInviteCode();
-  const codeSnap=await db.collection('jugadores').where('invite_code','==',invite_code).get();
-  if(!codeSnap.empty) invite_code=generateInviteCode();
-  const data={nombre,alias:alias||nombre.split(' ')[0],foto:initials,
-              invite_code, user_uid:null,
-              creado:firebase.firestore.FieldValue.serverTimestamp()};
-  if(telefono){data.telefono=telefono;data.codigoPais=codigoPais;data.telefonoCompleto=codigoPais+telefono;}
-  await db.collection('jugadores').doc(id).set(data);
-  showAddJugador=false;
+  const invite_code=generateInviteCode();
+  const nombre_lower=nombre.toLowerCase();
+  const jugData={
+    nombre, alias:alias||nombre.split(' ')[0], foto:initials,
+    nombre_lower, invite_code, user_uid:null,
+    creado:firebase.firestore.FieldValue.serverTimestamp()
+  };
+  if(telefono){ jugData.telefono=telefono; jugData.codigoPais=codigoPais; jugData.telefonoCompleto=codigoPais+telefono; }
+  try{
+    const id=nombre_lower.replace(/\s+/g,'_')+'_'+Date.now();
+    await db.collection('jugadores').doc(id).set(jugData);
+    // Add to jugadores_global cache
+    STATE.jugadores_global.push({id,...jugData});
+    // Add to torneo participantes
+    await db.collection('torneos').doc(torneo.id)
+      .collection('participantes').doc(id).set({
+        jugador_id:id, nombre, alias:alias||nombre.split(' ')[0],
+        foto:initials, fotoURL:null, telefonoCompleto:jugData.telefonoCompleto||null,
+        invite_code, user_uid:null, handicap:0, activo:true,
+        fecha_ingreso:firebase.firestore.FieldValue.serverTimestamp()
+      });
+    await db.collection('torneos').doc(torneo.id).update({
+      jugadores_count: firebase.firestore.FieldValue.increment(1)
+    });
+    closeAgregarJugadorModal();
+  }catch(e){ err.textContent='Error: '+e.message; err.style.display='block'; }
 }
 
-async function deleteJugador(id,nombre){
-  if(!confirm(`¿Eliminar a ${nombre}?`))return;
-  await db.collection('jugadores').doc(id).delete();
+async function removeParticipante(jugadorId, nombre, event){
+  if(event) event.stopPropagation();
+  const torneo=getActiveTorneo();
+  if(!torneo) return;
+  if(!confirm(`¿Quitar a ${nombre} de este torneo?`)) return;
+  try{
+    await db.collection('torneos').doc(torneo.id)
+      .collection('participantes').doc(jugadorId).delete();
+    await db.collection('torneos').doc(torneo.id).update({
+      jugadores_count: firebase.firestore.FieldValue.increment(-1)
+    });
+  }catch(e){ alert('Error: '+e.message); }
 }
+
 
 
 // ══════════════════════════════════════════════════════
