@@ -332,6 +332,42 @@ input,select,textarea{font-family:inherit;}
       <button class="btn-link" onclick="showLogin()">← Ya tengo cuenta</button>
     </div>
 
+    <!-- COMPLETAR PERFIL (Google nuevos usuarios) -->
+    <div id="completarPerfilView" style="display:none;">
+      <div style="text-align:center;margin-bottom:20px;">
+        <div style="font-size:40px;margin-bottom:8px;">⛳</div>
+        <div style="font-size:16px;font-weight:700;color:var(--green);">¡Bienvenido al club!</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:6px;">Un paso más para completar tu perfil</div>
+      </div>
+      <div id="completarPerfilError" class="error-box" style="display:none;margin-bottom:12px;"></div>
+      <div class="field">
+        <label>Nombre completo</label>
+        <input type="text" id="completarNombre" placeholder="Ej: Jesús Aguiar"/>
+      </div>
+      <div class="field">
+        <label>Nombre de usuario *</label>
+        <div class="input-icon-wrap">
+          <input type="text" id="completarUsername" placeholder="@tuusuario"
+            oninput="formatUsername(this)"/>
+        </div>
+        <div style="font-size:11px;color:var(--muted);margin-top:4px;">Solo letras, números y guión bajo</div>
+      </div>
+      <div class="field">
+        <label>Teléfono / WhatsApp (opcional)</label>
+        <div style="display:flex;gap:8px;">
+          <select class="form-select" id="completarPais" style="width:110px;">
+            <option value="+58">🇻🇪 +58</option>
+            <option value="+1">🇺🇸 +1</option>
+            <option value="+34">🇪🇸 +34</option>
+            <option value="+57">🇨🇴 +57</option>
+          </select>
+          <input class="form-input" id="completarTel" type="tel" placeholder="4141234567" style="flex:1;"
+            oninput="this.value=this.value.replace(/[^0-9]/g,'')"/>
+        </div>
+      </div>
+      <button class="btn-login" id="completarBtn" onclick="handleCompletarPerfil()">Entrar al Club 🏌️</button>
+    </div>
+
     <!-- ③ ELEGIR VERIFICACIÓN -->
     <div id="verifyChoiceView" style="display:none;">
       <div style="font-size:15px;font-weight:700;color:var(--green);margin-bottom:6px;">Verificar tu cuenta</div>
@@ -848,7 +884,7 @@ input,select,textarea{font-family:inherit;}
 // ══════════════════════════════════════════════════════
 // VERSIÓN — cambia este número cada vez que subas cambios
 // ══════════════════════════════════════════════════════
-const APP_VERSION = '3.9.3';
+const APP_VERSION = '3.9.4';
 
 // ══════════════════════════════════════════════════════
 // FIREBASE CONFIG
@@ -962,6 +998,34 @@ async function handleVincularModal(){
     renderCurrentTab();
   }catch(e){err.textContent='Error: '+e.message;err.style.display='block';btn.disabled=false;btn.textContent='Vincular 🏌️';}
 }
+async function handleCompletarPerfil(){
+  const nombre=document.getElementById('completarNombre').value.trim();
+  const username=document.getElementById('completarUsername').value.trim().toLowerCase();
+  const tel=document.getElementById('completarTel').value.trim();
+  const pais=document.getElementById('completarPais').value;
+  const err=document.getElementById('completarPerfilError');
+  const btn=document.getElementById('completarBtn');
+  err.style.display='none';
+  if(!nombre){err.textContent='El nombre es obligatorio.';err.style.display='block';return;}
+  if(!username||username.length<3){err.textContent='El usuario debe tener mínimo 3 caracteres.';err.style.display='block';return;}
+  btn.disabled=true; btn.textContent='Guardando...';
+  try{
+    // Check username availability
+    const usnap=await db.collection('users').where('username','==',username).limit(1).get();
+    if(!usnap.empty){err.textContent='Ese usuario ya está tomado.';err.style.display='block';btn.disabled=false;btn.textContent='Entrar al Club 🏌️';return;}
+    const upd={nombre, username, verified:true};
+    if(tel){
+      const telCompleto=normalizeTelVE(tel,pais);
+      upd.telefono=tel; upd.codigoPais=pais; upd.telefonoCompleto=pais+tel; upd.phoneVerified=false;
+    }
+    await db.collection('users').doc(STATE.user.uid).update(upd);
+    await STATE.user.updateProfile({displayName:nombre});
+    STATE.profile={...STATE.profile,...upd};
+    showApp_();
+    initListeners();
+  }catch(e){err.textContent='Error: '+e.message;err.style.display='block';btn.disabled=false;btn.textContent='Entrar al Club 🏌️';}
+}
+
 function skipVincular(){
   // User skips — goes to main app without jugador linked
   // Mark as skipped so we don't ask again every login
@@ -1008,7 +1072,7 @@ function generateInviteCode(){
 
 function showLoginView(id){
   ['loginView','registerView','verifyChoiceView','smsCodeView',
-   'emailSentView','pendingVerifyView','resetView','vincularView'].forEach(v=>{
+   'emailSentView','pendingVerifyView','resetView','vincularView','completarPerfilView'].forEach(v=>{
     const el=document.getElementById(v);
     if(el) el.style.display=v===id?'block':'none';
   });
@@ -1051,11 +1115,18 @@ auth.onAuthStateChanged(async user=>{
       showLoginView('pendingVerifyView');
       return;
     }
+    // New Google user with no username → must complete profile first
+    if(isGoogle && !STATE.profile.username){
+      document.getElementById('loginScreen').style.display='flex';
+      document.getElementById('app').style.display='none';
+      document.getElementById('completarNombre').value=user.displayName||'';
+      showLoginView('completarPerfilView');
+      return;
+    }
     // All good — enter app
     showApp_();
     initListeners();
     // Note: vincular (invite code linking) is done from INSIDE the app
-    // We never block entry to show vincular — users enter app directly
   } else {
     STATE.user=null; STATE.profile=null;
     stopListeners(); showLogin_();
