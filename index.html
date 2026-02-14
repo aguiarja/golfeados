@@ -884,7 +884,7 @@ input,select,textarea{font-family:inherit;}
 // ══════════════════════════════════════════════════════
 // VERSIÓN — cambia este número cada vez que subas cambios
 // ══════════════════════════════════════════════════════
-const APP_VERSION = '4.0.5';
+const APP_VERSION = '4.1.0';
 
 // ══════════════════════════════════════════════════════
 // FIREBASE CONFIG
@@ -912,7 +912,7 @@ let STATE = {
   user:null, profile:null,
   torneo:null,          // legacy single-torneo (kept for compatibility)
   torneos:[],           // all torneos
-  jugadores:[], jugadores_global:[], partidas:[], resultados:[], clubes:[],
+  jugadores:[], jugadores_by_torneo:{}, jugadores_global:[], partidas:[], resultados:[], clubes:[],
   currentTab:'dashboard', cargarJornadaId:null,
   expandedJornada:null, expandedTorneo:null,
   expandedJornadaMT:null,  // partida expanded inside Mis Torneos
@@ -1473,24 +1473,31 @@ function initListeners(){
 }
 
 // Subscribe to participantes subcollection of active torneo
-let _participantesUnsub=null;
-let _participantesTorneoId=null;
+let _participantesUnsubs={};  // { torneoId: unsubFn }
+let _participantesTorneoId=null;  // kept for compat
 function subscribeParticipantes(){
-  const tid=STATE.activeTorneoId;
-  if(!tid) return;
-  // Always re-subscribe if torneo changed
-  if(tid===_participantesTorneoId) return;
-  if(_participantesUnsub){ _participantesUnsub(); _participantesUnsub=null; }
-  _participantesTorneoId=tid;
-  STATE.jugadores=[];
-  _participantesUnsub=db.collection('torneos').doc(tid)
-    .collection('participantes').orderBy('nombre')
-    .onSnapshot(s=>{
-      // Only update if still listening to same torneo
-      if(_participantesTorneoId!==tid) return;
-      STATE.jugadores=s.docs.map(d=>({id:d.id,...d.data()}));
-      renderCurrentTab();
-    }, err=>{ console.error('participantes listener error:',err); });
+  if(!STATE.torneos||STATE.torneos.length===0) return;
+  // Subscribe to participantes of ALL user's torneos
+  STATE.torneos.forEach(t=>{
+    const tid=t.id;
+    if(_participantesUnsubs[tid]) return; // already subscribed
+    _participantesUnsubs[tid]=db.collection('torneos').doc(tid)
+      .collection('participantes').orderBy('nombre')
+      .onSnapshot(s=>{
+        const jugs=s.docs.map(d=>({id:d.id,...d.data()}));
+        // Store in by_torneo map
+        STATE.jugadores_by_torneo[tid]=jugs;
+        // If this is the active torneo, also update STATE.jugadores
+        if(tid===STATE.activeTorneoId){
+          STATE.jugadores=jugs;
+        }
+        renderCurrentTab();
+      }, err=>console.error('participantes['+tid+'] error:',err));
+  });
+  // Also set STATE.jugadores for active torneo immediately if already loaded
+  if(STATE.activeTorneoId && STATE.jugadores_by_torneo[STATE.activeTorneoId]){
+    STATE.jugadores=STATE.jugadores_by_torneo[STATE.activeTorneoId];
+  }
 }
 
 // Call when active torneo changes (tab switch, etc)
@@ -1506,8 +1513,11 @@ function switchActiveTorneo(tid){
 
 function stopListeners(){
   STATE.unsubs.forEach(u=>u()); STATE.unsubs=[];
-  if(_participantesUnsub){ _participantesUnsub(); _participantesUnsub=null; }
+  // Unsubscribe all participantes listeners
+  Object.values(_participantesUnsubs).forEach(u=>{ try{u();}catch(e){} });
+  _participantesUnsubs={};
   _participantesTorneoId=null;
+  STATE.jugadores_by_torneo={};
 }
 
 // ══════════════════════════════════════════════════════
@@ -1638,6 +1648,24 @@ function isCargador(torneo){
 }
 function isCargadorTorneo(torneo){ return isCargador(torneo); }
 function canCargarTorneo(torneo){ return isCargador(torneo); }
+// ─── JUGADOR LOOKUP — busca en todos los torneos cargados ─────
+function getJugador(jugadorId){
+  if(!jugadorId) return null;
+  // Search active torneo first (fastest)
+  const fromActive=(STATE.jugadores||[]).find(j=>j.id===jugadorId);
+  if(fromActive) return fromActive;
+  // Search all torneos
+  for(const lista of Object.values(STATE.jugadores_by_torneo||{})){
+    const found=lista.find(j=>j.id===jugadorId);
+    if(found) return found;
+  }
+  // Fallback to global cache
+  return (STATE.jugadores_global||[]).find(j=>j.id===jugadorId)||null;
+}
+function getJugadoresTorneo(torneoId){
+  if(torneoId===STATE.activeTorneoId) return STATE.jugadores||[];
+  return STATE.jugadores_by_torneo[torneoId]||[];
+}
 // Normaliza texto quitando acentos y caracteres especiales
 function normalizeStr(str){
   return (str||'').toLowerCase()
@@ -1648,12 +1676,17 @@ function normalizeStr(str){
 }
 
 function setActiveTorneo(torneoId){
-  if(STATE.activeTorneoId===torneoId) return; // nothing to do
+  if(STATE.activeTorneoId===torneoId) return;
   STATE.activeTorneoId=torneoId;
   STATE.torneo=STATE.torneos.find(t=>t.id===torneoId)||null;
-  STATE.jugadores=[];
-  _participantesTorneoId=null;
-  subscribeParticipantes(); // will call renderCurrentTab when data arrives
+  // Swap STATE.jugadores to the new active torneo (already loaded or empty)
+  STATE.jugadores=STATE.jugadores_by_torneo[torneoId]||[];
+  // Subscribe if not yet loaded
+  if(!_participantesUnsubs[torneoId]){
+    subscribeParticipantes();
+  } else {
+    renderCurrentTab();
+  }
 }
 
 function getActiveTorneo(){
@@ -1740,7 +1773,9 @@ function calcRankingTorneo(torneoId){
   }
 
   // 2. Aggregate per player
-  const rawData=STATE.jugadores.map(jugador=>{
+  // Use participants of the specific torneo, not just the active one
+  const torneoJugadores=getJugadoresTorneo(torneoId);
+  const rawData=torneoJugadores.map(jugador=>{
     const jornadaPts=jugados.map(jn=>{
       const r=STATE.resultados.find(r=>r.jornada_id===jn.id&&r.jugador_id===jugador.id);
       if(!r) return null;
@@ -2145,7 +2180,7 @@ function jornadaRowMT(jn){
     if(hasResults){
       html+='<div style="border-top:1px solid var(--border);background:var(--bg);">';
       res.forEach(function(r){
-        const jug=STATE.jugadores.find(j=>j.id===r.jugador_id);
+        const jug=getJugador(r.jugador_id);
         const isTop=r.pos===1;
         const noAsist=!r.asistencia;
         const isDQ=r.dq;
@@ -2541,8 +2576,8 @@ function renderJornadas(){
     ${jornadasOrdenadas.map(jn=>{
       const res=STATE.resultados.filter(r=>r.jornada_id===jn.id).sort((a,b)=>a.pos-b.pos);
       const isOpen=STATE.expandedJornada===jn.id;
-      const cargador=STATE.jugadores.find(j=>j.id===jn.cargado_por);
-      const attestador=STATE.jugadores.find(j=>j.id===jn.attest_por);
+      const cargador=getJugador(jn.cargado_por);
+      const attestador=getJugador(jn.attest_por);
       const myJugadorId=STATE.profile?.jugador_id;
       const est=getEstadoJornada(jn);  // live computed estado
       const canAttest=(est==='Pendiente Attest'||est==='Por Validar')&&jn.cargado_por!==myJugadorId&&(isAdmin||STATE.resultados.some(r=>r.jornada_id===jn.id&&r.jugador_id===myJugadorId));
@@ -2552,7 +2587,7 @@ function renderJornadas(){
       const quienCarga=torneoDeJornada?.quienCargaResultados||'admins';
       const canCargar=est==='En Juego'&&(canCargarThis||(quienCarga==='cualquiera'&&STATE.profile?.jugador_id&&STATE.resultados.some(r=>r.jornada_id===jn.id&&r.jugador_id===myJugadorId)));
       // Build "quién puede cargar" label
-      const adminsDelTorneo=torneoDeJornada?STATE.jugadores.filter(j=>j.id===torneoDeJornada.admin_id||(torneoDeJornada.admins&&torneoDeJornada.admins.includes(j.id))):[];
+      const adminsDelTorneo=[];  // not needed - using canCargarTorneo()
       const quienPuedeMsj=quienCarga==='cualquiera'?'Cualquier participante puede cargar los resultados':
         'Solo el admin del torneo puede cargar: '+(adminsDelTorneo.map(j=>j.nombre).join(', ')||'el administrador');
 
@@ -2589,7 +2624,7 @@ function renderJornadas(){
               </div>
               ${res.length>0?`
                 ${res.map(r=>{
-                  const jug=STATE.jugadores.find(j=>j.id===r.jugador_id);
+                  const jug=getJugador(r.jugador_id);
                   const isTop=r.pos===1;
                   const isDQ=r.dq;
                   const noAsistio=!r.asistencia;
@@ -2962,7 +2997,10 @@ function renderCargar(){
   // Init participantes if first load
   if(cargarParticipantes.length===0||cargarParticipantes[0]?._jid!==jornadaId){
     const existentes=STATE.resultados.filter(r=>r.jornada_id===jornadaId);
-    cargarParticipantes=STATE.jugadores.map(j=>{
+    // Use participants of the jornada's own torneo
+    const jornadaTorneo=partida?.torneo_id||STATE.activeTorneoId;
+    const jugsParaCargar=getJugadoresTorneo(jornadaTorneo);
+    cargarParticipantes=jugsParaCargar.map(j=>{
       const ex=existentes.find(r=>r.jugador_id===j.id);
       return{_jid:jornadaId,jugador_id:j.id,jugador:j,asistio:ex?ex.asistencia!==false:true,dq:ex?.dq||false};
     });
@@ -3518,7 +3556,9 @@ function buscarJugadorGlobal(q){
           || normalizeStr(j.email).includes(ql);
     });
     // Exclude already in torneo
-    const inTorneo=new Set((STATE.jugadores||[]).map(j=>j.id||j.jugador_id));
+    // Exclude players already in the ACTIVE torneo (not all torneos)
+    const activeTid=STATE.activeTorneoId;
+    const inTorneo=new Set((STATE.jugadores_by_torneo[activeTid]||STATE.jugadores||[]).map(j=>j.id||j.jugador_id));
     found=found.filter(j=>!inTorneo.has(j.id));
     if(found.length===0){
       res.innerHTML=`<div style="text-align:center;padding:16px;color:var(--muted);">
