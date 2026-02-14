@@ -884,7 +884,7 @@ input,select,textarea{font-family:inherit;}
 // ══════════════════════════════════════════════════════
 // VERSIÓN — cambia este número cada vez que subas cambios
 // ══════════════════════════════════════════════════════
-const APP_VERSION = '4.0.1';
+const APP_VERSION = '4.0.3';
 
 // ══════════════════════════════════════════════════════
 // FIREBASE CONFIG
@@ -1471,15 +1471,20 @@ let _participantesUnsub=null;
 let _participantesTorneoId=null;
 function subscribeParticipantes(){
   const tid=STATE.activeTorneoId;
-  if(!tid||tid===_participantesTorneoId) return;
+  if(!tid) return;
+  // Always re-subscribe if torneo changed
+  if(tid===_participantesTorneoId) return;
   if(_participantesUnsub){ _participantesUnsub(); _participantesUnsub=null; }
   _participantesTorneoId=tid;
+  STATE.jugadores=[];
   _participantesUnsub=db.collection('torneos').doc(tid)
     .collection('participantes').orderBy('nombre')
     .onSnapshot(s=>{
+      // Only update if still listening to same torneo
+      if(_participantesTorneoId!==tid) return;
       STATE.jugadores=s.docs.map(d=>({id:d.id,...d.data()}));
       renderCurrentTab();
-    });
+    }, err=>{ console.error('participantes listener error:',err); });
 }
 
 // Call when active torneo changes (tab switch, etc)
@@ -1625,6 +1630,8 @@ function isCargador(torneo){
   if(isTorneoAdmin(torneo)) return true;
   return (torneo.cargadores||[]).includes(STATE.user.uid);
 }
+function isCargadorTorneo(torneo){ return isCargador(torneo); }
+function canCargarTorneo(torneo){ return isCargador(torneo); }
 // Normaliza texto quitando acentos y caracteres especiales
 function normalizeStr(str){
   return (str||'').toLowerCase()
@@ -1638,7 +1645,10 @@ function setActiveTorneo(torneoId){
   STATE.activeTorneoId=torneoId;
   STATE.torneo=STATE.torneos.find(t=>t.id===torneoId)||null;
   STATE.jugadores=[];
-  attachParticipantesListener(torneoId);
+  // Force re-subscribe by resetting the current torneo ID
+  _participantesTorneoId=null;
+  subscribeParticipantes();
+  renderCurrentTab();
 }
 
 function getActiveTorneo(){
@@ -2524,9 +2534,9 @@ function renderJornadas(){
       const canAttest=(est==='Pendiente Attest'||est==='Por Validar')&&jn.cargado_por!==myJugadorId&&(isAdmin||STATE.resultados.some(r=>r.jornada_id===jn.id&&r.jugador_id===myJugadorId));
       // Who can cargar: get torneo rules
       const torneoDeJornada=STATE.torneos.find(t=>t.id===jn.torneo_id);
-      const isAdmin=isTorneoAdmin(torneoDeJornada)||isCargador(torneoDeJornada);
+      const canCargarThis=canCargarTorneo(torneoDeJornada);
       const quienCarga=torneoDeJornada?.quienCargaResultados||'admins';
-      const canCargar=est==='En Juego'&&(isAdmin||(quienCarga==='cualquiera'&&STATE.profile?.jugador_id&&STATE.resultados.some(r=>r.jornada_id===jn.id&&r.jugador_id===myJugadorId)));
+      const canCargar=est==='En Juego'&&(canCargarThis||(quienCarga==='cualquiera'&&STATE.profile?.jugador_id&&STATE.resultados.some(r=>r.jornada_id===jn.id&&r.jugador_id===myJugadorId)));
       // Build "quién puede cargar" label
       const adminsDelTorneo=torneoDeJornada?STATE.jugadores.filter(j=>j.id===torneoDeJornada.admin_id||(torneoDeJornada.admins&&torneoDeJornada.admins.includes(j.id))):[];
       const quienPuedeMsj=quienCarga==='cualquiera'?'Cualquier participante puede cargar los resultados':
@@ -3314,89 +3324,100 @@ let editingJugadorId=null;
 
 function renderJugadores(){
   const el=document.getElementById('tab-jugadores');
-  const torneo=getActiveTorneo();
-  const canManage=isTorneoAdmin(torneo);
   const myJugadorId=STATE.profile?.jugador_id;
-  const jugadores=STATE.jugadores||[];
+  const uid=STATE.user?.uid;
 
-  if(!torneo){
-    el.innerHTML='<div style="padding:20px;color:var(--muted);text-align:center;">Selecciona un torneo para ver sus jugadores.</div>';
+  // Torneos donde el usuario puede gestionar (admin del torneo)
+  const misTorneos=STATE.torneos.filter(t=>isTorneoAdmin(t));
+  // Torneos donde participa como jugador
+  const todosLosTorneos=STATE.torneos;
+
+  if(todosLosTorneos.length===0){
+    el.innerHTML=`<div style="text-align:center;padding:40px 20px;color:var(--muted);">
+      <div style="font-size:40px;margin-bottom:12px;">🏆</div>
+      <div style="font-size:15px;font-weight:600;">No hay torneos disponibles</div>
+    </div>`;
     return;
   }
 
-  const rows=jugadores.map(j=>{
-    const isMe=j.id===myJugadorId||j.jugador_id===myJugadorId;
-    const foto=j.fotoURL
-      ?`<img src="${j.fotoURL}" style="width:40px;height:40px;border-radius:50%;object-fit:cover;"/>`
-      :`<div class="avatar-initials">${j.foto||j.alias?.slice(0,2)||j.nombre?.slice(0,2)||'?'}</div>`;
-    return `<div class="card mb-8" style="display:flex;align-items:center;gap:12px;padding:12px;">
-      ${foto}
-      <div style="flex:1;min-width:0;">
-        <div style="font-weight:700;font-size:14px;">${j.nombre||''}${isMe?' <span style="font-size:10px;background:#E8F5E9;color:#2E7D32;padding:1px 6px;border-radius:8px;">Tú</span>':''}</div>
-        <div style="font-size:12px;color:var(--muted);">${j.alias||''} ${j.telefonoCompleto?'· '+j.telefonoCompleto:''}</div>
-        ${j.invite_code&&canManage?`<div style="margin-top:3px;">${!j.user_uid
-          ?`<span style="background:#E8F5E9;color:#2E7D32;font-size:10px;font-weight:700;padding:2px 7px;border-radius:6px;font-family:monospace;">🔑 ${j.invite_code}</span>`
-          :`<span style="background:#E3F2FD;color:#1565C0;font-size:10px;padding:2px 7px;border-radius:6px;">✅ Cuenta vinculada</span>`
-        }</div>`:''}
-      </div>
-      ${canManage?`<button onclick="removeParticipante('${j.id}','${(j.nombre||'').replace(/'/g,"\\'")}',event)"
-        style="background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;padding:4px;">✕</button>`:''}
-    </div>`;
-  }).join('');
+  // Render one card per torneo
+  el.innerHTML=`<div style="display:flex;flex-direction:column;gap:16px;">
+    ${todosLosTorneos.map(t=>{
+      const canManage=isTorneoAdmin(t);
+      const isActive=t.id===STATE.activeTorneoId;
+      // Get participants for this torneo from STATE
+      // We show STATE.jugadores only for the active torneo; others show placeholder
+      const jugadores=isActive?(STATE.jugadores||[]):[];
+      const jugadoresHTML=jugadores.map(j=>{
+        const isMe=j.id===myJugadorId||j.jugador_id===myJugadorId;
+        const initials=j.foto||j.alias?.slice(0,2)||j.nombre?.slice(0,2)||'?';
+        return `<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);">
+          ${j.fotoURL
+            ?`<img src="${j.fotoURL}" style="width:36px;height:36px;border-radius:50%;object-fit:cover;flex-shrink:0;"/>`
+            :`<div style="width:36px;height:36px;border-radius:50%;background:var(--green);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0;">${initials}</div>`}
+          <div style="flex:1;min-width:0;">
+            <div style="font-weight:700;font-size:13px;">${j.nombre||''}${isMe?` <span style="font-size:10px;background:#E8F5E9;color:#2E7D32;padding:1px 5px;border-radius:6px;">Tú</span>`:''}</div>
+            <div style="font-size:11px;color:var(--muted);">
+              ${j.alias&&j.alias!==j.nombre?`@${j.alias}`:''} ${j.telefonoCompleto?'· '+j.telefonoCompleto:''}
+            </div>
+            ${j.invite_code&&canManage?`<div style="margin-top:2px;">${!j.user_uid
+              ?`<span style="background:#E8F5E9;color:#2E7D32;font-size:10px;font-weight:700;padding:2px 6px;border-radius:5px;font-family:monospace;">🔑 ${j.invite_code}</span>`
+              :`<span style="background:#E3F2FD;color:#1565C0;font-size:10px;padding:2px 6px;border-radius:5px;">✅ Con cuenta</span>`
+            }</div>`:''}
+          </div>
+          ${canManage?`<button onclick="removeParticipante('${j.id}','${(j.nombre||'').replace(/'/g,"\\'")}','${t.id}',event)"
+            style="background:none;border:1px solid var(--border);border-radius:6px;padding:3px 8px;color:var(--muted);font-size:12px;cursor:pointer;">✕</button>`:''}
+        </div>`;
+      }).join('');
 
-  // Torneos donde el usuario es admin
-  const misTorneos=STATE.torneos.filter(t=>isTorneoAdmin(t));
+      return `<div class="card" style="${isActive?'border:2px solid var(--green);':''}">
+        <div style="padding:14px 16px;">
+          <!-- Header del torneo -->
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;" onclick="setActiveTorneo('${t.id}');event.stopPropagation();" style="cursor:pointer;">
+            <div>
+              <div style="font-size:13px;font-weight:800;color:var(--green);">${t.nombre}</div>
+              <div style="font-size:11px;color:var(--muted);">${isActive?jugadores.length+' participante'+(jugadores.length!==1?'s':''):'Toca para ver jugadores'}</div>
+            </div>
+            <span style="font-size:12px;color:var(--muted);">${isActive?'▲':'▼'}</span>
+          </div>
 
-  el.innerHTML=`
-    <div style="margin-bottom:16px;">
-      ${misTorneos.length>1?`
-        <div style="margin-bottom:10px;">
-          <label style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;font-weight:700;">Selecciona torneo</label>
-          <select class="form-select" style="width:100%;margin-top:4px;" onchange="setActiveTorneo(this.value)">
-            ${STATE.torneos.map(t=>`
-              <option value="${t.id}" ${t.id===torneo.id?'selected':''}>${t.nombre}</option>
-            `).join('')}
-          </select>
+          ${isActive?`
+            <!-- Lista de jugadores -->
+            <div style="margin-top:8px;">
+              ${jugadores.length===0
+                ?`<div style="text-align:center;padding:20px;color:var(--muted);font-size:13px;">Sin jugadores aún</div>`
+                :jugadoresHTML}
+            </div>
+            <!-- Botón agregar -->
+            ${canManage?`<div style="margin-top:12px;">
+              <button class="btn-green" style="width:100%;padding:10px;font-size:13px;" onclick="openAgregarJugadorModal('${t.id}')">
+                + Invitar / Agregar Jugador
+              </button>
+            </div>`:''}
+          `:''}
         </div>
-      `:`<div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">${torneo.nombre}</div>`}
-      <div style="display:flex;align-items:center;justify-content:space-between;">
-        <div style="font-size:18px;font-weight:800;">Jugadores <span style="color:var(--muted);font-size:14px;">(${jugadores.length})</span></div>
-        ${canManage?`<button class="btn-green" onclick="openAgregarJugadorModal()" style="font-size:13px;padding:8px 14px;">+ Agregar</button>`:''}
-      </div>
-    </div>
-    </div>
-    ${jugadores.length===0
-      ?`<div style="text-align:center;padding:40px 20px;color:var(--muted);">
-          <div style="font-size:40px;margin-bottom:12px;">🏌️</div>
-          <div style="font-size:15px;font-weight:600;">Sin jugadores aún</div>
-          ${canManage?`<div style="font-size:13px;margin-top:6px;">Toca "+ Agregar" para sumar jugadores al torneo</div>`:''}
-        </div>`
-      :rows}
+      </div>`;
+    }).join('')}
 
     <!-- Modal Agregar Jugador -->
     <div id="agregarJugadorModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9999;align-items:flex-end;justify-content:center;">
       <div style="background:var(--white);border-radius:20px 20px 0 0;width:100%;max-width:500px;padding:24px 20px 32px;max-height:85vh;overflow-y:auto;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
-          <div style="font-size:16px;font-weight:800;">Agregar a: <span style="color:var(--green);">${torneo.nombre}</span></div>
+          <div style="font-size:16px;font-weight:800;" id="modalAgregarTitle">Agregar jugador</div>
           <button onclick="closeAgregarJugadorModal()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--muted);">✕</button>
         </div>
-        <!-- Tabs: Buscar / Crear nuevo -->
         <div style="display:flex;gap:8px;margin-bottom:16px;">
           <button id="tabBuscar" onclick="switchAgregarTab('buscar')"
             style="flex:1;padding:8px;border-radius:8px;border:2px solid var(--green);background:var(--green);color:#fff;font-weight:700;font-size:13px;cursor:pointer;">🔍 Buscar</button>
           <button id="tabCrear" onclick="switchAgregarTab('crear')"
             style="flex:1;padding:8px;border-radius:8px;border:2px solid var(--border);background:transparent;color:var(--text);font-weight:700;font-size:13px;cursor:pointer;">+ Crear nuevo</button>
         </div>
-
-        <!-- Panel Buscar -->
         <div id="panelBuscar">
-          <input type="text" id="buscarJugadorInput" placeholder="Buscar por nombre, alias, teléfono o email..."
+          <input type="text" id="buscarJugadorInput" placeholder="Nombre, alias, teléfono o email..."
             style="width:100%;padding:12px;border:2px solid var(--border);border-radius:10px;background:var(--bg);color:var(--text);font-size:14px;"
             oninput="buscarJugadorGlobal(this.value)"/>
           <div id="buscarResultados" style="margin-top:12px;"></div>
         </div>
-
-        <!-- Panel Crear nuevo -->
         <div id="panelCrear" style="display:none;">
           <div style="display:flex;flex-direction:column;gap:12px;">
             <div><label class="form-label">Nombre Completo *</label><input class="form-input" id="newNombre" placeholder="Ej: Daniel Badell"/></div>
@@ -3408,10 +3429,8 @@ function renderJugadores(){
               <label class="form-label">Teléfono / WhatsApp</label>
               <div style="display:flex;gap:8px;align-items:center;">
                 <select class="form-select" id="newPaisCodigo" style="width:110px;">
-                  <option value="+58">🇻🇪 +58</option>
-                  <option value="+1">🇺🇸 +1</option>
-                  <option value="+34">🇪🇸 +34</option>
-                  <option value="+52">🇲🇽 +52</option>
+                  <option value="+58">🇻🇪 +58</option><option value="+1">🇺🇸 +1</option>
+                  <option value="+34">🇪🇸 +34</option><option value="+52">🇲🇽 +52</option>
                   <option value="+57">🇨🇴 +57</option>
                 </select>
                 <input class="form-input" id="newTelefono" type="tel" placeholder="4141234567" style="flex:1;" oninput="validarTelefonoNew(this)"/>
@@ -3423,12 +3442,17 @@ function renderJugadores(){
         </div>
       </div>
     </div>
-  `;
+  </div>`;
 }
 
-function openAgregarJugadorModal(){
+
+function openAgregarJugadorModal(torneoId){
+  if(torneoId) setActiveTorneo(torneoId);
   const m=document.getElementById('agregarJugadorModal');
   if(m){ m.style.display='flex'; }
+  const t=getActiveTorneo();
+  const title=document.getElementById('modalAgregarTitle');
+  if(title&&t) title.textContent='Agregar a: '+t.nombre;
   // Load global jugadores for search
   if(STATE.jugadores_global.length===0){
     db.collection('jugadores').orderBy('nombre').get().then(s=>{
@@ -3512,9 +3536,6 @@ async function agregarParticipante(jugadorId){
         fecha_ingreso: firebase.firestore.FieldValue.serverTimestamp()
       });
     // Update count on torneo
-    await db.collection('torneos').doc(torneo.id).update({
-      jugadores_count: firebase.firestore.FieldValue.increment(1)
-    });
     closeAgregarJugadorModal();
   }catch(e){ alert('Error: '+e.message); }
 }
@@ -3556,24 +3577,19 @@ async function crearYAgregarJugador(){
         invite_code, user_uid:null, handicap:0, activo:true,
         fecha_ingreso:firebase.firestore.FieldValue.serverTimestamp()
       });
-    await db.collection('torneos').doc(torneo.id).update({
-      jugadores_count: firebase.firestore.FieldValue.increment(1)
-    });
     closeAgregarJugadorModal();
   }catch(e){ err.textContent='Error: '+e.message; err.style.display='block'; }
 }
 
-async function removeParticipante(jugadorId, nombre, event){
+async function removeParticipante(jugadorId, nombre, torneoId, event){
   if(event) event.stopPropagation();
-  const torneo=getActiveTorneo();
-  if(!torneo) return;
-  if(!confirm(`¿Quitar a ${nombre} de este torneo?`)) return;
+  const tid=torneoId||STATE.activeTorneoId;
+  if(!tid) return;
+  const t=STATE.torneos.find(x=>x.id===tid);
+  if(!confirm(`¿Quitar a ${nombre} de ${t?.nombre||'este torneo'}?`)) return;
   try{
-    await db.collection('torneos').doc(torneo.id)
+    await db.collection('torneos').doc(tid)
       .collection('participantes').doc(jugadorId).delete();
-    await db.collection('torneos').doc(torneo.id).update({
-      jugadores_count: firebase.firestore.FieldValue.increment(-1)
-    });
   }catch(e){ alert('Error: '+e.message); }
 }
 
