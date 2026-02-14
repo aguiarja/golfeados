@@ -3638,5 +3638,16 @@ async function seedDatos(){
   }catch(e){ msg.style.color='var(--red)'; msg.textContent='❌ Error: '+e.message; }
 }
 </script>
+
+<script>
+// Register Service Worker (required for PWA install prompt on Android)
+if('serviceWorker' in navigator){
+  window.addEventListener('load', ()=>{
+    navigator.serviceWorker.register('/golfeados/sw.js')
+      .then(reg => console.log('SW registered:', reg.scope))
+      .catch(err => console.log('SW error:', err));
+  });
+}
+</script>
 </body>
 </html>
