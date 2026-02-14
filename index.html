@@ -884,7 +884,7 @@ input,select,textarea{font-family:inherit;}
 // ══════════════════════════════════════════════════════
 // VERSIÓN — cambia este número cada vez que subas cambios
 // ══════════════════════════════════════════════════════
-const APP_VERSION = '4.1.0';
+const APP_VERSION = '4.1.1';
 
 // ══════════════════════════════════════════════════════
 // FIREBASE CONFIG
@@ -1470,6 +1470,8 @@ function initListeners(){
     .onSnapshot(s=>{ STATE.resultados=s.docs.map(d=>({id:d.id,...d.data()})); if(STATE._connSetOnline)STATE._connSetOnline(); renderCurrentTab(); }));
   STATE.unsubs.push(db.collection('clubes').orderBy('nombre')
     .onSnapshot(s=>{ STATE.clubes=s.docs.map(d=>({id:d.id,...d.data()})); renderCurrentTab(); }));
+  // Load global jugadores once for name lookups (old torneos compatibility)
+  ensureJugadoresGlobal();
 }
 
 // Subscribe to participantes subcollection of active torneo
@@ -1654,13 +1656,24 @@ function getJugador(jugadorId){
   // Search active torneo first (fastest)
   const fromActive=(STATE.jugadores||[]).find(j=>j.id===jugadorId);
   if(fromActive) return fromActive;
-  // Search all torneos
+  // Search all torneos by_torneo map
   for(const lista of Object.values(STATE.jugadores_by_torneo||{})){
     const found=lista.find(j=>j.id===jugadorId);
     if(found) return found;
   }
-  // Fallback to global cache
-  return (STATE.jugadores_global||[]).find(j=>j.id===jugadorId)||null;
+  // Fallback to global cache (covers old torneos with players only in jugadores/ collection)
+  const fromGlobal=(STATE.jugadores_global||[]).find(j=>j.id===jugadorId);
+  if(fromGlobal) return fromGlobal;
+  return null;
+}
+
+// Ensure global jugadores are loaded (for name lookups in old torneos)
+function ensureJugadoresGlobal(){
+  if(STATE.jugadores_global.length>0) return;
+  db.collection('jugadores').get().then(s=>{
+    STATE.jugadores_global=s.docs.map(d=>({id:d.id,...d.data()}));
+    renderCurrentTab();
+  }).catch(e=>console.error('jugadores global load:',e));
 }
 function getJugadoresTorneo(torneoId){
   if(torneoId===STATE.activeTorneoId) return STATE.jugadores||[];
@@ -1772,14 +1785,23 @@ function calcRankingTorneo(torneoId){
     });
   }
 
-  // 2. Aggregate per player
-  // Use participants of the specific torneo, not just the active one
-  const torneoJugadores=getJugadoresTorneo(torneoId);
-  const rawData=torneoJugadores.map(jugador=>{
+  // 2. Aggregate per player — build from resultados (works without participantes subcollection)
+  // Collect unique jugador_ids who have results in this torneo's jornadas
+  const jugadorIds=new Set();
+  jugados.forEach(jn=>{
+    STATE.resultados.filter(r=>r.jornada_id===jn.id).forEach(r=>jugadorIds.add(r.jugador_id));
+  });
+  // Also include participantes even if no results yet
+  const participantes=getJugadoresTorneo(torneoId);
+  participantes.forEach(j=>jugadorIds.add(j.id));
+
+  const rawData=Array.from(jugadorIds).map(jugadorId=>{
+    // Look up jugador from all sources
+    const jugador=getJugador(jugadorId)||participantes.find(j=>j.id===jugadorId)||{id:jugadorId,nombre:'Jugador',foto:'?'};
     const jornadaPts=jugados.map(jn=>{
-      const r=STATE.resultados.find(r=>r.jornada_id===jn.id&&r.jugador_id===jugador.id);
+      const r=STATE.resultados.find(r=>r.jornada_id===jn.id&&r.jugador_id===jugadorId);
       if(!r) return null;
-      const calculatedPts=jornadaPtsMap[jn.id]?.[jugador.id]??0;
+      const calculatedPts=jornadaPtsMap[jn.id]?.[jugadorId]??0;
       return{jornada_id:jn.id,pts:calculatedPts,asistencia:r.asistencia,dq:r.dq||false,pos:r.pos};
     }).filter(Boolean);
 
@@ -1794,8 +1816,7 @@ function calcRankingTorneo(torneoId){
     const ptsT=Math.round(ptsList.reduce((a,r)=>a+r.pts,0)*100)/100;
     const ptsOf=Math.round(ptsList.filter(r=>oficiales.some(j=>j.id===r.jornada_id)).reduce((a,r)=>a+r.pts,0)*100)/100;
     const asist=jornadaPts.filter(r=>r.asistencia).length;
-
-    return{...jugador,ptsT,ptsOf,asist,jornadaPts};
+    return{...jugador,id:jugadorId,ptsT,ptsOf,asist,jornadaPts};
   });
 
   // 3. Sort by ptsT desc
@@ -3398,8 +3419,8 @@ function renderJugadores(){
       const canManage=isTorneoAdmin(t);
       const isActive=t.id===STATE.activeTorneoId;
       // Get participants for this torneo from STATE
-      // We show STATE.jugadores only for the active torneo; others show placeholder
-      const jugadores=isActive?(STATE.jugadores||[]):[];
+      // Use jugadores_by_torneo for each torneo; fallback to STATE.jugadores if active
+      const jugadores=STATE.jugadores_by_torneo[t.id]||(isActive?STATE.jugadores:[]);
       const jugadoresHTML=jugadores.map(j=>{
         const isMe=j.id===myJugadorId||j.jugador_id===myJugadorId;
         const initials=j.foto||j.alias?.slice(0,2)||j.nombre?.slice(0,2)||'?';
