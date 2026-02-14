@@ -76,7 +76,10 @@ input,select,textarea{font-family:inherit;}
 .field input:focus{border-color:var(--green);background:var(--white);}
 .btn-login{width:100%;padding:13px;border-radius:10px;border:none;background:var(--green);color:#fff;font-weight:700;font-size:16px;font-family:Georgia,serif;letter-spacing:1px;box-shadow:0 4px 14px rgba(46,125,94,0.3);transition:opacity 0.2s;margin-top:4px;}
 .btn-google{width:100%;padding:12px;border-radius:10px;border:2px solid #e0e0e0;background:#fff;color:#3c4043;font-weight:600;font-size:15px;font-family:Georgia,serif;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;margin-top:10px;box-shadow:0 1px 4px rgba(0,0,0,0.1);}
-.btn-google:hover{background:#f8f8f8;}.login-or{display:flex;align-items:center;gap:10px;margin:14px 0;color:var(--muted);font-size:12px;}.login-or::before,.login-or::after{content:'';flex:1;height:1px;background:var(--border);}
+.btn-google:hover{background:#f8f8f8;border-color:#dadce0;}
+.btn-google:active{background:#f0f0f0;}
+.login-or{display:flex;align-items:center;gap:10px;margin:14px 0;color:var(--muted);font-size:12px;}
+.login-or::before,.login-or::after{content:'';flex:1;height:1px;background:var(--border);}
 .btn-login:disabled{opacity:0.6;cursor:not-allowed;}
 .btn-link{background:none;border:none;color:var(--muted);font-size:13px;text-align:center;display:block;width:100%;margin-top:14px;}
 .error-box{background:var(--redPale);border:1px solid #FFCDD2;border-radius:8px;padding:10px 14px;color:var(--red);font-size:13px;margin-bottom:12px;}
@@ -263,7 +266,8 @@ input,select,textarea{font-family:inherit;}
           <button class="toggle-pass" type="button" onclick="togglePass('loginPassword',this)">👁</button>
         </div>
       </div>
-      <button class="btn-login" id="loginBtn" onclick="handleLogin()">Entrar al Club</button>      <div class="login-or">o</div>
+      <button class="btn-login" id="loginBtn" onclick="handleLogin()">Entrar al Club</button>
+      <div class="login-or">o</div>
       <button class="btn-google" onclick="handleGoogleSignIn()">
         <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.08 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.35-8.16 2.35-6.26 0-11.57-3.59-13.46-8.83l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
         Continuar con Google
@@ -320,7 +324,7 @@ input,select,textarea{font-family:inherit;}
         <div id="strengthLabel" style="font-size:11px;color:var(--muted);margin-top:4px;"></div>
       </div>
       <button class="btn-login" id="regBtn" onclick="handleRegister()">Continuar →</button>
-      <div class="login-or">o regístrate con</div>      <div class="login-or" style="display:none">/div>
+      <div class="login-or">o regístrate con</div>
       <button class="btn-google" onclick="handleGoogleSignIn()">
         <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.08 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.35-8.16 2.35-6.26 0-11.57-3.59-13.46-8.83l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
         Continuar con Google
@@ -386,22 +390,24 @@ input,select,textarea{font-family:inherit;}
     </div>
 
     <!-- ⑥ VERIFICACIÓN PENDIENTE (usuario ya registrado pero no verificó) -->
+    <!-- VINCULAR CUENTA CON CÓDIGO DE INVITACIÓN -->
     <div id="vincularView" style="display:none;">
       <div style="text-align:center;padding:10px 0 20px;">
         <div style="font-size:48px;margin-bottom:12px;">⛳</div>
         <div style="font-size:16px;font-weight:700;color:var(--green);margin-bottom:8px;">¡Bienvenido al club!</div>
-        <div style="font-size:13px;color:var(--muted);line-height:1.5;">Si el administrador ya cargó tu perfil,<br/>ingresa tu código de invitación.</div>
+        <div style="font-size:13px;color:var(--muted);line-height:1.5;">Si el administrador ya cargó tu perfil de jugador,<br/>ingresa tu código de invitación para vincularte.</div>
       </div>
       <div id="vincularError" class="error-box" style="display:none;margin-bottom:12px;"></div>
       <div class="field">
         <label>Código de invitación</label>
-        <input type="text" id="vincularCodigo" placeholder="GOLF-XXXX"
+        <input type="text" id="vincularCodigo" placeholder="GOLF-XXXX" 
           style="text-transform:uppercase;letter-spacing:2px;font-size:18px;text-align:center;font-weight:700;"
           oninput="this.value=this.value.toUpperCase().replace(/[^A-Z0-9-]/g,'')"/>
       </div>
       <button class="btn-login" id="vincularBtn" onclick="handleVincular()">Vincular mi perfil 🏌️</button>
       <button class="btn-link" style="margin-top:10px;" onclick="skipVincular()">Saltar por ahora →</button>
     </div>
+
     <div id="pendingVerifyView" style="display:none;">
       <div style="text-align:center;padding:10px 0 20px;">
         <div style="font-size:48px;margin-bottom:12px;">⚠️</div>
@@ -842,7 +848,7 @@ input,select,textarea{font-family:inherit;}
 // ══════════════════════════════════════════════════════
 // VERSIÓN — cambia este número cada vez que subas cambios
 // ══════════════════════════════════════════════════════
-const APP_VERSION = '3.8.9';
+const APP_VERSION = '3.8.7';
 
 // ══════════════════════════════════════════════════════
 // FIREBASE CONFIG
@@ -859,7 +865,16 @@ firebase.initializeApp(firebaseConfig);
 const auth    = firebase.auth();
 const db      = firebase.firestore();
 const storage = firebase.storage();
-auth.getRedirectResult().then(()=>{}).catch(e=>{if(e.code&&e.code!=='auth/no-current-user')console.error('Google redirect:',e.message);});
+
+// Handle Google redirect result (fires after page reloads from Google auth)
+auth.getRedirectResult().then(result=>{
+  // result.user will be null if no redirect in progress
+  // onAuthStateChanged handles the actual login flow
+}).catch(e=>{
+  if(e.code&&e.code!=='auth/no-current-user'){
+    console.error('Google redirect error:',e.message);
+  }
+});
 
 // ══════════════════════════════════════════════════════
 // ESTADO GLOBAL
@@ -868,7 +883,7 @@ let STATE = {
   user:null, profile:null,
   torneo:null,          // legacy single-torneo (kept for compatibility)
   torneos:[],           // all torneos
-  jugadores:[], jornadas:[], resultados:[], clubes:[],
+  jugadores:[], partidas:[], resultados:[], clubes:[],
   currentTab:'dashboard', cargarJornadaId:null,
   expandedJornada:null, expandedTorneo:null,
   expandedJornadaMT:null,  // partida expanded inside Mis Torneos
@@ -885,46 +900,69 @@ let STATE = {
 // ══════════════════════════════════════════════════════
 
 // Show/hide login views
+// ── Google Sign-In ─────────────────────────────────
 async function handleGoogleSignIn(){
   try{
     const provider=new firebase.auth.GoogleAuthProvider();
+    provider.addScope('email');
+    provider.addScope('profile');
+    // Use redirect (works on all mobile browsers including Safari)
     await auth.signInWithRedirect(provider);
+    // Page will reload — onAuthStateChanged handles the result
   }catch(e){
     const err=document.getElementById('loginError')||document.getElementById('registerError');
-    if(err){err.textContent='Error: '+e.message;err.style.display='block';}
+    if(err){ err.textContent='Error con Google: '+e.message; err.style.display='block'; }
   }
 }
-function showVincular(){ showLoginView('vincularView'); }
+
+// ── Invite Code (Vincular cuenta) ──────────────────
+function showVincular(){
+  showLoginView('vincularView');
+}
 function skipVincular(){
+  // User skips — goes to main app without jugador linked
+  // Mark as skipped so we don't ask again every login
   if(STATE.user) db.collection('users').doc(STATE.user.uid).update({vincular_skipped:true}).catch(()=>{});
   if(STATE.profile) STATE.profile.vincular_skipped=true;
-  showApp_(); initListeners();
+  showApp_();
+  initListeners();
 }
 async function handleVincular(){
   const code=document.getElementById('vincularCodigo').value.trim().toUpperCase();
   const err=document.getElementById('vincularError');
   const btn=document.getElementById('vincularBtn');
   err.style.display='none';
-  if(!code||code.length<6){err.textContent='Ingresa el código.';err.style.display='block';return;}
+  if(!code||code.length<6){ err.textContent='Ingresa el código de invitación.'; err.style.display='block'; return; }
   btn.disabled=true; btn.textContent='Verificando...';
   try{
+    // Find jugador with this invite_code
     const snap=await db.collection('jugadores').where('invite_code','==',code).limit(1).get();
-    if(snap.empty){err.textContent='Código inválido.';err.style.display='block';btn.disabled=false;btn.textContent='Vincular mi perfil 🏌️';return;}
+    if(snap.empty){ err.textContent='Código inválido. Verifica con tu administrador.'; err.style.display='block'; btn.disabled=false; btn.textContent='Vincular mi perfil 🏌️'; return; }
     const jugDoc=snap.docs[0];
-    if(jugDoc.data().user_uid){err.textContent='Este código ya fue usado.';err.style.display='block';btn.disabled=false;btn.textContent='Vincular mi perfil 🏌️';return;}
+    if(jugDoc.data().user_uid){ err.textContent='Este código ya fue usado.'; err.style.display='block'; btn.disabled=false; btn.textContent='Vincular mi perfil 🏌️'; return; }
+    // Link: update jugador + user profile
     const uid=STATE.user.uid;
-    await db.collection('jugadores').doc(jugDoc.id).update({user_uid:uid});
-    await db.collection('users').doc(uid).update({jugador_id:jugDoc.id,vincular_skipped:false});
+    await db.collection('jugadores').doc(jugDoc.id).update({ user_uid:uid });
+    await db.collection('users').doc(uid).update({ jugador_id:jugDoc.id, vincular_skipped:false });
     STATE.profile.jugador_id=jugDoc.id;
-    showApp_(); initListeners();
-  }catch(e){err.textContent='Error: '+e.message;err.style.display='block';btn.disabled=false;btn.textContent='Vincular mi perfil 🏌️';}
+    STATE.profile.vincular_skipped=false;
+    // Enter app
+    showApp_();
+    initListeners();
+  }catch(e){
+    err.textContent='Error: '+e.message; err.style.display='block';
+    btn.disabled=false; btn.textContent='Vincular mi perfil 🏌️';
+  }
 }
+
+// ── Generate invite code ────────────────────────────
 function generateInviteCode(){
-  const chars='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const chars='ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no confusing chars (0,O,1,I)
   let code='GOLF-';
   for(let i=0;i<4;i++) code+=chars[Math.floor(Math.random()*chars.length)];
   return code;
 }
+
 function showLoginView(id){
   ['loginView','registerView','verifyChoiceView','smsCodeView',
    'emailSentView','pendingVerifyView','resetView','vincularView'].forEach(v=>{
@@ -948,14 +986,21 @@ auth.onAuthStateChanged(async user=>{
       await db.collection('users').doc(user.uid).set(p);
       STATE.profile=p;
     }
+    // Google sign-in: user is auto-verified, set verified flag
     if(STATE.user.providerData&&STATE.user.providerData[0]&&STATE.user.providerData[0].providerId==='google.com'){
-      if(!STATE.profile.verified){await db.collection('users').doc(STATE.user.uid).update({verified:true});STATE.profile.verified=true;}
+      if(!STATE.profile.verified){
+        await db.collection('users').doc(STATE.user.uid).update({verified:true});
+        STATE.profile.verified=true;
+      }
     }
-    if(!STATE.profile.jugador_id&&STATE.profile.role!=='admin'&&!STATE.profile.vincular_skipped){
+    // If user has no jugador_id → show vincular screen (skip for admins and users who already skipped)
+    if(!STATE.profile.jugador_id && STATE.profile.role!=='admin' && !STATE.profile.vincular_skipped){
       document.getElementById('app').style.display='none';
       document.getElementById('loginScreen').style.display='flex';
-      showLoginView('vincularView'); return;
+      showLoginView('vincularView');
+      return;
     }
+
     // Check if verified
     await user.reload();
     const emailVerif=user.emailVerified;
@@ -2295,12 +2340,16 @@ function renderJornadas(){
       const cargador=STATE.jugadores.find(j=>j.id===jn.cargado_por);
       const attestador=STATE.jugadores.find(j=>j.id===jn.attest_por);
       const myJugadorId=STATE.profile?.jugador_id;
-      const est=getEstadoJornada(jn);
+      const est=getEstadoJornada(jn);  // live computed estado
+      const canAttest=(est==='Pendiente Attest'||est==='Por Validar')&&jn.cargado_por!==myJugadorId&&(isAdmin||STATE.resultados.some(r=>r.jornada_id===jn.id&&r.jugador_id===myJugadorId));
+      // Who can cargar: get torneo rules
       const torneoDeJornada=STATE.torneos.find(t=>t.id===jn.torneo_id);
       const quienCarga=torneoDeJornada?.quienCargaResultados||'admins';
+      const canCargar=est==='En Juego'&&(isAdmin||(quienCarga==='cualquiera'&&STATE.profile?.jugador_id&&STATE.resultados.some(r=>r.jornada_id===jn.id&&r.jugador_id===myJugadorId)));
+      // Build "quién puede cargar" label
       const adminsDelTorneo=torneoDeJornada?STATE.jugadores.filter(j=>j.id===torneoDeJornada.admin_id||(torneoDeJornada.admins&&torneoDeJornada.admins.includes(j.id))):[];
-      const quienPuedeMsj=quienCarga==='cualquiera'?'Cualquier participante puede cargar':'Solo el admin: '+(adminsDelTorneo.map(j=>j.nombre).join(', ')||'el administrador');
-      const canAttest=(est==='Pendiente Attest'||est==='Por Validar')&&jn.cargado_por!==myJugadorId&&(isAdmin||STATE.resultados.some(r=>r.jornada_id===jn.id&&r.jugador_id===myJugadorId));
+      const quienPuedeMsj=quienCarga==='cualquiera'?'Cualquier participante puede cargar los resultados':
+        'Solo el admin del torneo puede cargar: '+(adminsDelTorneo.map(j=>j.nombre).join(', ')||'el administrador');
 
       return`
         <div class="partida-card" style="${est==='Jugado'||est==='Por Validar'?'border:2px solid #C8E6C9;':est==='En Juego'?'border:2px solid #FFE082;':''}">
@@ -2475,44 +2524,38 @@ function openModalJornada(jornadaId=null, torneoId=null){
 function resetJornadaFotoSlot(i){
   const slot=document.getElementById('jornadaFotoSlot'+i);
   if(!slot)return;
-  slot.className='photo-upload-box';
-  slot.style.cssText='height:80px;padding:8px;position:relative;overflow:hidden;';
-  slot.innerHTML='<div style="font-size:22px;">📷</div><div style="font-size:10px;color:var(--muted);">Foto '+(i+1)+'</div>'
-    +'<input type="file" id="jornadaFotoInput'+i+'" accept="image/*" capture="environment"'
-    +' style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;"'
-    +' onchange="previewJornadaFoto(this,'+i+')">';
+  slot.innerHTML=`
+    <div class="photo-upload-box" style="height:80px;padding:8px;" onclick="document.getElementById('jornadaFotoInput${i}').click()">
+      <div style="font-size:22px;">📷</div>
+      <div style="font-size:10px;color:var(--muted);">Foto ${i+1}</div>
+      <input type="file" id="jornadaFotoInput${i}" accept="image/*" onchange="previewJornadaFoto(this,${i})"/>
+    </div>`.replace(/\${i}/g,i).replace(/\${i\+1}/g,i+1);
 }
 
 function setJornadaFotoSlot(i,url){
   const slot=document.getElementById('jornadaFotoSlot'+i);
   if(!slot)return;
-  slot.className='';
-  slot.style.cssText='position:relative;height:80px;border-radius:8px;overflow:hidden;border:1px solid var(--border);';
-  slot.innerHTML='<img src="'+url+'" style="width:100%;height:80px;object-fit:cover;display:block;"/>'
-    +'<button onclick="event.stopPropagation();delJornadaFoto('+i+')"'
-    +' style="position:absolute;top:3px;right:3px;background:rgba(0,0,0,0.6);border:none;color:#fff;border-radius:50%;width:22px;height:22px;font-size:12px;cursor:pointer;line-height:1;">✕</button>'
-    +'<input type="file" id="jornadaFotoInput'+i+'" accept="image/*" capture="environment"'
-    +' style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;"'
-    +' onchange="previewJornadaFoto(this,'+i+')">';
+  slot.innerHTML=`
+    <img src="${url}" style="width:100%;height:80px;object-fit:cover;border-radius:8px;border:1px solid var(--border);"/>
+    <button class="del-photo" onclick="delJornadaFoto(${i})">✕</button>`;
 }
 
 function previewJornadaFoto(input,i){
   const file=input.files[0];
   if(!file)return;
+  // Store the File object so saveResultados can access it even after DOM changes
   if(!STATE._jornadaFotoFiles) STATE._jornadaFotoFiles=[null,null,null];
   STATE._jornadaFotoFiles[i]=file;
   const reader=new FileReader();
   reader.onload=e=>{
     const slot=document.getElementById('jornadaFotoSlot'+i);
     if(!slot)return;
-    slot.className='';
-    slot.style.cssText='position:relative;height:80px;border-radius:8px;overflow:hidden;border:1px solid var(--border);';
-    slot.innerHTML='<img src="'+e.target.result+'" style="width:100%;height:80px;object-fit:cover;display:block;"/>'
-      +'<button onclick="event.stopPropagation();delJornadaFoto('+i+')"'
-      +' style="position:absolute;top:3px;right:3px;background:rgba(0,0,0,0.6);border:none;color:#fff;border-radius:50%;width:22px;height:22px;font-size:12px;cursor:pointer;line-height:1;">✕</button>'
-      +'<input type="file" id="jornadaFotoInput'+i+'" accept="image/*" capture="environment"'
-      +' style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;"'
-      +' onchange="previewJornadaFoto(this,'+i+')">';
+    // Show preview image + delete btn, keep hidden input alive for re-selection
+    slot.innerHTML='<div style="position:relative;width:100%;height:80px;">'
+      +'<img src="'+e.target.result+'" style="width:100%;height:80px;object-fit:cover;border-radius:8px;border:1px solid var(--border);"/>'
+      +'<button class="del-photo" onclick="delJornadaFoto('+i+')" style="position:absolute;top:2px;right:2px;">✕</button>'
+      +'<input type="file" id="jornadaFotoInput'+i+'" accept="image/*" style="position:absolute;inset:0;opacity:0;cursor:pointer;" onchange="previewJornadaFoto(this,'+i+')">'
+      +'</div>';
   };
   reader.readAsDataURL(file);
 }
@@ -2821,9 +2864,16 @@ function renderCargar(){
     <div class="card mb-16" style="padding:16px;">
       <div class="card-header" style="margin-bottom:12px;"><span class="card-title">📷 Fotos del día (máx 3)</span></div>
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;" id="jornadaFotoGrid">
-        <div class="photo-upload-box" style="height:80px;padding:8px;position:relative;overflow:h        <div class="photo-upload-box" style="height:80px;padding:8px;position:relative;overflow:hidden;" id="jornadaFotoSlot0"><div style="font-size:22px;">📷</div><div style="font-size:10px;color:var(--muted);">Foto 1</div><input type="file" id="jornadaFotoInput0" accept="image/*" capture="environment" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;" onchange="previewJornadaFoto(this,0)"/></div>
-        <div class="photo-upload-box" style="height:80px;padding:8px;position:relative;overflow:hidden;" id="jornadaFotoSlot1"><div style="font-size:22px;">📷</div><div style="font-size:10px;color:var(--muted);">Foto 2</div><input type="file" id="jornadaFotoInput1" accept="image/*" capture="environment" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;" onchange="previewJornadaFoto(this,1)"/></div>
-        <div class="photo-upload-box" style="height:80px;padding:8px;position:relative;overflow:hidden;" id="jornadaFotoSlot2"><div style="font-size:22px;">📷</div><div style="font-size:10px;color:var(--muted);">Foto 3</div><input type="file" id="jornadaFotoInput2" accept="image/*" capture="environment" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;" onchange="previewJornadaFoto(this,2)"/></div><div style="font-size:10px;color:var(--muted);">Foto 3</div>
+        <div class="photo-upload-box" style="height:80px;padding:8px;" id="jornadaFotoSlot0" onclick="document.getElementById('jornadaFotoInput0').click()">
+          <div style="font-size:22px;">📷</div><div style="font-size:10px;color:var(--muted);">Foto 1</div>
+          <input type="file" id="jornadaFotoInput0" accept="image/*" style="display:none;" onchange="previewJornadaFoto(this,0)"/>
+        </div>
+        <div class="photo-upload-box" style="height:80px;padding:8px;" id="jornadaFotoSlot1" onclick="document.getElementById('jornadaFotoInput1').click()">
+          <div style="font-size:22px;">📷</div><div style="font-size:10px;color:var(--muted);">Foto 2</div>
+          <input type="file" id="jornadaFotoInput1" accept="image/*" style="display:none;" onchange="previewJornadaFoto(this,1)"/>
+        </div>
+        <div class="photo-upload-box" style="height:80px;padding:8px;" id="jornadaFotoSlot2" onclick="document.getElementById('jornadaFotoInput2').click()">
+          <div style="font-size:22px;">📷</div><div style="font-size:10px;color:var(--muted);">Foto 3</div>
           <input type="file" id="jornadaFotoInput2" accept="image/*" style="display:none;" onchange="previewJornadaFoto(this,2)"/>
         </div>
       </div>
@@ -3136,7 +3186,13 @@ function renderJugadores(){
               <div class="text-14 font-bold">${j.nombre}</div>
               <div class="text-12 text-muted">${j.alias||'—'}${j.handicap!==undefined?' · HCP '+j.handicap:''}</div>
               ${j.telefonoCompleto?`<div class="text-11 text-muted" style="margin-top:2px;">📱 ${j.telefonoCompleto}</div>`:''}
-              ${isAdmin&&j.invite_code?`<div style="margin-top:4px;">${!j.user_uid?`<span style="background:#E8F5E9;color:#2E7D32;font-size:11px;font-weight:700;padding:3px 8px;border-radius:6px;letter-spacing:1px;font-family:monospace;">🔑 ${j.invite_code}</span> <span style="font-size:10px;color:var(--muted);">Sin vincular</span>`:`<span style="background:#E3F2FD;color:#1565C0;font-size:10px;padding:2px 7px;border-radius:6px;">✅ Vinculado</span>`}</div>`:''}
+              ${isAdmin&&j.invite_code?`
+                <div style="margin-top:4px;display:flex;align-items:center;gap:6px;">
+                  ${!j.user_uid
+                    ?`<span style="background:#E8F5E9;color:#2E7D32;font-size:11px;font-weight:700;padding:3px 8px;border-radius:6px;letter-spacing:1px;font-family:monospace;">🔑 ${j.invite_code}</span>
+                      <span style="font-size:10px;color:var(--muted);">Sin vincular</span>`
+                    :`<span style="background:#E3F2FD;color:#1565C0;font-size:10px;padding:2px 7px;border-radius:6px;">✅ Cuenta vinculada</span>`}
+                </div>`:''}
             </div>
             <div style="text-align:right;min-width:40px;">
               <div style="font-size:18px;font-weight:800;color:${rk?.pos===1?'var(--gold)':'var(--text)'};">${rk?.ptsT||0}</div>
@@ -3280,8 +3336,12 @@ async function addJugador(){
   }
   const initials=foto||nombre.split(' ').map(n=>n[0]).join('').toUpperCase().slice(0,2);
   const id=nombre.toLowerCase().replace(/\s+/g,'_')+'_'+Date.now();
-  const invite_code=generateInviteCode();
-  const data={nombre,alias:alias||nombre.split(' ')[0],foto:initials,invite_code,user_uid:null,creado:firebase.firestore.FieldValue.serverTimestamp()};
+  let invite_code=generateInviteCode();
+  const codeSnap=await db.collection('jugadores').where('invite_code','==',invite_code).get();
+  if(!codeSnap.empty) invite_code=generateInviteCode();
+  const data={nombre,alias:alias||nombre.split(' ')[0],foto:initials,
+              invite_code, user_uid:null,
+              creado:firebase.firestore.FieldValue.serverTimestamp()};
   if(telefono){data.telefono=telefono;data.codigoPais=codigoPais;data.telefonoCompleto=codigoPais+telefono;}
   await db.collection('jugadores').doc(id).set(data);
   showAddJugador=false;
