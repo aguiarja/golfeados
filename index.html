@@ -1679,6 +1679,30 @@ function getJugadoresTorneo(torneoId){
   if(torneoId===STATE.activeTorneoId) return STATE.jugadores||[];
   return STATE.jugadores_by_torneo[torneoId]||[];
 }
+
+// Returns unified list: participantes + players from resultados (same source as calcRankingTorneo)
+function getJugadoresCompletesTorneo(torneoId){
+  const participantes=getJugadoresTorneo(torneoId);
+  const pMap=new Map(participantes.map(j=>[j.id,j]));
+  // Collect jugador_ids from resultados for this torneo's jornadas
+  const jornadasT=STATE.jornadas.filter(j=>
+    j.torneo_id===torneoId||(!j.torneo_id&&torneoId===STATE.torneo?.id)
+  );
+  jornadasT.forEach(jn=>{
+    STATE.resultados.filter(r=>r.jornada_id===jn.id).forEach(r=>{
+      if(!pMap.has(r.jugador_id)){
+        const jug=getJugador(r.jugador_id)||{id:r.jugador_id,nombre:'Jugador',foto:'?'};
+        pMap.set(r.jugador_id,{...jug,id:r.jugador_id,_fromResults:true});
+      }
+    });
+  });
+  // Sort: participantes first (alphabetical), then result-only players
+  return Array.from(pMap.values()).sort((a,b)=>{
+    if(a._fromResults&&!b._fromResults) return 1;
+    if(!a._fromResults&&b._fromResults) return -1;
+    return (a.nombre||'').localeCompare(b.nombre||'');
+  });
+}
 // Normaliza texto quitando acentos y caracteres especiales
 function normalizeStr(str){
   return (str||'').toLowerCase()
@@ -3418,18 +3442,18 @@ function renderJugadores(){
     ${todosLosTorneos.map(t=>{
       const canManage=isTorneoAdmin(t);
       const isActive=t.id===STATE.activeTorneoId;
-      // Get participants for this torneo from STATE
-      // Use jugadores_by_torneo for each torneo; fallback to STATE.jugadores if active
-      const jugadores=STATE.jugadores_by_torneo[t.id]||(isActive?STATE.jugadores:[]);
+      // Get ALL players for this torneo: participantes + players from resultados
+      const jugadores=getJugadoresCompletesTorneo(t.id);
       const jugadoresHTML=jugadores.map(j=>{
         const isMe=j.id===myJugadorId||j.jugador_id===myJugadorId;
         const initials=j.foto||j.alias?.slice(0,2)||j.nombre?.slice(0,2)||'?';
-        return `<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);">
+        const fromResults=j._fromResults;
+        return `<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);${fromResults?'opacity:0.7;':''}">
           ${j.fotoURL
             ?`<img src="${j.fotoURL}" style="width:36px;height:36px;border-radius:50%;object-fit:cover;flex-shrink:0;"/>`
-            :`<div style="width:36px;height:36px;border-radius:50%;background:var(--green);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0;">${initials}</div>`}
+            :`<div style="width:36px;height:36px;border-radius:50%;background:${fromResults?'var(--muted)':'var(--green)'};color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0;">${initials}</div>`}
           <div style="flex:1;min-width:0;">
-            <div style="font-weight:700;font-size:13px;">${j.nombre||''}${isMe?` <span style="font-size:10px;background:#E8F5E9;color:#2E7D32;padding:1px 5px;border-radius:6px;">Tú</span>`:''}</div>
+            <div style="font-weight:700;font-size:13px;">${j.nombre||''}${isMe?` <span style="font-size:10px;background:#E8F5E9;color:#2E7D32;padding:1px 5px;border-radius:6px;">Tú</span>`:''}${fromResults?` <span style="font-size:10px;background:#FFF3E0;color:#E65100;padding:1px 5px;border-radius:6px;">Solo resultados</span>`:''}</div>
             <div style="font-size:11px;color:var(--muted);">
               ${j.alias&&j.alias!==j.nombre?`@${j.alias}`:''} ${j.telefonoCompleto?'· '+j.telefonoCompleto:''}
             </div>
@@ -3438,7 +3462,7 @@ function renderJugadores(){
               :`<span style="background:#E3F2FD;color:#1565C0;font-size:10px;padding:2px 6px;border-radius:5px;">✅ Con cuenta</span>`
             }</div>`:''}
           </div>
-          ${canManage?`<button onclick="removeParticipante('${j.id}','${(j.nombre||'').replace(/'/g,"\\'")}','${t.id}',event)"
+          ${canManage&&!fromResults?`<button onclick="removeParticipante('${j.id}','${(j.nombre||'').replace(/'/g,"\\'")}','${t.id}',event)"
             style="background:none;border:1px solid var(--border);border-radius:6px;padding:3px 8px;color:var(--muted);font-size:12px;cursor:pointer;">✕</button>`:''}
         </div>`;
       }).join('');
