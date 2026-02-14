@@ -1085,47 +1085,58 @@ function showVerifyChoice(){ showLoginView('verifyChoiceView'); }
 auth.onAuthStateChanged(async user=>{
   if(user){
     STATE.user=user;
-    // Load or create user profile
-    const snap=await db.collection('users').doc(user.uid).get();
-    if(snap.exists){
-      STATE.profile=snap.data();
-    } else {
-      const p={email:user.email,nombre:user.displayName||user.email,
-               role:'jugador',jugador_id:null,verified:false,username:''};
-      await db.collection('users').doc(user.uid).set(p);
-      STATE.profile=p;
+    try{
+      // Load or create user profile
+      const snap=await db.collection('users').doc(user.uid).get();
+      if(snap.exists){
+        STATE.profile=snap.data();
+      } else {
+        const p={email:user.email,nombre:user.displayName||user.email,
+                 role:'jugador',jugador_id:null,verified:false,username:''};
+        await db.collection('users').doc(user.uid).set(p);
+        STATE.profile=p;
+      }
+      // Google users are auto-verified
+      const isGoogle=user.providerData&&user.providerData[0]&&user.providerData[0].providerId==='google.com';
+      if(isGoogle && !STATE.profile.verified){
+        await db.collection('users').doc(user.uid).update({verified:true}).catch(()=>{});
+        STATE.profile.verified=true;
+      }
+      // Check email verification (skip for Google, phone-verified, or legacy accounts)
+      await user.reload();
+      const emailVerif=user.emailVerified;
+      const phoneVerif=STATE.profile?.phoneVerified||false;
+      const isLegacy=STATE.profile?.legacy||false;
+      if(!emailVerif && !phoneVerif && !isLegacy && !isGoogle){
+        showLogin_();
+        document.getElementById('loginScreen').style.display='flex';
+        document.getElementById('verifyEmailAddr').textContent=user.email||'';
+        const tc=STATE.profile?.telefonoCompleto;
+        if(tc) document.getElementById('verifyPhoneNum').textContent=tc;
+        showLoginView('pendingVerifyView');
+        return;
+      }
+      // New Google user with no username → must complete profile first
+      if(isGoogle && !STATE.profile.username){
+        document.getElementById('loginScreen').style.display='flex';
+        document.getElementById('app').style.display='none';
+        document.getElementById('completarNombre').value=user.displayName||'';
+        showLoginView('completarPerfilView');
+        return;
+      }
+      // All good — enter app
+      showApp_();
+      initListeners();
+    }catch(e){
+      console.error('Auth state error:',e);
+      // Show error but don't crash — user is authenticated, try to continue
+      if((e.code==='permission-denied'||(e.message||'').includes('permission'))&&!STATE.profile){
+        // Can't read profile — create minimal fallback
+        STATE.profile={email:user.email,nombre:user.displayName||user.email,role:'jugador',jugador_id:null};
+      }
+      showApp_();
+      initListeners();
     }
-    // Google users are auto-verified
-    const isGoogle=user.providerData&&user.providerData[0]&&user.providerData[0].providerId==='google.com';
-    if(isGoogle && !STATE.profile.verified){
-      await db.collection('users').doc(user.uid).update({verified:true});
-      STATE.profile.verified=true;
-    }
-    // Check email verification (skip for Google, phone-verified, or legacy accounts)
-    await user.reload();
-    const emailVerif=user.emailVerified;
-    const phoneVerif=STATE.profile?.phoneVerified||false;
-    const isLegacy=STATE.profile?.legacy||false;
-    if(!emailVerif && !phoneVerif && !isLegacy && !isGoogle){
-      showLogin_();
-      document.getElementById('loginScreen').style.display='flex';
-      document.getElementById('verifyEmailAddr').textContent=user.email||'';
-      const tc=STATE.profile?.telefonoCompleto;
-      if(tc) document.getElementById('verifyPhoneNum').textContent=tc;
-      showLoginView('pendingVerifyView');
-      return;
-    }
-    // New Google user with no username → must complete profile first
-    if(isGoogle && !STATE.profile.username){
-      document.getElementById('loginScreen').style.display='flex';
-      document.getElementById('app').style.display='none';
-      document.getElementById('completarNombre').value=user.displayName||'';
-      showLoginView('completarPerfilView');
-      return;
-    }
-    // All good — enter app
-    showApp_();
-    initListeners();
     // Note: vincular (invite code linking) is done from INSIDE the app
   } else {
     STATE.user=null; STATE.profile=null;
@@ -1169,23 +1180,32 @@ function updateLoginHint(input){
 async function resolveEmail(identifier){
   // Returns email for any identifier type
   if(identifier.includes('@')&&identifier.includes('.')) return identifier;
-  // Search Firestore users
-  let snap;
-  if(/^[+0-9]/.test(identifier)){
-    // Phone: normalize
-    const normalized=identifier.replace(/[^0-9+]/g,'');
-    snap=await db.collection('users').where('telefonoCompleto','==',normalized).limit(1).get();
-    if(snap.empty){
-      // Try without country code variants
-      snap=await db.collection('users').where('telefono','==',normalized.replace(/^\+[0-9]{1,3}/,'')).limit(1).get();
+  // Search Firestore users (may fail if rules require auth)
+  try{
+    let snap;
+    if(/^[+0-9]/.test(identifier)){
+      // Phone: normalize
+      const normalized=identifier.replace(/[^0-9+]/g,'');
+      snap=await db.collection('users').where('telefonoCompleto','==',normalized).limit(1).get();
+      if(snap.empty){
+        // Try without country code variants
+        snap=await db.collection('users').where('telefono','==',normalized.replace(/^\+[0-9]{1,3}/,'')).limit(1).get();
+      }
+    } else {
+      // Username: strip leading @
+      const uname=identifier.replace(/^@/,'').toLowerCase();
+      snap=await db.collection('users').where('username','==',uname).limit(1).get();
     }
-  } else {
-    // Username: strip leading @
-    const uname=identifier.replace(/^@/,'').toLowerCase();
-    snap=await db.collection('users').where('username','==',uname).limit(1).get();
+    if(!snap||snap.empty) return null;
+    return snap.docs[0].data().email||null;
+  }catch(e){
+    console.warn('resolveEmail permission error:',e.message||e);
+    // Firestore rules may block pre-auth reads — throw specific error
+    if(e.code==='permission-denied'||(e.message||'').includes('permission')){
+      throw new Error('Para entrar con usuario o teléfono, usa tu email directamente. Las reglas de seguridad no permiten búsquedas sin autenticación.');
+    }
+    throw e;
   }
-  if(!snap||snap.empty) return null;
-  return snap.docs[0].data().email||null;
 }
 
 async function handleLogin(){
