@@ -848,7 +848,7 @@ input,select,textarea{font-family:inherit;}
 // ══════════════════════════════════════════════════════
 // VERSIÓN — cambia este número cada vez que subas cambios
 // ══════════════════════════════════════════════════════
-const APP_VERSION = '3.8.7';
+const APP_VERSION = '3.9.1';
 
 // ══════════════════════════════════════════════════════
 // FIREBASE CONFIG
@@ -867,13 +867,12 @@ const db      = firebase.firestore();
 const storage = firebase.storage();
 
 // Handle Google redirect result (fires after page reloads from Google auth)
-auth.getRedirectResult().then(result=>{
-  // result.user will be null if no redirect in progress
-  // onAuthStateChanged handles the actual login flow
-}).catch(e=>{
-  if(e.code&&e.code!=='auth/no-current-user'){
-    console.error('Google redirect error:',e.message);
+// Store redirect result promise — resolved before onAuthStateChanged fires
+const _redirectResult = auth.getRedirectResult().catch(e=>{
+  if(e.code && e.code!=='auth/no-current-user' && e.code!=='auth/operation-not-supported-in-this-environment'){
+    console.warn('Google redirect:',e.message);
   }
+  return null;
 });
 
 // ══════════════════════════════════════════════════════
@@ -946,7 +945,7 @@ async function handleVincular(){
     await db.collection('users').doc(uid).update({ jugador_id:jugDoc.id, vincular_skipped:false });
     STATE.profile.jugador_id=jugDoc.id;
     STATE.profile.vincular_skipped=false;
-    // Enter app
+    document.getElementById('loginScreen').style.display='none';
     showApp_();
     initListeners();
   }catch(e){
@@ -978,47 +977,55 @@ function showVerifyChoice(){ showLoginView('verifyChoiceView'); }
 auth.onAuthStateChanged(async user=>{
   if(user){
     STATE.user=user;
+    // Load or create user profile
     const snap=await db.collection('users').doc(user.uid).get();
-    if(snap.exists){ STATE.profile=snap.data(); }
-    else{
+    if(snap.exists){
+      STATE.profile=snap.data();
+    } else {
       const p={email:user.email,nombre:user.displayName||user.email,
                role:'jugador',jugador_id:null,verified:false,username:''};
       await db.collection('users').doc(user.uid).set(p);
       STATE.profile=p;
     }
-    // Google sign-in: user is auto-verified, set verified flag
-    if(STATE.user.providerData&&STATE.user.providerData[0]&&STATE.user.providerData[0].providerId==='google.com'){
-      if(!STATE.profile.verified){
-        await db.collection('users').doc(STATE.user.uid).update({verified:true});
-        STATE.profile.verified=true;
-      }
+    // Google users are auto-verified
+    const isGoogle=user.providerData&&user.providerData[0]&&user.providerData[0].providerId==='google.com';
+    if(isGoogle && !STATE.profile.verified){
+      await db.collection('users').doc(user.uid).update({verified:true});
+      STATE.profile.verified=true;
     }
-    // If user has no jugador_id → show vincular screen (skip for admins and users who already skipped)
-    if(!STATE.profile.jugador_id && STATE.profile.role!=='admin' && !STATE.profile.vincular_skipped){
-      document.getElementById('app').style.display='none';
-      document.getElementById('loginScreen').style.display='flex';
-      showLoginView('vincularView');
-      return;
-    }
-
-    // Check if verified
+    // Check email verification (skip for Google, phone-verified, or legacy accounts)
     await user.reload();
     const emailVerif=user.emailVerified;
     const phoneVerif=STATE.profile?.phoneVerified||false;
-    const isLegacy=STATE.profile?.legacy||false; // admin-created accounts skip verification
-    if(!emailVerif&&!phoneVerif&&!isLegacy){
-      // Not verified — show pending
+    const isLegacy=STATE.profile?.legacy||false;
+    if(!emailVerif && !phoneVerif && !isLegacy && !isGoogle){
       showLogin_();
       document.getElementById('loginScreen').style.display='flex';
-      // Pre-fill verifyChoice
       document.getElementById('verifyEmailAddr').textContent=user.email||'';
       const tc=STATE.profile?.telefonoCompleto;
       if(tc) document.getElementById('verifyPhoneNum').textContent=tc;
       showLoginView('pendingVerifyView');
-    } else {
-      showApp_(); initListeners();
+      return;
+    }
+    // All good — enter app
+    showApp_();
+    initListeners();
+    // Show vincular screen AFTER entering app, as a non-blocking overlay
+    // (only for non-admins without jugador_id who haven't skipped)
+    if(!STATE.profile.jugador_id && STATE.profile.role!=='admin' && !STATE.profile.vincular_skipped){
+      setTimeout(()=>{
+        document.getElementById('loginScreen').style.display='flex';
+        document.getElementById('app').style.display='none';
+        showLoginView('vincularView');
+      }, 100);
     }
   } else {
+    // user is null — but wait for redirect result first
+    // (prevents flashing login screen during Google redirect)
+    try{
+      const redirectRes=await _redirectResult;
+      if(redirectRes && redirectRes.user) return; // redirect succeeded, new onAuthStateChanged coming
+    }catch(e){}
     STATE.user=null; STATE.profile=null;
     stopListeners(); showLogin_();
   }
