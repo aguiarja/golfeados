@@ -884,7 +884,7 @@ input,select,textarea{font-family:inherit;}
 // ══════════════════════════════════════════════════════
 // VERSIÓN — cambia este número cada vez que subas cambios
 // ══════════════════════════════════════════════════════
-const APP_VERSION = '4.0.4';
+const APP_VERSION = '4.0.5';
 
 // ══════════════════════════════════════════════════════
 // FIREBASE CONFIG
@@ -1446,13 +1446,17 @@ function showReset(){
 // ══════════════════════════════════════════════════════
 function initListeners(){
   stopListeners();
-  // Torneos donde el usuario es admin o co-admin (solo los suyos)
-  const uid=STATE.user.uid;
-  STATE.unsubs.push(db.collection('torneos')
-    .where('admins','array-contains',uid)
-    .orderBy('creado','desc')
+  // Load ALL torneos, filter by user in JS (no Firestore index needed)
+  STATE.unsubs.push(db.collection('torneos').orderBy('creado','desc')
     .onSnapshot(s=>{
-      STATE.torneos=s.docs.map(d=>({id:d.id,...d.data()}));
+      const uid=STATE.user?.uid;
+      const isPlataformaAdmin=STATE.profile?.role==='admin';
+      const all=s.docs.map(d=>({id:d.id,...d.data()}));
+      STATE.torneos=isPlataformaAdmin ? all : all.filter(t=>
+        t.adminId===uid ||
+        t.creado_por===uid ||
+        (t.admins||[]).includes(uid)
+      );
       STATE.torneo=STATE.torneos.find(t=>t.estado==='Activo'||t.estado==='activo')||STATE.torneos[0]||null;
       if(!STATE.activeTorneoId&&STATE.torneo) STATE.activeTorneoId=STATE.torneo.id;
       if(STATE._connSetOnline)STATE._connSetOnline();
