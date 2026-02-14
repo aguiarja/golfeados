@@ -848,7 +848,7 @@ input,select,textarea{font-family:inherit;}
 // ══════════════════════════════════════════════════════
 // VERSIÓN — cambia este número cada vez que subas cambios
 // ══════════════════════════════════════════════════════
-const APP_VERSION = '3.9.2';
+const APP_VERSION = '3.9.3';
 
 // ══════════════════════════════════════════════════════
 // FIREBASE CONFIG
@@ -867,13 +867,7 @@ const db      = firebase.firestore();
 const storage = firebase.storage();
 
 // Handle Google redirect result (fires after page reloads from Google auth)
-// Store redirect result promise — resolved before onAuthStateChanged fires
-const _redirectResult = auth.getRedirectResult().catch(e=>{
-  if(e.code && e.code!=='auth/no-current-user' && e.code!=='auth/operation-not-supported-in-this-environment'){
-    console.warn('Google redirect:',e.message);
-  }
-  return null;
-});
+// Google auth uses popup (more reliable on mobile)
 
 // ══════════════════════════════════════════════════════
 // ESTADO GLOBAL
@@ -901,16 +895,25 @@ let STATE = {
 // Show/hide login views
 // ── Google Sign-In ─────────────────────────────────
 async function handleGoogleSignIn(){
+  const errEl=document.getElementById('loginError')||document.getElementById('registerError');
+  if(errEl) errEl.style.display='none';
   try{
     const provider=new firebase.auth.GoogleAuthProvider();
     provider.addScope('email');
     provider.addScope('profile');
-    // Use redirect (works on all mobile browsers including Safari)
-    await auth.signInWithRedirect(provider);
-    // Page will reload — onAuthStateChanged handles the result
+    // signInWithPopup is more reliable on mobile than redirect
+    // It works because it's called directly from a user tap (no await before it)
+    await auth.signInWithPopup(provider);
+    // onAuthStateChanged handles the rest automatically
   }catch(e){
-    const err=document.getElementById('loginError')||document.getElementById('registerError');
-    if(err){ err.textContent='Error con Google: '+e.message; err.style.display='block'; }
+    if(e.code==='auth/popup-closed-by-user'||e.code==='auth/cancelled-popup-request') return;
+    if(e.code==='auth/popup-blocked'){
+      // Popup was blocked by browser — fall back to redirect
+      const provider2=new firebase.auth.GoogleAuthProvider();
+      await auth.signInWithRedirect(provider2);
+      return;
+    }
+    if(errEl){ errEl.textContent='Error con Google: '+e.message; errEl.style.display='block'; }
   }
 }
 
@@ -1054,12 +1057,6 @@ auth.onAuthStateChanged(async user=>{
     // Note: vincular (invite code linking) is done from INSIDE the app
     // We never block entry to show vincular — users enter app directly
   } else {
-    // user is null — but wait for redirect result first
-    // (prevents flashing login screen during Google redirect)
-    try{
-      const redirectRes=await _redirectResult;
-      if(redirectRes && redirectRes.user) return; // redirect succeeded, new onAuthStateChanged coming
-    }catch(e){}
     STATE.user=null; STATE.profile=null;
     stopListeners(); showLogin_();
   }
