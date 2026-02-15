@@ -1509,6 +1509,7 @@ function _initBroadListeners(uid,isAdmin){
 // ─── Scoped listeners (for regular users) ──────────────────
 let _torneosMergeMap={};
 let _torneosReadyCount=0;
+let _discoverTorneosFromResultados=null;
 const _TORNEO_QUERY_COUNT=4; // number of parallel torneo queries
 
 function _initScopedListeners(uid){
@@ -1535,35 +1536,82 @@ function _initScopedListeners(uid){
   });
 
   // Also find torneos where user is a participant (collectionGroup)
+  // Strategy 1: Search by user_uid (always try, even without jugador_id linked)
+  db.collectionGroup('participantes').where('user_uid','==',uid).get()
+    .then(s=>{
+      let found=false;
+      s.docs.forEach(d=>{
+        try{
+          const tid=d.ref.parent.parent.id;
+          if(!_torneosMergeMap[tid]){
+            found=true;
+            db.collection('torneos').doc(tid).get().then(tDoc=>{
+              if(tDoc.exists){
+                _torneosMergeMap[tDoc.id]={id:tDoc.id,...tDoc.data()};
+                _syncTorneos();
+              }
+            }).catch(()=>{});
+          }
+        }catch(e){}
+      });
+      if(found) _syncTorneos();
+    }).catch(e=>console.warn('collectionGroup participantes (user_uid):',e.message||e));
+
+  // Strategy 2: Search by jugador_id (covers cases where user_uid wasn't set on participante)
   const jugadorId=STATE.profile?.jugador_id;
   if(jugadorId){
-    db.collectionGroup('participantes').where('user_uid','==',uid).get()
+    db.collectionGroup('participantes').where('jugador_id','==',jugadorId).get()
       .then(s=>{
-        const parentIds=new Set();
+        let found=false;
         s.docs.forEach(d=>{
-          try{ parentIds.add(d.ref.parent.parent.id); }catch(e){}
-        });
-        // Load each torneo doc individually
-        parentIds.forEach(tid=>{
-          if(_torneosMergeMap[tid]) return;
-          db.collection('torneos').doc(tid).get().then(tDoc=>{
-            if(tDoc.exists){
-              _torneosMergeMap[tDoc.id]={id:tDoc.id,...tDoc.data()};
-              _syncTorneos();
+          try{
+            const tid=d.ref.parent.parent.id;
+            if(!_torneosMergeMap[tid]){
+              found=true;
+              db.collection('torneos').doc(tid).get().then(tDoc=>{
+                if(tDoc.exists){
+                  _torneosMergeMap[tDoc.id]={id:tDoc.id,...tDoc.data()};
+                  _syncTorneos();
+                }
+              }).catch(()=>{});
             }
-          }).catch(()=>{});
+          }catch(e){}
         });
-      }).catch(e=>console.warn('collectionGroup participantes:',e.message||e));
+        if(found) _syncTorneos();
+      }).catch(e=>console.warn('collectionGroup participantes (jugador_id):',e.message||e));
   }
+
+  // Strategy 3 (fallback): discover torneos from resultados
+  // Runs after resultados load — finds torneo_ids from jornadas where user has results
+  _discoverTorneosFromResultados=function(){
+    if(!jugadorId) return;
+    const myJornadaIds=new Set(STATE.resultados.filter(r=>r.jugador_id===jugadorId).map(r=>r.jornada_id));
+    if(myJornadaIds.size===0) return;
+    const torneoIds=new Set();
+    STATE.jornadas.forEach(j=>{
+      if(myJornadaIds.has(j.id) && j.torneo_id && !_torneosMergeMap[j.torneo_id]){
+        torneoIds.add(j.torneo_id);
+      }
+    });
+    if(torneoIds.size===0) return;
+    torneoIds.forEach(tid=>{
+      db.collection('torneos').doc(tid).get().then(tDoc=>{
+        if(tDoc.exists){
+          _torneosMergeMap[tDoc.id]={id:tDoc.id,...tDoc.data()};
+          _syncTorneos();
+        }
+      }).catch(()=>{});
+    });
+  };
 
   // JORNADAS: broad with error handling
   STATE.unsubs.push(db.collection('jornadas').orderBy('fecha')
     .onSnapshot(s=>{
       STATE.jornadas=s.docs.map(d=>({id:d.id,...d.data()}));
+      if(_discoverTorneosFromResultados && STATE.resultados.length>0) _discoverTorneosFromResultados();
       renderCurrentTab();
     },err=>{
       console.warn('jornadas broad error:',err.message||err);
-      // Fallback: load jornadas per-torneo when torneos are ready
       _loadJornadasPerTorneo();
     }));
 
@@ -1572,6 +1620,7 @@ function _initScopedListeners(uid){
     .onSnapshot(s=>{
       STATE.resultados=s.docs.map(d=>({id:d.id,...d.data()}));
       if(STATE._connSetOnline)STATE._connSetOnline();
+      if(_discoverTorneosFromResultados && STATE.jornadas.length>0) _discoverTorneosFromResultados();
       renderCurrentTab();
     },err=>{
       console.warn('resultados broad error:',err.message||err);
@@ -1691,6 +1740,7 @@ function stopListeners(){
   STATE._expandedJugTorneo=null;
   _torneosMergeMap={};
   _torneosReadyCount=0;
+  _discoverTorneosFromResultados=null;
 }
 
 // ══════════════════════════════════════════════════════
