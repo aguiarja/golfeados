@@ -2267,7 +2267,7 @@ function renderMisTorneos(){
       const total=t.jornadas_total||jornadasT.length||'?';
       const myJugadorId=STATE.profile?.jugador_id;
       const myPos=rk.find(r=>r.id===myJugadorId);
-      const isAdminT=isAdmin||(t.admins||[]).includes(STATE.user?.uid)||t.adminId===STATE.user?.uid;
+      const isAdminT=isTorneoAdmin(t);
 
       return`
       <div class="card" style="margin-bottom:12px;">
@@ -2771,7 +2771,6 @@ function clubAvatarHTML(sede){
 function renderJornadas(){
   const el=document.getElementById('tab-jornadas');
   const torneo_=getActiveTorneo();
-  const isAdmin=isTorneoAdmin(torneo_);
   // Show only partidas from torneos the user admins or participates in
   const misTorneoIds=new Set(STATE.torneos.map(t=>t.id)); // ya filtrado por admins
   const myJugId=STATE.profile?.jugador_id;
@@ -2804,16 +2803,16 @@ function renderJornadas(){
       const attestador=getJugador(jn.attest_por);
       const myJugadorId=STATE.profile?.jugador_id;
       const est=getEstadoJornada(jn);  // live computed estado
-      const canAttest=(est==='Pendiente Attest'||est==='Por Validar')&&jn.cargado_por!==myJugadorId&&(isAdmin||STATE.resultados.some(r=>r.jornada_id===jn.id&&r.jugador_id===myJugadorId));
-      // Who can cargar: get torneo rules
+      // Per-jornada torneo permissions
       const torneoDeJornada=STATE.torneos.find(t=>t.id===jn.torneo_id);
+      const isAdminJornada=isTorneoAdmin(torneoDeJornada);
       const canCargarThis=canCargarTorneo(torneoDeJornada);
       const quienCarga=torneoDeJornada?.quienCargaResultados||'admins';
+      const canAttest=(est==='Pendiente Attest'||est==='Por Validar')&&jn.cargado_por!==myJugadorId&&(isAdminJornada||STATE.resultados.some(r=>r.jornada_id===jn.id&&r.jugador_id===myJugadorId));
       const canCargar=est==='En Juego'&&(canCargarThis||(quienCarga==='cualquiera'&&STATE.profile?.jugador_id&&STATE.resultados.some(r=>r.jornada_id===jn.id&&r.jugador_id===myJugadorId)));
       // Build "quién puede cargar" label
-      const adminsDelTorneo=[];  // not needed - using canCargarTorneo()
       const quienPuedeMsj=quienCarga==='cualquiera'?'Cualquier participante puede cargar los resultados':
-        'Solo el admin del torneo puede cargar: '+(adminsDelTorneo.map(j=>j.nombre).join(', ')||'el administrador');
+        'Solo el admin del torneo puede cargar resultados';
 
       return`
         <div class="partida-card" style="${est==='Jugado'||est==='Por Validar'?'border:2px solid #C8E6C9;':est==='En Juego'?'border:2px solid #FFE082;':''}">
@@ -2832,19 +2831,18 @@ function renderJornadas(){
             </div>
             <div class="flex items-center gap-6" style="flex-shrink:0;margin-left:8px;">
               ${badgeHTML(est)}
-              ${isAdmin?`<button class="btn-outline" style="padding:4px 10px;font-size:12px;" onclick="event.stopPropagation();openModalJornada('${jn.id}')">✏️</button>`:''}
-              <span style="color:var(--muted);font-size:13px;">${isOpen?'▲':'▼'}</span>
+              ${isAdminJornada?`<button class="btn-outline" style="padding:4px 10px;font-size:12px;" onclick="event.stopPropagation();openModalJornada('${jn.id}')">✏️</button>`:''}              <span style="color:var(--muted);font-size:13px;">${isOpen?'▲':'▼'}</span>
             </div></div>
           ${isOpen?`
             <div class="partida-body">
               <div class="partida-actions">
-                ${est==='En Juego'&&(isAdmin||quienCarga==='cualquiera')?`<button class="btn-primary" onclick="event.stopPropagation();goCargar('${jn.id}')">📋 Cargar Resultados</button>`:''}
-                ${est==='En Juego'&&!isAdmin&&quienCarga!=='cualquiera'?`<div style="padding:6px 10px;background:#FFF8E1;border-radius:8px;border:1px solid #FFE082;font-size:12px;color:#5D4037;line-height:1.5;">⛳ <strong>Partida en juego</strong><br/>${quienPuedeMsj}</div>`:''}
+                ${est==='En Juego'&&(isAdminJornada||quienCarga==='cualquiera')?`<button class="btn-primary" onclick="event.stopPropagation();goCargar('${jn.id}')">📋 Cargar Resultados</button>`:''}
+                ${est==='En Juego'&&!isAdminJornada&&quienCarga!=='cualquiera'?`<div style="padding:6px 10px;background:#FFF8E1;border-radius:8px;border:1px solid #FFE082;font-size:12px;color:#5D4037;line-height:1.5;">⛳ <strong>Partida en juego</strong><br/>${quienPuedeMsj}</div>`:''}
                 ${est==='Planificada'?`<div class="text-11 text-muted" style="padding:4px 0;">⏳ Aún no es el día de juego</div>`:''}
                 ${(est==='Pendiente Attest'||est==='Por Validar')&&canAttest?`<button class="btn-attest" onclick="event.stopPropagation();handleAttest('${jn.id}')">✍️ Marcar como Jugada</button>`:''}
                 ${(est==='Pendiente Attest'||est==='Por Validar')&&!canAttest&&res.length>0?`<div class="text-11 text-muted" style="padding:4px 0;">⏳ Esperando confirmación</div>`:''}
-                ${(est==='Pendiente Attest'||est==='Por Validar')?`<button class="btn-outline" onclick="event.stopPropagation();goCargar('${jn.id}')">✏️ Editar resultados</button>`:''}
-                ${isAdmin?`<button class="btn-danger" onclick="deleteJornada('${jn.id}')">🗑️ Eliminar</button>`:''}
+                ${(est==='Pendiente Attest'||est==='Por Validar')&&(isAdminJornada||canCargarThis)?`<button class="btn-outline" onclick="event.stopPropagation();goCargar('${jn.id}')">✏️ Editar resultados</button>`:''}
+                ${isAdminJornada?`<button class="btn-danger" onclick="deleteJornada('${jn.id}')">🗑️ Eliminar</button>`:''}
               </div>
               ${res.length>0?`
                 ${res.map(r=>{
