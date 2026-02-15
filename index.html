@@ -1,4 +1,5 @@
 
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -1683,12 +1684,11 @@ function switchActiveTorneo(tid){
 
 function stopListeners(){
   STATE.unsubs.forEach(u=>u()); STATE.unsubs=[];
-  // Unsubscribe all participantes listeners
   Object.values(_participantesUnsubs).forEach(u=>{ try{u();}catch(e){} });
   _participantesUnsubs={};
   _participantesTorneoId=null;
   STATE.jugadores_by_torneo={};
-  // Reset scoped query state
+  STATE._expandedJugTorneo=null;
   _torneosMergeMap={};
   _torneosReadyCount=0;
 }
@@ -1795,13 +1795,18 @@ function goCargar(jornadaId){
   if(ct) ct.style.display='block';
   renderCargar();
 }
+let _renderRAF=null;
 function renderCurrentTab(){
-  if(STATE.currentTab==='dashboard') renderDashboard();
-  else if(STATE.currentTab==='mistorneos') renderMisTorneos();
-  else if(STATE.currentTab==='jornadas') renderJornadas();
-  else if(STATE.currentTab==='jugadores') renderJugadores();
-  else if(STATE.currentTab==='clubes') renderClubes();
-  else if(STATE.currentTab==='cargar') renderCargar();
+  if(_renderRAF) cancelAnimationFrame(_renderRAF);
+  _renderRAF=requestAnimationFrame(()=>{
+    _renderRAF=null;
+    if(STATE.currentTab==='dashboard') renderDashboard();
+    else if(STATE.currentTab==='mistorneos') renderMisTorneos();
+    else if(STATE.currentTab==='jornadas') renderJornadas();
+    else if(STATE.currentTab==='jugadores') renderJugadores();
+    else if(STATE.currentTab==='clubes') renderClubes();
+    else if(STATE.currentTab==='cargar') renderCargar();
+  });
 }
 
 // ══════════════════════════════════════════════════════
@@ -2092,6 +2097,7 @@ function torneoCardHTML(torneo, compact=false){
 
   // My position
   const rk=calcRankingTorneo(tid);
+  const jugCount=getJugadoresTorneo(tid).length;
   const myJugadorId=STATE.profile?.jugador_id;
   const myPos=rk.find(r=>r.id===myJugadorId);
   const isAdmin=isTorneoAdmin(torneo);
@@ -2119,7 +2125,7 @@ function torneoCardHTML(torneo, compact=false){
         <div><div style="color:rgba(255,255,255,0.6);font-size:9px;text-transform:uppercase;letter-spacing:1px;">Partidas</div>
           <div style="color:#fff;font-size:14px;font-weight:700;">${jugadas}/${total}</div></div>
         <div><div style="color:rgba(255,255,255,0.6);font-size:9px;text-transform:uppercase;letter-spacing:1px;">Jugadores</div>
-          <div style="color:#fff;font-size:14px;font-weight:700;">${rk.length}</div></div>
+          <div style="color:#fff;font-size:14px;font-weight:700;">${jugCount}</div></div>
         <div><div style="color:rgba(255,255,255,0.6);font-size:9px;text-transform:uppercase;letter-spacing:1px;">Próxima</div>
           <div style="color:#fff;font-size:13px;font-weight:600;">${proxima?fmtFecha(proxima.fecha):'—'}</div></div>
       </div>
@@ -2272,7 +2278,7 @@ function renderMisTorneos(){
             display:flex;align-items:center;justify-content:center;color:#fff;font-size:18px;flex-shrink:0;">⛳</div>
           <div class="flex-1">
             <div class="text-15 font-bold">${t.nombre}</div>
-            <div class="text-12 text-muted">${jugadas}/${total} partidas · ${rk.length} jugadores</div>
+            <div class="text-12 text-muted">${jugadas}/${total} partidas · ${getJugadoresTorneo(tid).length} jugadores</div>
             ${myPos?`<div class="text-11" style="color:var(--green);margin-top:2px;">Tu posición: #${myPos.pos} · ${myPos.ptsT} pts</div>`:''}
           </div>
           <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
@@ -2357,7 +2363,6 @@ function renderMisTorneos(){
 
 function toggleTorneoMis(torneoId){
   STATE.expandedTorneo=STATE.expandedTorneo===torneoId?null:torneoId;
-  STATE.activeTorneoId=torneoId;
   renderMisTorneos();
 }
 
@@ -3598,9 +3603,6 @@ function renderJugadores(){
   const myJugadorId=STATE.profile?.jugador_id;
   const uid=STATE.user?.uid;
 
-  // Torneos donde el usuario puede gestionar (admin del torneo)
-  const misTorneos=STATE.torneos.filter(t=>isTorneoAdmin(t));
-  // Torneos donde participa como jugador
   const todosLosTorneos=STATE.torneos;
 
   if(todosLosTorneos.length===0){
@@ -3611,23 +3613,27 @@ function renderJugadores(){
     return;
   }
 
+  // Own expanded state — independent from Mis Torneos tab
+  if(!STATE._expandedJugTorneo && todosLosTorneos.length>0){
+    STATE._expandedJugTorneo=STATE.activeTorneoId||todosLosTorneos[0].id;
+  }
+
   // Render one card per torneo
   el.innerHTML=`<div style="display:flex;flex-direction:column;gap:16px;">
     ${todosLosTorneos.map(t=>{
       const canManage=isTorneoAdmin(t);
-      const isActive=t.id===STATE.activeTorneoId;
-      // Get ALL players for this torneo: participantes + players from resultados
-      const jugadores=getJugadoresCompletesTorneo(t.id);
+      const isExpanded=t.id===STATE._expandedJugTorneo;
+      // Same source as calcRankingTorneo — participantes subcollection
+      const jugadores=getJugadoresTorneo(t.id);
       const jugadoresHTML=jugadores.map(j=>{
         const isMe=j.id===myJugadorId||j.jugador_id===myJugadorId;
         const initials=j.foto||j.alias?.slice(0,2)||j.nombre?.slice(0,2)||'?';
-        const fromResults=j._fromResults;
-        return `<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);${fromResults?'opacity:0.7;':''}">
+        return `<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);">
           ${j.fotoURL
             ?`<img src="${j.fotoURL}" style="width:36px;height:36px;border-radius:50%;object-fit:cover;flex-shrink:0;"/>`
-            :`<div style="width:36px;height:36px;border-radius:50%;background:${fromResults?'var(--muted)':'var(--green)'};color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0;">${initials}</div>`}
+            :`<div style="width:36px;height:36px;border-radius:50%;background:var(--green);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0;">${initials}</div>`}
           <div style="flex:1;min-width:0;">
-            <div style="font-weight:700;font-size:13px;">${j.nombre||''}${isMe?` <span style="font-size:10px;background:#E8F5E9;color:#2E7D32;padding:1px 5px;border-radius:6px;">Tú</span>`:''}${fromResults?` <span style="font-size:10px;background:#FFF3E0;color:#E65100;padding:1px 5px;border-radius:6px;">Solo resultados</span>`:''}</div>
+            <div style="font-weight:700;font-size:13px;">${j.nombre||''}${isMe?` <span style="font-size:10px;background:#E8F5E9;color:#2E7D32;padding:1px 5px;border-radius:6px;">Tú</span>`:''}</div>
             <div style="font-size:11px;color:var(--muted);">
               ${j.alias&&j.alias!==j.nombre?`@${j.alias}`:''} ${j.telefonoCompleto?'· '+j.telefonoCompleto:''}
             </div>
@@ -3636,23 +3642,23 @@ function renderJugadores(){
               :`<span style="background:#E3F2FD;color:#1565C0;font-size:10px;padding:2px 6px;border-radius:5px;">✅ Con cuenta</span>`
             }</div>`:''}
           </div>
-          ${canManage&&!fromResults?`<button onclick="removeParticipante('${j.id}','${(j.nombre||'').replace(/'/g,"\\'")}','${t.id}',event)"
+          ${canManage?`<button onclick="removeParticipante('${j.id}','${(j.nombre||'').replace(/'/g,"\\'")}','${t.id}',event)"
             style="background:none;border:1px solid var(--border);border-radius:6px;padding:3px 8px;color:var(--muted);font-size:12px;cursor:pointer;">✕</button>`:''}
         </div>`;
       }).join('');
 
-      return `<div class="card" style="${isActive?'border:2px solid var(--green);':''}">
+      return `<div class="card" style="${isExpanded?'border:2px solid var(--green);':''}">
         <div style="padding:14px 16px;">
           <!-- Header del torneo -->
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;" onclick="setActiveTorneo('${t.id}');event.stopPropagation();" style="cursor:pointer;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;cursor:pointer;" onclick="toggleJugadoresTorneo('${t.id}')">
             <div>
               <div style="font-size:13px;font-weight:800;color:var(--green);">${t.nombre}</div>
-              <div style="font-size:11px;color:var(--muted);">${isActive?jugadores.length+' participante'+(jugadores.length!==1?'s':''):'Toca para ver jugadores'}</div>
+              <div style="font-size:11px;color:var(--muted);">${jugadores.length} participante${jugadores.length!==1?'s':''}${isExpanded?'':' · Toca para ver'}</div>
             </div>
-            <span style="font-size:12px;color:var(--muted);">${isActive?'▲':'▼'}</span>
+            <span style="font-size:12px;color:var(--muted);">${isExpanded?'▲':'▼'}</span>
           </div>
 
-          ${isActive?`
+          ${isExpanded?`
             <!-- Lista de jugadores -->
             <div style="margin-top:8px;">
               ${jugadores.length===0
@@ -3717,13 +3723,18 @@ function renderJugadores(){
 }
 
 
+function toggleJugadoresTorneo(torneoId){
+  STATE._expandedJugTorneo=STATE._expandedJugTorneo===torneoId?null:torneoId;
+  renderJugadores();
+}
+
 function openAgregarJugadorModal(torneoId){
-  // Update active torneo WITHOUT triggering renderCurrentTab (that destroys the modal DOM)
-  if(torneoId && torneoId!==STATE.activeTorneoId){
+  // Set active torneo for add flow
+  if(torneoId){
     STATE.activeTorneoId=torneoId;
+    STATE._expandedJugTorneo=torneoId;
     STATE.torneo=STATE.torneos.find(t=>t.id===torneoId)||null;
-    _participantesTorneoId=null;
-    subscribeParticipantes(); // re-subscribe silently
+    if(!_participantesUnsubs[torneoId]) subscribeParticipantes();
   }
   // Show modal — use requestAnimationFrame to ensure DOM is stable
   requestAnimationFrame(()=>{
