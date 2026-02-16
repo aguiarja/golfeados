@@ -942,6 +942,19 @@ input,select,textarea{font-family:inherit;}
         <div class="text-11 text-muted font-bold" style="letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;">Jugador vinculado</div>
         <div id="perfilJugadorInfo" class="text-13"></div>
       </div>
+
+      <!-- Vincular código de invitación -->
+      <div id="perfilVincularSection" style="margin-top:16px;border-top:1px solid var(--border);padding-top:16px;">
+        <div class="text-13 font-bold" style="margin-bottom:8px;">🔑 Vincular código de invitación</div>
+        <div class="text-11 text-muted" style="margin-bottom:10px;line-height:1.5;">Si un admin te dio un código para vincular un perfil existente con resultados, ingrésalo aquí.</div>
+        <div style="display:flex;gap:8px;">
+          <input type="text" class="form-input" id="perfilVincularCodigo" placeholder="GOLF-XXXX"
+            style="text-transform:uppercase;letter-spacing:2px;font-weight:700;text-align:center;flex:1;"
+            oninput="this.value=this.value.toUpperCase().replace(/[^A-Z0-9-]/g,'')"/>
+          <button class="btn-outline" onclick="handlePerfilVincular()" style="white-space:nowrap;padding:8px 14px;font-size:12px;">Vincular</button>
+        </div>
+        <div id="perfilVincularMsg" style="display:none;margin-top:8px;font-size:12px;padding:8px;border-radius:8px;"></div>
+      </div>
     </div>
     <div class="modal-footer">
       <button class="btn-outline" onclick="closePerfilModal()">Cancelar</button>
@@ -954,7 +967,7 @@ input,select,textarea{font-family:inherit;}
 // ══════════════════════════════════════════════════════
 // VERSIÓN — cambia este número cada vez que subas cambios
 // ══════════════════════════════════════════════════════
-const APP_VERSION = '4.2.0';
+const APP_VERSION = '4.3.0';
 
 // ══════════════════════════════════════════════════════
 // FIREBASE CONFIG
@@ -1061,9 +1074,17 @@ async function handleVincularModal(){
     const jugDoc=snap.docs[0];
     if(jugDoc.data().user_uid){err.textContent='Este código ya fue usado.';err.style.display='block';btn.disabled=false;btn.textContent='Vincular 🏌️';return;}
     const uid=STATE.user.uid;
-    await db.collection('jugadores').doc(jugDoc.id).update({user_uid:uid});
-    await db.collection('users').doc(uid).update({jugador_id:jugDoc.id});
-    STATE.profile.jugador_id=jugDoc.id;
+    const manualId=jugDoc.id;
+    // Link manual jugador → user
+    await db.collection('jugadores').doc(manualId).update({user_uid:uid});
+    await db.collection('users').doc(uid).update({jugador_id:manualId});
+    STATE.profile.jugador_id=manualId;
+    // Delete auto-created jugador/{uid} if exists and is different
+    if(manualId!==uid){
+      await db.collection('jugadores').doc(uid).delete().catch(()=>{});
+    }
+    // Update participantes in all torneos where this manual jugador exists
+    await _updateParticipantesUserUid(manualId, uid);
     document.getElementById('vincularModal').style.display='none';
     const vb=document.getElementById('vincularBadge');
     if(vb) vb.style.display='none';
@@ -1093,6 +1114,8 @@ async function handleCompletarPerfil(){
     await db.collection('users').doc(STATE.user.uid).update(upd);
     await STATE.user.updateProfile({displayName:nombre});
     STATE.profile={...STATE.profile,...upd};
+    // Auto-create jugador profile (every user = jugador)
+    await ensureAutoJugador(STATE.user.uid, STATE.profile);
     showApp_();
     initListeners();
   }catch(e){err.textContent='Error: '+e.message;err.style.display='block';btn.disabled=false;btn.textContent='Entrar al Club 🏌️';}
@@ -1121,10 +1144,17 @@ async function handleVincular(){
     if(jugDoc.data().user_uid){ err.textContent='Este código ya fue usado.'; err.style.display='block'; btn.disabled=false; btn.textContent='Vincular mi perfil 🏌️'; return; }
     // Link: update jugador + user profile
     const uid=STATE.user.uid;
-    await db.collection('jugadores').doc(jugDoc.id).update({ user_uid:uid });
-    await db.collection('users').doc(uid).update({ jugador_id:jugDoc.id, vincular_skipped:false });
-    STATE.profile.jugador_id=jugDoc.id;
+    const manualId=jugDoc.id;
+    await db.collection('jugadores').doc(manualId).update({ user_uid:uid });
+    await db.collection('users').doc(uid).update({ jugador_id:manualId, vincular_skipped:false });
+    STATE.profile.jugador_id=manualId;
     STATE.profile.vincular_skipped=false;
+    // Delete auto-created jugador/{uid} if different
+    if(manualId!==uid){
+      await db.collection('jugadores').doc(uid).delete().catch(()=>{});
+    }
+    // Update participantes in all torneos
+    await _updateParticipantesUserUid(manualId, uid);
     document.getElementById('loginScreen').style.display='none';
     showApp_();
     initListeners();
@@ -1134,12 +1164,61 @@ async function handleVincular(){
   }
 }
 
+// ── Update participantes with user_uid after vincular ──
+async function _updateParticipantesUserUid(jugadorId, uid){
+  // Update participantes in all torneos where this jugador exists
+  for(const [tid, jugs] of Object.entries(STATE.jugadores_by_torneo||{})){
+    const p=jugs.find(j=>j.id===jugadorId||j.jugador_id===jugadorId);
+    if(p){
+      await db.collection('torneos').doc(tid)
+        .collection('participantes').doc(p.id)
+        .update({user_uid:uid}).catch(e=>console.warn('update participante',tid,e));
+    }
+  }
+}
+
 // ── Generate invite code ────────────────────────────
 function generateInviteCode(){
   const chars='ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no confusing chars (0,O,1,I)
   let code='GOLF-';
   for(let i=0;i<4;i++) code+=chars[Math.floor(Math.random()*chars.length)];
   return code;
+}
+
+// ── Auto-create jugador profile ─────────────────────
+// Every registered user gets a jugador/{uid} doc automatically
+async function ensureAutoJugador(uid, profileData){
+  if(!uid) return;
+  try{
+    const jugRef=db.collection('jugadores').doc(uid);
+    const existing=await jugRef.get();
+    if(existing.exists) return; // already has auto-jugador
+    const nombre=profileData?.nombre||'';
+    const jugData={
+      nombre,
+      alias:profileData?.alias||nombre.split(' ')[0]||'',
+      foto:nombre.split(' ').map(n=>n[0]).join('').toUpperCase().slice(0,2)||'?',
+      nombre_lower:(nombre||'').toLowerCase(),
+      email:profileData?.email||'',
+      user_uid:uid,
+      telefonoCompleto:profileData?.telefonoCompleto||'',
+      telefono:profileData?.telefono||'',
+      codigoPais:profileData?.codigoPais||'',
+      handicap:profileData?.handicap||0,
+      fotoURL:profileData?.fotoURL||null,
+      invite_code:null, // auto-created jugadores don't need invite codes
+      creado:firebase.firestore.FieldValue.serverTimestamp()
+    };
+    await jugRef.set(jugData);
+    // Also update user profile to link jugador_id = uid
+    await db.collection('users').doc(uid).update({jugador_id:uid}).catch(()=>{});
+    if(STATE.profile) STATE.profile.jugador_id=uid;
+    // Add to local cache
+    STATE.jugadores_global.push({id:uid,...jugData});
+    console.log('[ensureAutoJugador] Created jugador profile for uid:',uid);
+  }catch(e){
+    console.error('ensureAutoJugador error:',e);
+  }
 }
 
 function showLoginView(id){
@@ -1164,15 +1243,22 @@ auth.onAuthStateChanged(async user=>{
         STATE.profile=snap.data();
       } else {
         const p={email:user.email,nombre:user.displayName||user.email,
-                 role:'jugador',jugador_id:null,verified:false,username:''};
+                 role:'jugador',jugador_id:user.uid,verified:false,username:''};
         await db.collection('users').doc(user.uid).set(p);
         STATE.profile=p;
+        // Auto-create jugador for brand new user
+        await ensureAutoJugador(user.uid, p);
       }
       // Google users are auto-verified
       const isGoogle=user.providerData&&user.providerData[0]&&user.providerData[0].providerId==='google.com';
       if(isGoogle && !STATE.profile.verified){
         await db.collection('users').doc(user.uid).update({verified:true}).catch(()=>{});
         STATE.profile.verified=true;
+      }
+      // Ensure existing users have a jugador profile (migration)
+      if(STATE.profile.jugador_id!==user.uid){
+        // User exists but might not have auto-jugador yet
+        ensureAutoJugador(user.uid, STATE.profile); // fire-and-forget for migration
       }
       // Check email verification (skip for Google, phone-verified, or legacy accounts)
       await user.reload();
@@ -1370,13 +1456,16 @@ async function handleRegister(){
     const telNorm=normalizeTelVE(tel,codigo);
     const telefonoCompleto=telNorm?(codigo+telNorm):'';
     const profile={
-      email, nombre, username, role:'jugador', jugador_id:null,
+      email, nombre, username, role:'jugador', jugador_id:cred.user.uid,
       telefono:tel||'', codigoPais:tel?codigo:'', telefonoCompleto,
       verified:false, phoneVerified:false, legacy:false,
       creado:firebase.firestore.FieldValue.serverTimestamp()
     };
     await db.collection('users').doc(cred.user.uid).set(profile);
     STATE.profile=profile;
+
+    // Auto-create jugador profile (every user = jugador)
+    await ensureAutoJugador(cred.user.uid, profile);
 
     // Go to verification choice
     document.getElementById('verifyEmailAddr').textContent=email;
@@ -1696,6 +1785,54 @@ async function savePerfilModal(){
               'Error: '+e.message;
     err.textContent=msg;
     err.style.display='block';
+  }
+}
+
+async function handlePerfilVincular(){
+  const code=document.getElementById('perfilVincularCodigo').value.trim().toUpperCase();
+  const msgEl=document.getElementById('perfilVincularMsg');
+  msgEl.style.display='none';
+  if(!code||code.length<6){
+    msgEl.textContent='Ingresa el código completo.';
+    msgEl.style.cssText='display:block;margin-top:8px;font-size:12px;padding:8px;border-radius:8px;background:#FFEBEE;color:#C62828;';
+    return;
+  }
+  try{
+    const snap=await db.collection('jugadores').where('invite_code','==',code).limit(1).get();
+    if(snap.empty){
+      msgEl.textContent='Código inválido. Verifica con tu admin.';
+      msgEl.style.cssText='display:block;margin-top:8px;font-size:12px;padding:8px;border-radius:8px;background:#FFEBEE;color:#C62828;';
+      return;
+    }
+    const jugDoc=snap.docs[0];
+    if(jugDoc.data().user_uid){
+      msgEl.textContent='Este código ya fue utilizado por otro jugador.';
+      msgEl.style.cssText='display:block;margin-top:8px;font-size:12px;padding:8px;border-radius:8px;background:#FFEBEE;color:#C62828;';
+      return;
+    }
+    const uid=STATE.user.uid;
+    const manualId=jugDoc.id;
+    const manualData=jugDoc.data();
+    // Link manual jugador → user
+    await db.collection('jugadores').doc(manualId).update({user_uid:uid});
+    await db.collection('users').doc(uid).update({jugador_id:manualId});
+    STATE.profile.jugador_id=manualId;
+    // Delete auto-created jugador/{uid} if different
+    if(manualId!==uid){
+      await db.collection('jugadores').doc(uid).delete().catch(()=>{});
+    }
+    // Update participantes in all torneos
+    await _updateParticipantesUserUid(manualId, uid);
+    // Update UI
+    const vinc=document.getElementById('perfilJugadorInfo');
+    vinc.innerHTML=`<span style="color:var(--green);font-weight:600;">✅ ${manualData.nombre||manualId}</span>`;
+    document.getElementById('perfilVincularCodigo').value='';
+    msgEl.textContent='✅ ¡Vinculación exitosa! Tu perfil ahora está conectado con tus resultados.';
+    msgEl.style.cssText='display:block;margin-top:8px;font-size:12px;padding:8px;border-radius:8px;background:#E8F5E9;color:#2E7D32;font-weight:600;';
+    renderCurrentTab();
+  }catch(e){
+    msgEl.textContent='Error: '+e.message;
+    msgEl.style.cssText='display:block;margin-top:8px;font-size:12px;padding:8px;border-radius:8px;background:#FFEBEE;color:#C62828;';
   }
 }
 
@@ -2395,7 +2532,7 @@ function torneoCardHTML(torneo, compact=false){
 
   // My position
   const rk=calcRankingTorneo(tid);
-  const jugCount=getJugadoresTorneo(tid).length;
+  const jugCount=getJugadoresTorneo(tid).filter(j=>j.activo!==false).length;
   const myJugadorId=STATE.profile?.jugador_id;
   const myPos=rk.find(r=>r.id===myJugadorId);
   const isAdmin=isTorneoAdmin(torneo);
@@ -2576,7 +2713,7 @@ function renderMisTorneos(){
             display:flex;align-items:center;justify-content:center;color:#fff;font-size:18px;flex-shrink:0;">⛳</div>
           <div class="flex-1">
             <div class="text-15 font-bold">${t.nombre}</div>
-            <div class="text-12 text-muted">${jugadas}/${total} partidas · ${getJugadoresTorneo(tid).length} jugadores</div>
+            <div class="text-12 text-muted">${jugadas}/${total} partidas · ${getJugadoresTorneo(tid).filter(j=>j.activo!==false).length} jugadores</div>
             ${myPos?`<div class="text-11" style="color:var(--green);margin-top:2px;">Tu posición: #${myPos.pos} · ${myPos.ptsT} pts</div>`:''}
           </div>
           <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
@@ -3519,7 +3656,7 @@ function renderCargar(){
     const existentes=STATE.resultados.filter(r=>r.jornada_id===jornadaId);
     // Use participants of the jornada's own torneo
     const jornadaTorneo=partida?.torneo_id||STATE.activeTorneoId;
-    const jugsParaCargar=getJugadoresTorneo(jornadaTorneo);
+    const jugsParaCargar=getJugadoresTorneo(jornadaTorneo).filter(j=>j.activo!==false);
     cargarParticipantes=jugsParaCargar.map(j=>{
       const ex=existentes.find(r=>r.jugador_id===j.id);
       return{_jid:jornadaId,jugador_id:j.id,jugador:j,asistio:ex?ex.asistencia!==false:true,dq:ex?.dq||false};
@@ -3920,16 +4057,19 @@ function renderJugadores(){
       const canManage=isTorneoAdmin(t);
       const isExpanded=t.id===STATE._expandedJugTorneo;
       // Same source as calcRankingTorneo — participantes subcollection
-      const jugadores=getJugadoresTorneo(t.id);
-      const jugadoresHTML=jugadores.map(j=>{
+      const allJugadores=getJugadoresTorneo(t.id);
+      const jugadoresActivos=allJugadores.filter(j=>j.activo!==false);
+      const jugadoresEliminados=allJugadores.filter(j=>j.activo===false||j.eliminado===true);
+      const jugadoresHTML=[...jugadoresActivos,...jugadoresEliminados].map(j=>{
         const isMe=j.id===myJugadorId||j.jugador_id===myJugadorId;
+        const isElim=j.activo===false||j.eliminado===true;
         const initials=j.foto||j.alias?.slice(0,2)||j.nombre?.slice(0,2)||'?';
-        return `<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);">
+        return `<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);${isElim?'opacity:0.5;':''}">
           ${j.fotoURL
-            ?`<img src="${j.fotoURL}" style="width:36px;height:36px;border-radius:50%;object-fit:cover;flex-shrink:0;"/>`
-            :`<div style="width:36px;height:36px;border-radius:50%;background:var(--green);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0;">${initials}</div>`}
+            ?`<img src="${j.fotoURL}" style="width:36px;height:36px;border-radius:50%;object-fit:cover;flex-shrink:0;${isElim?'filter:grayscale(1);':''}"/>`
+            :`<div style="width:36px;height:36px;border-radius:50%;background:${isElim?'var(--muted)':'var(--green)'};color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0;">${initials}</div>`}
           <div style="flex:1;min-width:0;">
-            <div style="font-weight:700;font-size:13px;">${j.nombre||''}${isMe?` <span style="font-size:10px;background:#E8F5E9;color:#2E7D32;padding:1px 5px;border-radius:6px;">Tú</span>`:''}</div>
+            <div style="font-weight:700;font-size:13px;${isElim?'text-decoration:line-through;color:var(--muted);':''}">${j.nombre||''}${isMe?` <span style="font-size:10px;background:#E8F5E9;color:#2E7D32;padding:1px 5px;border-radius:6px;">Tú</span>`:''}${isElim?` <span style="font-size:10px;background:#FFEBEE;color:#C62828;padding:1px 5px;border-radius:6px;">Eliminado</span>`:''}</div>
             <div style="font-size:11px;color:var(--muted);">
               ${j.alias&&j.alias!==j.nombre?`@${j.alias}`:''} ${j.telefonoCompleto?'· '+j.telefonoCompleto:''}
             </div>
@@ -3938,8 +4078,10 @@ function renderJugadores(){
               :`<span style="background:#E3F2FD;color:#1565C0;font-size:10px;padding:2px 6px;border-radius:5px;">✅ Con cuenta</span>`
             }</div>`:''}
           </div>
-          ${canManage?`<button onclick="removeParticipante('${j.id}','${(j.nombre||'').replace(/'/g,"\\'")}','${t.id}',event)"
+          ${canManage&&!isElim?`<button onclick="removeParticipante('${j.id}','${(j.nombre||'').replace(/'/g,"\\'")}','${t.id}',event)"
             style="background:none;border:1px solid var(--border);border-radius:6px;padding:3px 8px;color:var(--muted);font-size:12px;cursor:pointer;">✕</button>`:''}
+          ${canManage&&isElim?`<button onclick="reactivarParticipante('${j.id}','${t.id}',event)"
+            style="background:none;border:1px solid #A5D6A7;border-radius:6px;padding:3px 8px;color:var(--green);font-size:11px;cursor:pointer;font-weight:600;">↩ Restaurar</button>`:''}
         </div>`;
       }).join('');
 
@@ -3949,7 +4091,7 @@ function renderJugadores(){
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;cursor:pointer;" onclick="toggleJugadoresTorneo('${t.id}')">
             <div>
               <div style="font-size:13px;font-weight:800;color:var(--green);">${t.nombre}</div>
-              <div style="font-size:11px;color:var(--muted);">${jugadores.length} participante${jugadores.length!==1?'s':''}${isExpanded?'':' · Toca para ver'}</div>
+              <div style="font-size:11px;color:var(--muted);">${jugadoresActivos.length} participante${jugadoresActivos.length!==1?'s':''}${jugadoresEliminados.length>0?` · ${jugadoresEliminados.length} eliminado${jugadoresEliminados.length!==1?'s':''}`:''}${isExpanded?'':' · Toca para ver'}</div>
             </div>
             <span style="font-size:12px;color:var(--muted);">${isExpanded?'▲':'▼'}</span>
           </div>
@@ -3957,7 +4099,7 @@ function renderJugadores(){
           ${isExpanded?`
             <!-- Lista de jugadores -->
             <div style="margin-top:8px;">
-              ${jugadores.length===0
+              ${allJugadores.length===0
                 ?`<div style="text-align:center;padding:20px;color:var(--muted);font-size:13px;">Sin jugadores aún</div>`
                 :jugadoresHTML}
             </div>
@@ -4176,13 +4318,45 @@ async function removeParticipante(jugadorId, nombre, torneoId, event){
   const tid=torneoId||STATE.activeTorneoId;
   if(!tid) return;
   const t=STATE.torneos.find(x=>x.id===tid);
-  if(!confirm(`¿Quitar a ${nombre} de ${t?.nombre||'este torneo'}?`)) return;
+  // Check if jugador has results in this torneo
+  const jornadasT=STATE.jornadas.filter(j=>j.torneo_id===tid);
+  const hasResults=jornadasT.some(jn=>
+    STATE.resultados.some(r=>r.jornada_id===jn.id && r.jugador_id===jugadorId)
+  );
+  const msg=hasResults
+    ?`${nombre} tiene resultados en ${t?.nombre||'este torneo'}. Se marcará como eliminado pero sus resultados se mantienen. ¿Continuar?`
+    :`¿Quitar a ${nombre} de ${t?.nombre||'este torneo'}?`;
+  if(!confirm(msg)) return;
   try{
-    await db.collection('torneos').doc(tid)
-      .collection('participantes').doc(jugadorId).delete();
+    if(hasResults){
+      // Soft delete — mark as eliminated, keep for historical integrity
+      await db.collection('torneos').doc(tid)
+        .collection('participantes').doc(jugadorId).update({
+          activo:false,
+          eliminado:true,
+          eliminado_fecha:firebase.firestore.FieldValue.serverTimestamp()
+        });
+    } else {
+      // No results — safe to hard delete
+      await db.collection('torneos').doc(tid)
+        .collection('participantes').doc(jugadorId).delete();
+    }
   }catch(e){ alert('Error: '+e.message); }
 }
 
+async function reactivarParticipante(jugadorId, torneoId, event){
+  if(event) event.stopPropagation();
+  const tid=torneoId||STATE.activeTorneoId;
+  if(!tid) return;
+  try{
+    await db.collection('torneos').doc(tid)
+      .collection('participantes').doc(jugadorId).update({
+        activo:true,
+        eliminado:false,
+        eliminado_fecha:null
+      });
+  }catch(e){ alert('Error: '+e.message); }
+}
 
 
 // ══════════════════════════════════════════════════════
