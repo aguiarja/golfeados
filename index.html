@@ -94,7 +94,7 @@ input,select,textarea{font-family:inherit;}
 .header-sub{font-size:9px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;}
 .header-right{display:flex;align-items:center;gap:10px;}
 .badge-admin{font-size:10px;color:var(--white);font-weight:700;letter-spacing:1px;background:var(--green);padding:3px 8px;border-radius:10px;}
-.header-user{font-size:11px;color:var(--muted);max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.header-user{font-size:11px;color:var(--green);max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;padding:4px 8px;border-radius:8px;transition:background 0.2s;}.header-user:hover{background:rgba(46,125,50,0.08);}
 .btn-logout{background:none;border:1px solid var(--border);border-radius:6px;color:var(--muted);padding:5px 10px;font-size:11px;}
 
 /* ── NAV ── */
@@ -505,7 +505,7 @@ input,select,textarea{font-family:inherit;}
         <span id="connDot" style="width:6px;height:6px;border-radius:50%;background:#4CAF50;display:inline-block;"></span>
         <span id="connLabel">EN VIVO</span>
       </div>
-      <span id="headerUser" class="header-user"></span>
+      <span id="headerUser" class="header-user" onclick="openPerfilModal()" style="cursor:pointer;"></span>
       <button class="btn-logout" onclick="handleLogout()">Salir</button>
     </div>
   </div>
@@ -881,11 +881,80 @@ input,select,textarea{font-family:inherit;}
     </div>
   </div>
 </div>
+
+<!-- MODAL PERFIL DE USUARIO -->
+<div id="modalPerfil" class="modal-overlay" style="display:none;" onclick="closePerfilModal()">
+  <div class="modal-box" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <div class="modal-title">👤 Mi Perfil</div>
+      <button onclick="closePerfilModal()" style="background:none;border:none;font-size:20px;color:var(--muted);cursor:pointer;">✕</button>
+    </div>
+    <div class="modal-body" style="padding:20px 24px;">
+      <div id="perfilError" class="error-box" style="display:none;"></div>
+      <div id="perfilSuccess" style="display:none;padding:10px 14px;background:#E8F5E9;color:#2E7D32;border-radius:10px;font-size:13px;margin-bottom:14px;font-weight:600;"></div>
+
+      <!-- Foto de perfil -->
+      <div style="text-align:center;margin-bottom:20px;">
+        <div id="perfilFotoContainer" style="position:relative;display:inline-block;">
+          <div id="perfilFotoPreview" style="width:80px;height:80px;border-radius:50%;background:linear-gradient(135deg,var(--green),var(--teal));display:flex;align-items:center;justify-content:center;color:#fff;font-size:28px;font-weight:800;margin:0 auto;overflow:hidden;border:3px solid var(--border);"></div>
+          <label for="perfilFotoInput" style="position:absolute;bottom:0;right:calc(50% - 52px);width:28px;height:28px;border-radius:50%;background:var(--green);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:14px;border:2px solid var(--white);box-shadow:0 2px 6px rgba(0,0,0,0.2);">📷</label>
+          <input type="file" id="perfilFotoInput" accept="image/*" style="display:none;" onchange="handlePerfilFotoChange(event)"/>
+        </div>
+        <div id="perfilFotoProgress" style="display:none;margin-top:8px;">
+          <div style="width:120px;height:4px;background:var(--border);border-radius:2px;margin:0 auto;overflow:hidden;">
+            <div id="perfilFotoBar" style="width:0;height:100%;background:var(--green);transition:width 0.3s;"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Datos -->
+      <div style="display:flex;flex-direction:column;gap:14px;">
+        <div>
+          <label class="form-label">Nombre completo</label>
+          <input type="text" class="form-input" id="perfilNombre" placeholder="Tu nombre"/>
+        </div>
+        <div>
+          <label class="form-label">Alias / Apodo</label>
+          <input type="text" class="form-input" id="perfilAlias" placeholder="Cómo te llaman en el campo"/>
+        </div>
+        <div>
+          <label class="form-label">Email</label>
+          <input type="email" class="form-input" id="perfilEmail" disabled style="background:var(--bg);color:var(--muted);"/>
+        </div>
+        <div>
+          <label class="form-label">Handicap</label>
+          <input type="number" class="form-input" id="perfilHandicap" placeholder="0" step="0.1" min="0" max="54"/>
+        </div>
+      </div>
+
+      <!-- Cambiar contraseña (solo para email/password users) -->
+      <div id="perfilPasswordSection" style="margin-top:20px;border-top:1px solid var(--border);padding-top:16px;">
+        <div class="text-13 font-bold" style="margin-bottom:12px;">🔒 Cambiar contraseña</div>
+        <div style="display:flex;flex-direction:column;gap:10px;">
+          <input type="password" class="form-input" id="perfilPassActual" placeholder="Contraseña actual"/>
+          <input type="password" class="form-input" id="perfilPassNueva" placeholder="Nueva contraseña (mín. 6 caracteres)"/>
+          <input type="password" class="form-input" id="perfilPassConfirm" placeholder="Confirmar nueva contraseña"/>
+        </div>
+      </div>
+
+      <!-- Info de vinculación -->
+      <div id="perfilVinculacion" style="margin-top:16px;padding:12px;background:var(--bg);border-radius:10px;border:1px solid var(--border);">
+        <div class="text-11 text-muted font-bold" style="letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;">Jugador vinculado</div>
+        <div id="perfilJugadorInfo" class="text-13"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-outline" onclick="closePerfilModal()">Cancelar</button>
+      <button class="btn-green" onclick="savePerfilModal()">Guardar cambios</button>
+    </div>
+  </div>
+</div>
+
 <script>
 // ══════════════════════════════════════════════════════
 // VERSIÓN — cambia este número cada vez que subas cambios
 // ══════════════════════════════════════════════════════
-const APP_VERSION = '4.1.1';
+const APP_VERSION = '4.2.0';
 
 // ══════════════════════════════════════════════════════
 // FIREBASE CONFIG
@@ -1448,6 +1517,188 @@ function skipVerify(){
 
 async function handleLogout(){ await auth.signOut(); }
 
+// ══════════════════════════════════════════════════════
+// PERFIL DE USUARIO — Modal de gestión
+// ══════════════════════════════════════════════════════
+let _perfilFotoURL=null; // temp storage for new photo URL
+
+function openPerfilModal(){
+  const p=STATE.profile||{};
+  const u=STATE.user;
+  const err=document.getElementById('perfilError');
+  const suc=document.getElementById('perfilSuccess');
+  err.style.display='none'; suc.style.display='none';
+
+  // Fill fields
+  document.getElementById('perfilNombre').value=p.nombre||u?.displayName||'';
+  document.getElementById('perfilAlias').value=p.alias||'';
+  document.getElementById('perfilEmail').value=u?.email||p.email||'';
+  document.getElementById('perfilHandicap').value=p.handicap||'';
+
+  // Photo preview
+  _perfilFotoURL=null;
+  const preview=document.getElementById('perfilFotoPreview');
+  if(p.fotoURL||u?.photoURL){
+    preview.innerHTML=`<img src="${p.fotoURL||u.photoURL}" style="width:100%;height:100%;object-fit:cover;"/>`;
+  } else {
+    const initials=(p.nombre||u?.email||'?').split(' ').map(n=>n[0]).join('').toUpperCase().slice(0,2);
+    preview.innerHTML=`<span>${initials}</span>`;
+  }
+
+  // Show/hide password section (only for email/password users)
+  const isEmailUser=u?.providerData?.some(pd=>pd.providerId==='password');
+  document.getElementById('perfilPasswordSection').style.display=isEmailUser?'block':'none';
+  document.getElementById('perfilPassActual').value='';
+  document.getElementById('perfilPassNueva').value='';
+  document.getElementById('perfilPassConfirm').value='';
+
+  // Jugador vinculado info
+  const jugId=p.jugador_id;
+  const vinc=document.getElementById('perfilJugadorInfo');
+  if(jugId){
+    const j=getJugador(jugId);
+    vinc.innerHTML=`<span style="color:var(--green);font-weight:600;">✅ ${j?.nombre||jugId}</span>`;
+  } else {
+    vinc.innerHTML=`<span style="color:var(--muted);">No vinculado — usa un código de invitación para vincular tu perfil de jugador</span>`;
+  }
+
+  document.getElementById('modalPerfil').style.display='flex';
+}
+
+function closePerfilModal(){
+  document.getElementById('modalPerfil').style.display='none';
+}
+
+async function handlePerfilFotoChange(event){
+  const file=event.target.files[0];
+  if(!file) return;
+  const err=document.getElementById('perfilError');
+  err.style.display='none';
+
+  if(file.size>5*1024*1024){
+    err.textContent='La imagen no puede superar 5MB.';
+    err.style.display='block';
+    return;
+  }
+
+  try{
+    // Show preview immediately
+    const reader=new FileReader();
+    reader.onload=e=>{
+      document.getElementById('perfilFotoPreview').innerHTML=
+        `<img src="${e.target.result}" style="width:100%;height:100%;object-fit:cover;"/>`;
+    };
+    reader.readAsDataURL(file);
+
+    // Resize and upload
+    const compressed=await resizeAndCompress(file, 400, 0.8);
+    const path=`perfiles/${STATE.user.uid}/foto_${Date.now()}.jpg`;
+    const prog=document.getElementById('perfilFotoProgress');
+    const bar=document.getElementById('perfilFotoBar');
+    prog.style.display='block';
+
+    const ref=storage.ref(path);
+    const task=ref.put(compressed);
+    task.on('state_changed',
+      snap=>{
+        const pct=Math.round((snap.bytesTransferred/snap.totalBytes)*100);
+        bar.style.width=pct+'%';
+      },
+      error=>{
+        prog.style.display='none';
+        err.textContent='Error al subir foto: '+error.message;
+        err.style.display='block';
+      },
+      async()=>{
+        _perfilFotoURL=await task.snapshot.ref.getDownloadURL();
+        prog.style.display='none';
+        bar.style.width='0%';
+        document.getElementById('perfilSuccess').textContent='✅ Foto cargada. Guarda los cambios para aplicar.';
+        document.getElementById('perfilSuccess').style.display='block';
+      }
+    );
+  }catch(e){
+    err.textContent='Error procesando imagen: '+e.message;
+    err.style.display='block';
+  }
+}
+
+async function savePerfilModal(){
+  const err=document.getElementById('perfilError');
+  const suc=document.getElementById('perfilSuccess');
+  err.style.display='none'; suc.style.display='none';
+
+  const nombre=document.getElementById('perfilNombre').value.trim();
+  const alias=document.getElementById('perfilAlias').value.trim();
+  const handicap=parseFloat(document.getElementById('perfilHandicap').value)||0;
+
+  if(!nombre){ err.textContent='El nombre es obligatorio.'; err.style.display='block'; return; }
+
+  try{
+    // Update user profile in Firestore
+    const upd={nombre, alias, handicap};
+    if(_perfilFotoURL) upd.fotoURL=_perfilFotoURL;
+    await db.collection('users').doc(STATE.user.uid).update(upd);
+
+    // Update Firebase Auth displayName and photoURL
+    const authUpd={displayName:nombre};
+    if(_perfilFotoURL) authUpd.photoURL=_perfilFotoURL;
+    await STATE.user.updateProfile(authUpd);
+
+    // Update local state
+    Object.assign(STATE.profile, upd);
+    document.getElementById('headerUser').textContent=nombre;
+
+    // Also update linked jugador if exists
+    const jugId=STATE.profile?.jugador_id;
+    if(jugId){
+      const jugUpd={nombre, alias:alias||nombre.split(' ')[0], handicap};
+      if(_perfilFotoURL) jugUpd.fotoURL=_perfilFotoURL;
+      await db.collection('jugadores').doc(jugId).update(jugUpd).catch(()=>{});
+
+      // Update participantes in all torneos
+      for(const [tid, jugs] of Object.entries(STATE.jugadores_by_torneo)){
+        const p=jugs.find(j=>j.id===jugId||j.jugador_id===jugId);
+        if(p){
+          await db.collection('torneos').doc(tid).collection('participantes').doc(p.id)
+            .update(jugUpd).catch(()=>{});
+        }
+      }
+    }
+
+    // Handle password change
+    const passActual=document.getElementById('perfilPassActual').value;
+    const passNueva=document.getElementById('perfilPassNueva').value;
+    const passConfirm=document.getElementById('perfilPassConfirm').value;
+    if(passNueva){
+      if(passNueva.length<6){ err.textContent='La nueva contraseña debe tener al menos 6 caracteres.'; err.style.display='block'; return; }
+      if(passNueva!==passConfirm){ err.textContent='Las contraseñas no coinciden.'; err.style.display='block'; return; }
+      if(!passActual){ err.textContent='Ingresa tu contraseña actual para cambiarla.'; err.style.display='block'; return; }
+      // Re-authenticate
+      const cred=firebase.auth.EmailAuthProvider.credential(STATE.user.email, passActual);
+      await STATE.user.reauthenticateWithCredential(cred);
+      await STATE.user.updatePassword(passNueva);
+      document.getElementById('perfilPassActual').value='';
+      document.getElementById('perfilPassNueva').value='';
+      document.getElementById('perfilPassConfirm').value='';
+    }
+
+    suc.textContent='✅ Perfil actualizado correctamente.';
+    suc.style.display='block';
+    _perfilFotoURL=null;
+    renderCurrentTab();
+
+    // Auto-close after a moment
+    setTimeout(()=>{ if(document.getElementById('modalPerfil').style.display==='flex') closePerfilModal(); }, 1500);
+  }catch(e){
+    const msg=e.code==='auth/wrong-password'?'Contraseña actual incorrecta.':
+              e.code==='auth/requires-recent-login'?'Debes re-iniciar sesión para cambiar la contraseña.':
+              'Error: '+e.message;
+    err.textContent=msg;
+    err.style.display='block';
+  }
+}
+
 async function handleReset(){
   const email=document.getElementById('resetEmail').value.trim();
   const err=document.getElementById('resetError'); err.style.display='none';
@@ -1940,8 +2191,16 @@ function getActiveTorneo(){
   return STATE.torneos.find(t=>t.id===STATE.activeTorneoId)||STATE.torneo||null;
 }
 
+// Find a torneo by ID — searches allTorneos (broad) then filtered torneos
+function findTorneo(torneoId){
+  if(!torneoId) return null;
+  return (STATE.allTorneos||[]).find(t=>t.id===torneoId)
+      || STATE.torneos.find(t=>t.id===torneoId)
+      || null;
+}
+
 function getReglas(torneoId){
-  const t=STATE.torneos.find(t=>t.id===torneoId)||STATE.torneo;
+  const t=findTorneo(torneoId)||STATE.torneo;
   return Object.assign({
     puntos:{1:4,2:3,3:2,resto:1},
     bonusAsistencia:0,
@@ -2227,7 +2486,12 @@ function renderDashboard(){
       <div class="hero">
         <div class="hero-label">Bienvenido a Golfeados</div>
         <div class="hero-title">No hay torneos activos</div>
-        <div style="color:rgba(255,255,255,0.8);font-size:13px;margin-top:8px;">Crea tu primer torneo para comenzar</div>
+        <div style="color:rgba(255,255,255,0.8);font-size:13px;margin-top:8px;">Ve a Mis Torneos para crear o unirte a un torneo</div>
+      </div>
+      <div class="card" style="margin-top:12px;">
+        <div class="card-body" style="text-align:center;padding:24px;">
+          <button class="btn-outline" onclick="goTab('mistorneos')" style="font-size:14px;padding:12px 24px;">🏆 Ir a Mis Torneos</button>
+        </div>
       </div>
       ${isAdmin?`<div class="card"><div class="card-body" style="display:flex;gap:10px;flex-wrap:wrap;">
         <button class="btn-green" onclick="openModalJornada()">+ Partida</button>
@@ -2246,11 +2510,6 @@ function renderDashboard(){
           Ver todos mis torneos (${torneos.length}) →
         </button>
       </div>`:''}
-    <div class="card" style="margin-bottom:0;">
-      <div class="card-body" style="display:flex;gap:10px;flex-wrap:wrap;padding:14px 16px;">
-        <button class="btn-green" style="font-size:13px;" onclick="openModalTorneo()">+ Crear Torneo</button>
-      </div>
-    </div>
     ${isAdmin?`
     <div class="card">
       <div class="card-header"><span class="card-title">⚙️ Admin</span></div>
@@ -2734,7 +2993,7 @@ function renderRanking(){
   const el=document.getElementById('tab-ranking');
   const torneoId=STATE.activeTorneoId||STATE.torneos[0]?.id||null;
   if(!torneoId||STATE.torneos.length===0){
-    el.innerHTML='<div class="card"><div class="card-body" style="text-align:center;color:var(--muted);padding:40px;">Sin torneos.<br/><button class="btn-green" style="margin-top:12px;" onclick="openModalTorneo()">+ Crear Torneo</button></div></div>';
+    el.innerHTML='<div class="card"><div class="card-body" style="text-align:center;color:var(--muted);padding:40px;">Sin torneos disponibles.</div></div>';
     return;
   }
   const torneo=STATE.torneos.find(t=>t.id===torneoId)||STATE.torneos[0];
@@ -2835,7 +3094,7 @@ function renderJornadas(){
       const myJugadorId=STATE.profile?.jugador_id;
       const est=getEstadoJornada(jn);  // live computed estado
       // Per-jornada torneo permissions
-      const torneoDeJornada=STATE.torneos.find(t=>t.id===jn.torneo_id);
+      const torneoDeJornada=findTorneo(jn.torneo_id);
       const isAdminJornada=isTorneoAdmin(torneoDeJornada);
       const canCargarThis=canCargarTorneo(torneoDeJornada);
       const quienCarga=torneoDeJornada?.quienCargaResultados||'admins';
@@ -2856,7 +3115,7 @@ function renderJornadas(){
                 </div>
                 <div style="font-size:12px;color:var(--text2);font-weight:600;margin-top:2px;">${fmtFechaJornada(jn)}${jn.teeTime?' · ⏰ '+jn.teeTime:''}</div>
                 ${jn.notas?`<div class="text-11 text-muted">${jn.notas}</div>`:''}
-                ${(()=>{const t=STATE.torneos.find(t=>t.id===jn.torneo_id);return t?`<div class="text-11" style="color:var(--green);font-weight:600;margin-top:1px;">🏆 ${t.nombre}</div>`:'';})()} 
+                ${(()=>{const t=findTorneo(jn.torneo_id);return t?`<div class="text-11" style="color:var(--green);font-weight:600;margin-top:1px;">🏆 ${t.nombre}</div>`:'';})()} 
               </div>
               ${jn.fotos&&jn.fotos.length>0?`<div style="display:flex;flex-direction:row;gap:0;flex-shrink:0;margin-left:4px;cursor:pointer;" onclick="event.stopPropagation();toggleJornada('${jn.id}')">${jn.fotos.slice(0,3).map((url,fi)=>'<img src="'+url+'" style="width:34px;height:34px;object-fit:cover;border-radius:6px;border:2px solid var(--white);'+(fi>0?'margin-left:-8px;':'')+'box-shadow:0 1px 3px rgba(0,0,0,0.15);"/>').join('')}</div>`:''}
             </div>
