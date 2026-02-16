@@ -3074,10 +3074,12 @@ function renderMisTorneos(){
               html+='<tr style="border-top:1px solid var(--border);">';
               html+='<td style="padding:5px 8px;font-weight:600;white-space:nowrap;">'+j.nombre+'</td>';
               jJugadas.forEach(jn=>{
-                const r=STATE.resultados.find(r=>r.jornada_id===jn.id&&r.jugador_id===j.id);
-                const val=r?(r.asistencia?fmtPts(r.pts):'—'):'?';
-                const col=r&&r.pts>=4?'var(--gold)':'var(--text)';
-                html+='<td style="padding:5px 8px;text-align:center;color:'+col+';">'+val+'</td>';
+                const jp=(j.jornadaPts||[]).find(p=>p.jornada_id===jn.id);
+                if(!jp){ html+='<td style="padding:5px 8px;text-align:center;color:var(--muted);">?</td>'; return; }
+                if(!jp.asistencia){ html+='<td style="padding:5px 8px;text-align:center;color:var(--muted);">—</td>'; return; }
+                if(jp.dq){ html+='<td style="padding:5px 8px;text-align:center;color:#C62828;font-weight:800;">DQ</td>'; return; }
+                const col=jp.pts>=4?'var(--gold)':'var(--text)';
+                html+='<td style="padding:5px 8px;text-align:center;color:'+col+';">'+fmtPts(jp.pts)+'</td>';
               });
               html+='<td style="padding:5px 8px;text-align:center;font-weight:800;color:'+(j.pos===1?'var(--gold)':'var(--text)')+';">'+fmtPts(j.ptsT)+'</td>';
               html+='</tr>';
@@ -3494,7 +3496,14 @@ function renderRanking(){
           ${rk.map(j=>`
             <tr>
               <td style="padding:8px;font-weight:600;white-space:nowrap;">${j.nombre}</td>
-              ${jugadasAll.map(jn=>{const r=STATE.resultados.find(r=>r.jornada_id===jn.id&&r.jugador_id===j.id);const val=r?(r.asistencia?fmtPts(r.pts):'—'):'?';const col=r&&r.pts>=4?'var(--gold)':'var(--text)';return`<td style="padding:8px;text-align:center;color:${r?col:'var(--muted)'};">${val}</td>`;}).join('')}
+              ${jugadasAll.map(jn=>{
+                const jp=(j.jornadaPts||[]).find(p=>p.jornada_id===jn.id);
+                if(!jp) return`<td style="padding:8px;text-align:center;color:var(--muted);">?</td>`;
+                if(!jp.asistencia) return`<td style="padding:8px;text-align:center;color:var(--muted);">—</td>`;
+                if(jp.dq) return`<td style="padding:8px;text-align:center;color:#C62828;font-weight:800;">DQ</td>`;
+                const col=jp.pts>=4?'var(--gold)':'var(--text)';
+                return`<td style="padding:8px;text-align:center;color:${col};">${fmtPts(jp.pts)}</td>`;
+              }).join('')}
               <td style="padding:8px;text-align:center;font-weight:800;color:${j.pos===1?'var(--gold)':'var(--text)'};">${fmtPts(j.ptsT)}</td>
             </tr>`).join('')}
         </table>
