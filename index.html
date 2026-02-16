@@ -882,6 +882,50 @@ input,select,textarea{font-family:inherit;}
   </div>
 </div>
 
+<!-- MODAL AGREGAR JUGADOR -->
+<div id="agregarJugadorModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9999;align-items:flex-end;justify-content:center;" onclick="closeAgregarJugadorModal()">
+  <div style="background:var(--white);border-radius:20px 20px 0 0;width:100%;max-width:500px;padding:24px 20px 32px;max-height:85vh;overflow-y:auto;" onclick="event.stopPropagation()">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+      <div style="font-size:16px;font-weight:800;" id="modalAgregarTitle">Agregar jugador</div>
+      <button onclick="closeAgregarJugadorModal()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--muted);">✕</button>
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:16px;">
+      <button id="tabBuscar" onclick="switchAgregarTab('buscar')"
+        style="flex:1;padding:8px;border-radius:8px;border:2px solid var(--green);background:var(--green);color:#fff;font-weight:700;font-size:13px;cursor:pointer;">🔍 Buscar</button>
+      <button id="tabCrear" onclick="switchAgregarTab('crear')"
+        style="flex:1;padding:8px;border-radius:8px;border:2px solid var(--border);background:transparent;color:var(--text);font-weight:700;font-size:13px;cursor:pointer;">+ Crear nuevo</button>
+    </div>
+    <div id="panelBuscar">
+      <input type="text" id="buscarJugadorInput" placeholder="Nombre, alias, teléfono o email..."
+        style="width:100%;padding:12px;border:2px solid var(--border);border-radius:10px;background:var(--bg);color:var(--text);font-size:14px;"
+        oninput="buscarJugadorGlobal(this.value)"/>
+      <div id="buscarResultados" style="margin-top:12px;"></div>
+    </div>
+    <div id="panelCrear" style="display:none;">
+      <div style="display:flex;flex-direction:column;gap:12px;">
+        <div><label class="form-label">Nombre Completo *</label><input class="form-input" id="newNombre" placeholder="Ej: Daniel Badell"/></div>
+        <div style="display:flex;gap:12px;">
+          <div style="flex:1;"><label class="form-label">Alias</label><input class="form-input" id="newAlias" placeholder="Ej: Badell"/></div>
+          <div style="width:90px;"><label class="form-label">Iniciales</label><input class="form-input" id="newFoto" placeholder="DB" maxlength="2"/></div>
+        </div>
+        <div>
+          <label class="form-label">Teléfono / WhatsApp</label>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <select class="form-select" id="newPaisCodigo" style="width:110px;">
+              <option value="+58">🇻🇪 +58</option><option value="+1">🇺🇸 +1</option>
+              <option value="+34">🇪🇸 +34</option><option value="+52">🇲🇽 +52</option>
+              <option value="+57">🇨🇴 +57</option>
+            </select>
+            <input class="form-input" id="newTelefono" type="tel" placeholder="4141234567" style="flex:1;" oninput="validarTelefonoNew(this)"/>
+          </div>
+        </div>
+        <div id="addJugadorError" class="error-box" style="display:none;"></div>
+        <button class="btn-green" onclick="crearYAgregarJugador()">Crear y agregar al torneo 🏌️</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL PERFIL DE USUARIO -->
 <div id="modalPerfil" class="modal-overlay" style="display:none;" onclick="closePerfilModal()">
   <div class="modal-box" onclick="event.stopPropagation()">
@@ -2113,7 +2157,9 @@ function stopListeners(){
   Object.values(_participantesUnsubs).forEach(u=>{ try{u();}catch(e){} });
   _participantesUnsubs={};
   _participantesTorneoId=null;
+  _jugadoresGlobalUnsub=null;
   STATE.jugadores_by_torneo={};
+  STATE.jugadores_global=[];
   STATE.allTorneos=[];
   STATE._expandedJugTorneo=null;
   _torneosMergeMap={};
@@ -2273,13 +2319,16 @@ function getJugador(jugadorId){
   return null;
 }
 
-// Ensure global jugadores are loaded (for name lookups in old torneos)
+// Ensure global jugadores are loaded (for name lookups and search)
+let _jugadoresGlobalUnsub=null;
 function ensureJugadoresGlobal(){
-  if(STATE.jugadores_global.length>0) return;
-  db.collection('jugadores').get().then(s=>{
-    STATE.jugadores_global=s.docs.map(d=>({id:d.id,...d.data()}));
-    renderCurrentTab();
-  }).catch(e=>console.error('jugadores global load:',e));
+  if(_jugadoresGlobalUnsub) return; // already listening
+  _jugadoresGlobalUnsub=db.collection('jugadores').orderBy('nombre')
+    .onSnapshot(s=>{
+      STATE.jugadores_global=s.docs.map(d=>({id:d.id,...d.data()}));
+    }, e=>console.error('jugadores global listener:',e));
+  // Add to unsubs for cleanup
+  STATE.unsubs.push(()=>{ if(_jugadoresGlobalUnsub){ _jugadoresGlobalUnsub(); _jugadoresGlobalUnsub=null; }});
 }
 function getJugadoresTorneo(torneoId){
   if(torneoId===STATE.activeTorneoId) return STATE.jugadores||[];
@@ -4113,50 +4162,6 @@ function renderJugadores(){
         </div>
       </div>`;
     }).join('')}
-
-    <!-- Modal Agregar Jugador -->
-    <div id="agregarJugadorModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9999;align-items:flex-end;justify-content:center;">
-      <div style="background:var(--white);border-radius:20px 20px 0 0;width:100%;max-width:500px;padding:24px 20px 32px;max-height:85vh;overflow-y:auto;">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
-          <div style="font-size:16px;font-weight:800;" id="modalAgregarTitle">Agregar jugador</div>
-          <button onclick="closeAgregarJugadorModal()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--muted);">✕</button>
-        </div>
-        <div style="display:flex;gap:8px;margin-bottom:16px;">
-          <button id="tabBuscar" onclick="switchAgregarTab('buscar')"
-            style="flex:1;padding:8px;border-radius:8px;border:2px solid var(--green);background:var(--green);color:#fff;font-weight:700;font-size:13px;cursor:pointer;">🔍 Buscar</button>
-          <button id="tabCrear" onclick="switchAgregarTab('crear')"
-            style="flex:1;padding:8px;border-radius:8px;border:2px solid var(--border);background:transparent;color:var(--text);font-weight:700;font-size:13px;cursor:pointer;">+ Crear nuevo</button>
-        </div>
-        <div id="panelBuscar">
-          <input type="text" id="buscarJugadorInput" placeholder="Nombre, alias, teléfono o email..."
-            style="width:100%;padding:12px;border:2px solid var(--border);border-radius:10px;background:var(--bg);color:var(--text);font-size:14px;"
-            oninput="buscarJugadorGlobal(this.value)"/>
-          <div id="buscarResultados" style="margin-top:12px;"></div>
-        </div>
-        <div id="panelCrear" style="display:none;">
-          <div style="display:flex;flex-direction:column;gap:12px;">
-            <div><label class="form-label">Nombre Completo *</label><input class="form-input" id="newNombre" placeholder="Ej: Daniel Badell"/></div>
-            <div style="display:flex;gap:12px;">
-              <div style="flex:1;"><label class="form-label">Alias</label><input class="form-input" id="newAlias" placeholder="Ej: Badell"/></div>
-              <div style="width:90px;"><label class="form-label">Iniciales</label><input class="form-input" id="newFoto" placeholder="DB" maxlength="2"/></div>
-            </div>
-            <div>
-              <label class="form-label">Teléfono / WhatsApp</label>
-              <div style="display:flex;gap:8px;align-items:center;">
-                <select class="form-select" id="newPaisCodigo" style="width:110px;">
-                  <option value="+58">🇻🇪 +58</option><option value="+1">🇺🇸 +1</option>
-                  <option value="+34">🇪🇸 +34</option><option value="+52">🇲🇽 +52</option>
-                  <option value="+57">🇨🇴 +57</option>
-                </select>
-                <input class="form-input" id="newTelefono" type="tel" placeholder="4141234567" style="flex:1;" oninput="validarTelefonoNew(this)"/>
-              </div>
-            </div>
-            <div id="addJugadorError" class="error-box" style="display:none;"></div>
-            <button class="btn-green" onclick="crearYAgregarJugador()">Crear y agregar al torneo 🏌️</button>
-          </div>
-        </div>
-      </div>
-    </div>
   </div>`;
 }
 
@@ -4174,26 +4179,33 @@ function openAgregarJugadorModal(torneoId){
     STATE.torneo=STATE.torneos.find(t=>t.id===torneoId)||null;
     if(!_participantesUnsubs[torneoId]) subscribeParticipantes();
   }
-  // Show modal — use requestAnimationFrame to ensure DOM is stable
-  requestAnimationFrame(()=>{
-    const m=document.getElementById('agregarJugadorModal');
-    if(!m) return;
-    m.style.display='flex';
-    const t=getActiveTorneo();
-    const title=document.getElementById('modalAgregarTitle');
-    if(title&&t) title.textContent='Agregar a: '+t.nombre;
-    // Load global jugadores for search
-    if(STATE.jugadores_global.length===0){
-      db.collection('jugadores').orderBy('nombre').get().then(s=>{
-        STATE.jugadores_global=s.docs.map(d=>({id:d.id,...d.data()}));
-      });
-    }
-    setTimeout(()=>{ const inp=document.getElementById('buscarJugadorInput'); if(inp) inp.focus(); },100);
-  });
+  // Ensure global jugadores listener is active
+  ensureJugadoresGlobal();
+  // Show modal
+  const m=document.getElementById('agregarJugadorModal');
+  if(!m) return;
+  m.style.display='flex';
+  const t=getActiveTorneo();
+  const title=document.getElementById('modalAgregarTitle');
+  if(title&&t) title.textContent='Agregar a: '+t.nombre;
+  // Reset form
+  switchAgregarTab('buscar');
+  const inp=document.getElementById('buscarJugadorInput');
+  if(inp){ inp.value=''; }
+  const res=document.getElementById('buscarResultados');
+  if(res) res.innerHTML='<div style="color:var(--muted);font-size:13px;text-align:center;padding:12px;">Escribe al menos 2 caracteres</div>';
+  setTimeout(()=>{ if(inp) inp.focus(); },100);
 }
 function closeAgregarJugadorModal(){
   const m=document.getElementById('agregarJugadorModal');
   if(m) m.style.display='none';
+  // Clean form fields
+  const fields=['newNombre','newAlias','newFoto','newTelefono','buscarJugadorInput'];
+  fields.forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
+  const err=document.getElementById('addJugadorError');
+  if(err) err.style.display='none';
+  const res=document.getElementById('buscarResultados');
+  if(res) res.innerHTML='';
 }
 function switchAgregarTab(tab){
   const isBuscar=tab==='buscar';
