@@ -1187,56 +1187,76 @@ async function handleVincular(){
   }finally{ btn.disabled=false; btn.textContent='Vincular mi perfil 🏌️'; }
 }
 
-// ── Update participantes with user_uid after vincular ──
-// Uses collectionGroup query to find ALL participantes across ALL torneos
-async function _updateParticipantesUserUid(jugadorId, uid){
-  console.log('[_updateParticipantesUserUid] jugadorId='+jugadorId+' uid='+uid);
-  let updated=0;
+// ── Sync user profile data to linked jugador + all participantes ──
+// Called after vincular: updates jugador doc AND all participantes with real user data
+async function _syncLinkedPlayerData(jugadorId, uid){
+  console.log('[_syncLinkedPlayerData] jugadorId='+jugadorId+' uid='+uid);
+  const profile=STATE.profile||{};
+  const user=STATE.user;
 
-  // 1) Update local cache immediately (for instant UI)
+  // Build data payload from user's real profile
+  const nombre=profile.nombre||user?.displayName||'';
+  const syncData={
+    user_uid: uid,
+    nombre: nombre,
+    alias: profile.username||profile.alias||nombre.split(' ')[0]||'',
+    foto: nombre.split(' ').filter(Boolean).map(n=>n[0]).join('').toUpperCase().slice(0,2)||'?',
+    nombre_lower: nombre.toLowerCase(),
+    email: profile.email||user?.email||'',
+    telefonoCompleto: profile.telefonoCompleto||'',
+    telefono: profile.telefono||'',
+    codigoPais: profile.codigoPais||'',
+    handicap: profile.handicap||0,
+    fotoURL: profile.fotoURL||null
+  };
+  // Clean undefined values
+  Object.keys(syncData).forEach(k=>{ if(syncData[k]===undefined) syncData[k]=null; });
+
+  console.log('[_syncLinkedPlayerData] syncData:', JSON.stringify(syncData));
+
+  // 1) Update the jugador global doc
+  try{
+    await db.collection('jugadores').doc(jugadorId).update(syncData);
+    console.log('[_syncLinkedPlayerData] jugador doc updated');
+  }catch(e){
+    console.warn('[_syncLinkedPlayerData] jugador doc update error:', e.message);
+  }
+
+  // 2) Update local cache immediately (for instant UI)
   for(const [tid, jugs] of Object.entries(STATE.jugadores_by_torneo||{})){
     const p=jugs.find(j=>j.id===jugadorId||j.jugador_id===jugadorId);
-    if(p){
-      p.user_uid=uid;
-      updated++;
-    }
+    if(p) Object.assign(p, syncData);
   }
+  // Also update jugadores_global cache
+  const gIdx=STATE.jugadores_global.findIndex(j=>j.id===jugadorId);
+  if(gIdx>=0) Object.assign(STATE.jugadores_global[gIdx], syncData);
 
-  // 2) Update Firestore — search all torneos for this jugador
-  // Try collectionGroup first (most efficient)
-  try{
-    const cgSnap=await db.collectionGroup('participantes')
-      .where('jugador_id','==',jugadorId).get();
-    for(const doc of cgSnap.docs){
-      if(doc.data().user_uid!==uid){
-        await doc.ref.update({user_uid:uid});
+  // 3) Update Firestore participantes — per-torneo approach (most reliable)
+  const allTids=(STATE.allTorneos||[]).map(t=>t.id);
+  let updated=0;
+  for(const tid of allTids){
+    try{
+      const pDoc=await db.collection('torneos').doc(tid)
+        .collection('participantes').doc(jugadorId).get();
+      if(pDoc.exists){
+        // Only sync fields relevant to participante doc
+        const pSync={
+          user_uid:uid, nombre:syncData.nombre, alias:syncData.alias,
+          foto:syncData.foto, fotoURL:syncData.fotoURL,
+          telefonoCompleto:syncData.telefonoCompleto
+        };
+        await pDoc.ref.update(pSync);
         updated++;
       }
-    }
-    console.log('[_updateParticipantesUserUid] collectionGroup updated '+updated+' docs');
-  }catch(e){
-    console.warn('[_updateParticipantesUserUid] collectionGroup failed, using per-torneo fallback:',e.message);
-    // Fallback: iterate all known torneos
-    const allTids=(STATE.allTorneos||[]).map(t=>t.id);
-    for(const tid of allTids){
-      try{
-        const pDoc=await db.collection('torneos').doc(tid)
-          .collection('participantes').doc(jugadorId).get();
-        if(pDoc.exists && pDoc.data().user_uid!==uid){
-          await pDoc.ref.update({user_uid:uid});
-          updated++;
-        }
-      }catch(e2){ /* skip */ }
-    }
-    console.log('[_updateParticipantesUserUid] fallback updated '+updated+' docs');
+    }catch(e2){ console.warn('[_syncLinkedPlayerData] torneo '+tid+' error:', e2.message); }
   }
+  console.log('[_syncLinkedPlayerData] Updated '+updated+' participante docs across torneos');
 }
 
 // ── Unified vincular function ───────────────────────
 // Handles first vincular AND subsequent ones correctly
 async function vincularCodigo(code){
   console.log('[vincularCodigo] code='+code);
-  // Validate
   const snap=await db.collection('jugadores').where('invite_code','==',code).limit(1).get();
   if(snap.empty) throw new Error('INVALID_CODE');
   const jugDoc=snap.docs[0];
@@ -1248,13 +1268,11 @@ async function vincularCodigo(code){
   const isFirstVincular=!existingJugadorId || existingJugadorId===uid;
   console.log('[vincularCodigo] uid='+uid+' manualId='+manualId+' existing='+existingJugadorId+' isFirst='+isFirstVincular);
 
-  // Mark the manual jugador as linked to this user
-  await db.collection('jugadores').doc(manualId).update({user_uid:uid});
   // Track this jugador as linked
   STATE.linked_jugador_ids.add(manualId);
 
   if(isFirstVincular){
-    // ── FIRST VINCULAR: adopt manual jugador as primary identity ──
+    // FIRST VINCULAR: adopt manual jugador as primary identity
     await db.collection('users').doc(uid).update({jugador_id:manualId});
     STATE.profile.jugador_id=manualId;
     // Delete auto-created jugador/{uid} if different
@@ -1262,27 +1280,18 @@ async function vincularCodigo(code){
       await db.collection('jugadores').doc(uid).delete().catch(()=>{});
     }
   } else {
-    // ── SUBSEQUENT VINCULAR: keep existing jugador_id, just link user_uid ──
-    // Don't change jugador_id — user already has a primary identity
-    console.log('[vincularCodigo] Subsequent vincular: keeping jugador_id='+existingJugadorId+', linking manual='+manualId);
+    // SUBSEQUENT VINCULAR: keep existing jugador_id
+    console.log('[vincularCodigo] Subsequent: keeping jugador_id='+existingJugadorId);
   }
 
-  // Set user_uid on all participantes of this manual jugador across all torneos
-  await _updateParticipantesUserUid(manualId, uid);
+  // Sync ALL user profile data to jugador + participantes (nombre, tel, foto, user_uid)
+  await _syncLinkedPlayerData(manualId, uid);
 
-  // Debug: verify which torneos see this user
-  const myTIDs=[];
-  for(const [tid, jugs] of Object.entries(STATE.jugadores_by_torneo||{})){
-    if(jugs.some(j=>j.user_uid===uid)) myTIDs.push(tid);
-  }
-  console.log('[vincularCodigo] Torneos with my user_uid:', myTIDs);
-  console.log('[vincularCodigo] STATE.profile.jugador_id='+STATE.profile?.jugador_id);
-
-  // Re-filter torneos now that user_uid is set on new participantes
+  // Re-filter torneos
   _filterMyTorneos();
-  console.log('[vincularCodigo] After filter, STATE.torneos count='+STATE.torneos.length, STATE.torneos.map(t=>t.id+':'+t.nombre));
+  console.log('[vincularCodigo] After filter, torneos='+STATE.torneos.length);
 
-  return { manualId, nombre: jugDoc.data().nombre||manualId, isFirstVincular };
+  return { manualId, nombre: STATE.profile?.nombre||jugDoc.data().nombre||manualId, isFirstVincular };
 }
 
 // ── Generate invite code ────────────────────────────
@@ -1846,19 +1855,29 @@ async function savePerfilModal(){
     Object.assign(STATE.profile, upd);
     document.getElementById('headerUser').textContent=nombre;
 
-    // Also update linked jugador if exists
+    // Also update linked jugador(es) if exists
     const jugId=STATE.profile?.jugador_id;
     if(jugId){
-      const jugUpd={nombre, alias:alias||nombre.split(' ')[0], handicap};
+      const jugUpd={nombre, alias:alias||nombre.split(' ')[0], handicap,
+        foto:nombre.split(' ').filter(Boolean).map(n=>n[0]).join('').toUpperCase().slice(0,2)||'?'};
       if(_perfilFotoURL) jugUpd.fotoURL=_perfilFotoURL;
-      await db.collection('jugadores').doc(jugId).update(jugUpd).catch(()=>{});
 
-      // Update participantes in all torneos
+      // Update ALL linked jugadores (primary + any extra from multi-vincular)
+      const allIds=new Set(STATE.linked_jugador_ids);
+      allIds.add(jugId);
+      for(const jid of allIds){
+        await db.collection('jugadores').doc(jid).update(jugUpd).catch(()=>{});
+      }
+
+      // Update participantes in all torneos for ALL linked jugadores
       for(const [tid, jugs] of Object.entries(STATE.jugadores_by_torneo)){
-        const p=jugs.find(j=>j.id===jugId||j.jugador_id===jugId);
-        if(p){
-          await db.collection('torneos').doc(tid).collection('participantes').doc(p.id)
-            .update(jugUpd).catch(()=>{});
+        for(const jid of allIds){
+          const p=jugs.find(j=>j.id===jid||j.jugador_id===jid);
+          if(p){
+            Object.assign(p, jugUpd); // local cache
+            await db.collection('torneos').doc(tid).collection('participantes').doc(p.id)
+              .update(jugUpd).catch(()=>{});
+          }
         }
       }
     }
@@ -4528,35 +4547,17 @@ async function removeParticipante(jugadorId, nombre, torneoId, event){
   if(event) event.stopPropagation();
   const tid=torneoId||STATE.activeTorneoId;
   if(!tid) return;
-  const t=STATE.torneos.find(x=>x.id===tid);
-  // Check if jugador has results in this torneo
-  const jornadasT=STATE.jornadas.filter(j=>j.torneo_id===tid);
-  const hasResults=jornadasT.some(jn=>
-    STATE.resultados.some(r=>r.jornada_id===jn.id && r.jugador_id===jugadorId)
-  );
-  // Check if jugador has a linked user account
-  const participante=(STATE.jugadores_by_torneo[tid]||[]).find(j=>j.id===jugadorId||j.jugador_id===jugadorId);
-  const hasAccount=!!participante?.user_uid;
-  // Soft-delete if has results OR has linked account (so torneo stays in their list)
-  const shouldSoftDelete=hasResults||hasAccount;
-  const msg=shouldSoftDelete
-    ?`${nombre} ${hasResults?'tiene resultados en':'está vinculado a'} ${t?.nombre||'este torneo'}. Se marcará como eliminado${hasResults?' pero sus resultados se mantienen':''}. ¿Continuar?`
-    :`¿Quitar a ${nombre} de ${t?.nombre||'este torneo'}? Se eliminará permanentemente.`;
+  const t=STATE.torneos.find(x=>x.id===tid)||findTorneo(tid);
+  const msg=`¿Eliminar a ${nombre} de ${t?.nombre||'este torneo'}? Se marcará como eliminado y sus resultados se mantienen.`;
   if(!confirm(msg)) return;
   try{
-    if(shouldSoftDelete){
-      // Soft delete — mark as eliminated, keep doc for visibility
-      await db.collection('torneos').doc(tid)
-        .collection('participantes').doc(jugadorId).update({
-          activo:false,
-          eliminado:true,
-          eliminado_fecha:firebase.firestore.FieldValue.serverTimestamp()
-        });
-    } else {
-      // No results AND no linked account — safe to hard delete
-      await db.collection('torneos').doc(tid)
-        .collection('participantes').doc(jugadorId).delete();
-    }
+    // ALWAYS soft-delete — never hard-delete participantes
+    await db.collection('torneos').doc(tid)
+      .collection('participantes').doc(jugadorId).update({
+        activo:false,
+        eliminado:true,
+        eliminado_fecha:firebase.firestore.FieldValue.serverTimestamp()
+      });
   }catch(e){ alert('Error: '+e.message); }
 }
 
