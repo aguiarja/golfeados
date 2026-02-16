@@ -1737,6 +1737,7 @@ function _initBroadListeners(uid,isAdmin){
   STATE.unsubs.push(db.collection('torneos').orderBy('creado','desc')
     .onSnapshot(s=>{
       STATE.torneos=s.docs.map(d=>({id:d.id,...d.data()}));
+      STATE.allTorneos=STATE.torneos; // admin sees all
       STATE.torneo=STATE.torneos.find(t=>t.estado==='Activo'||t.estado==='activo')||STATE.torneos[0]||null;
       if(!STATE.activeTorneoId&&STATE.torneo) STATE.activeTorneoId=STATE.torneo.id;
       if(STATE._connSetOnline)STATE._connSetOnline();
@@ -1813,6 +1814,13 @@ function _initScopedListeners(uid){
 // Filter allTorneos → STATE.torneos: only torneos user is involved in
 function _filterMyTorneos(){
   if(!STATE.allTorneos||STATE.allTorneos.length===0) return;
+  // Platform admin sees ALL torneos — no filtering needed
+  if(STATE.profile?.role==='admin'){
+    STATE.torneos=STATE.allTorneos;
+    STATE.torneo=STATE.torneos.find(t=>t.estado==='Activo'||t.estado==='activo')||STATE.torneos[0]||null;
+    if(!STATE.activeTorneoId&&STATE.torneo) STATE.activeTorneoId=STATE.torneo.id;
+    return;
+  }
   const uid=STATE.user?.uid;
   const jugadorId=STATE.profile?.jugador_id;
 
@@ -1928,8 +1936,8 @@ function _loadResultadosPerTorneo(){
 let _participantesUnsubs={};  // { torneoId: unsubFn }
 let _participantesTorneoId=null;  // kept for compat
 function subscribeParticipantes(){
-  // Use allTorneos (all platform torneos) if available, else fall back to filtered
-  const source=STATE.allTorneos||STATE.torneos||[];
+  // Use allTorneos if populated, else fall back to filtered torneos
+  const source=(STATE.allTorneos&&STATE.allTorneos.length>0)?STATE.allTorneos:STATE.torneos||[];
   if(source.length===0) return;
   source.forEach(t=>{
     const tid=t.id;
