@@ -501,9 +501,8 @@ input,select,textarea{font-family:inherit;}
     </div>
     <div class="header-right">
       <span id="adminBadge" class="badge-admin" style="display:none;">ADMIN</span>
-      <div id="connPill" title="Estado de conexión" style="display:flex;align-items:center;gap:4px;padding:3px 8px;border-radius:20px;font-size:10px;font-weight:700;letter-spacing:0.5px;background:#E8F5E9;color:#2E7D32;border:1px solid #A5D6A7;transition:all 0.4s;">
-        <span id="connDot" style="width:6px;height:6px;border-radius:50%;background:#4CAF50;display:inline-block;"></span>
-        <span id="connLabel">EN VIVO</span>
+      <div id="connPill" title="Estado de conexión" style="display:flex;align-items:center;padding:4px;border-radius:50%;background:transparent;transition:all 0.4s;">
+        <span id="connDot" style="width:8px;height:8px;border-radius:50%;background:#4CAF50;display:inline-block;"></span>
       </div>
       <span id="headerUser" class="header-user" onclick="openPerfilModal()" style="cursor:pointer;"></span>
       <button class="btn-logout" onclick="handleLogout()">Salir</button>
@@ -515,7 +514,7 @@ input,select,textarea{font-family:inherit;}
     <button class="nav-btn" data-tab="mistorneos" onclick="goTab('mistorneos')">🏆 Mis Torneos</button>
     <button class="nav-btn" data-tab="jornadas" onclick="goTab('jornadas')">🏌️ Partidas</button>
     <button class="nav-btn" data-tab="jugadores" onclick="goTab('jugadores')">👤 Jugadores</button>
-    <button class="nav-btn" data-tab="clubes" onclick="goTab('clubes')">⛳ Clubes</button>
+    <button class="nav-btn" data-tab="clubes" onclick="goTab('clubes')" id="navClubes" style="display:none;">⛳ Clubes</button>
   </div>
 
   <div id="content">
@@ -741,6 +740,23 @@ input,select,textarea{font-family:inherit;}
       <div style="background:var(--cardL);border-radius:10px;padding:14px;border:1px solid var(--border);">
         <div class="text-12 font-bold text-muted" style="letter-spacing:1px;text-transform:uppercase;margin-bottom:12px;">📋 Información</div>
         <div style="display:flex;flex-direction:column;gap:12px;">
+          <!-- Logo del torneo -->
+          <div>
+            <label class="form-label">Logo del torneo (opcional)</label>
+            <div style="display:flex;align-items:center;gap:12px;">
+              <div id="tLogoPreviewBox" onclick="document.getElementById('tLogoInput').click()"
+                style="width:56px;height:56px;border-radius:12px;background:var(--cardL);border:2px dashed var(--border);cursor:pointer;display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0;">
+                <img id="tLogoPreview" style="display:none;width:100%;height:100%;object-fit:cover;"/>
+                <span id="tLogoPlaceholder" style="font-size:22px;">🏆</span>
+              </div>
+              <div style="flex:1;">
+                <button type="button" onclick="document.getElementById('tLogoInput').click()" style="background:none;border:1px solid var(--border);border-radius:6px;padding:5px 12px;font-size:11px;color:var(--text);cursor:pointer;">Subir logo</button>
+                <button type="button" id="tLogoClearBtn" onclick="clearTorneoLogo()" style="display:none;background:none;border:none;color:var(--muted);font-size:11px;cursor:pointer;margin-left:4px;">✕ Quitar</button>
+              </div>
+              <input type="file" id="tLogoInput" accept="image/*" style="display:none;" onchange="previewTorneoLogo(this)"/>
+            </div>
+            <div class="upload-progress"><div class="upload-progress-bar" id="tLogoProgress"></div></div>
+          </div>
           <div><label class="form-label">Nombre del Torneo *</label>
             <input class="form-input" id="tNombre" placeholder="Ej: Torneo Apertura 2026"/></div>
 <!-- fechas: se gestionan por partidas -->
@@ -1011,7 +1027,7 @@ input,select,textarea{font-family:inherit;}
 // ══════════════════════════════════════════════════════
 // VERSIÓN — cambia este número cada vez que subas cambios
 // ══════════════════════════════════════════════════════
-const APP_VERSION = '4.3.1';
+const APP_VERSION = '4.3.2';
 
 // ══════════════════════════════════════════════════════
 // FIREBASE CONFIG
@@ -1479,6 +1495,8 @@ function showApp_(){
   document.getElementById('app').style.display='block';
   document.getElementById('headerUser').textContent=STATE.profile?.nombre||STATE.user?.email||'';
   document.getElementById('adminBadge').style.display=STATE.profile?.role==='admin'?'inline':'none';
+  const navClubes=document.getElementById('navClubes');
+  if(navClubes) navClubes.style.display=STATE.profile?.role==='admin'?'':'none';
   // Show vincular badge if no jugador linked
   const vBadge=document.getElementById('vincularBadge');
   if(vBadge) vBadge.style.display=(!STATE.profile?.jugador_id&&STATE.profile?.role!=='admin')?'inline-flex':'none';
@@ -2323,31 +2341,17 @@ function initConnectionMonitor(){
   // We use a heartbeat approach: check if snapshots arrive within expected time
   let lastUpdate=Date.now();
   let connTimer=null;
-  const pill=document.getElementById('connPill');
   const dot=document.getElementById('connDot');
-  const label=document.getElementById('connLabel');
 
   function setOnline(){
     lastUpdate=Date.now();
-    if(pill){
-      pill.style.background='#E8F5E9';pill.style.color='#2E7D32';pill.style.borderColor='#A5D6A7';
-      dot.style.background='#4CAF50';dot.style.animation='';
-      label.textContent='EN VIVO';
-    }
+    if(dot){ dot.style.background='#4CAF50'; dot.style.animation=''; }
   }
   function setOffline(){
-    if(pill){
-      pill.style.background='#FFF8E1';pill.style.color='#F57F17';pill.style.borderColor='#FFE082';
-      dot.style.background='#FFC107';dot.style.animation='pulse-dot 1s infinite';
-      label.textContent='RECONECTANDO';
-    }
+    if(dot){ dot.style.background='#FFC107'; dot.style.animation='pulse-dot 1s infinite'; }
   }
   function setSyncing(){
-    if(pill){
-      pill.style.background='#E3F2FD';pill.style.color='#1565C0';pill.style.borderColor='#90CAF9';
-      dot.style.background='#2196F3';
-      label.textContent='SINCRONIZANDO';
-    }
+    if(dot){ dot.style.background='#2196F3'; dot.style.animation='pulse-dot 0.8s infinite'; }
     setTimeout(setOnline,1500);
   }
 
@@ -2856,11 +2860,16 @@ function torneoCardHTML(torneo, compact=false){
     <div style="background:linear-gradient(135deg,var(--green),var(--teal));padding:16px 20px;cursor:pointer;"
       onclick="toggleTorneoDash('${tid}')">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;">
-        <div>
-          <div style="color:rgba(255,255,255,0.7);font-size:10px;letter-spacing:2px;text-transform:uppercase;margin-bottom:4px;">
-            ${torneo.estado?.toUpperCase()||'ACTIVO'}
+        <div style="display:flex;align-items:center;gap:12px;">
+          ${torneo.logoURL
+            ?`<img src="${torneo.logoURL}" style="width:44px;height:44px;border-radius:10px;object-fit:cover;flex-shrink:0;border:2px solid rgba(255,255,255,0.3);"/>`
+            :`<div style="width:44px;height:44px;border-radius:10px;background:rgba(255,255,255,0.15);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">🏆</div>`}
+          <div>
+            <div style="color:rgba(255,255,255,0.7);font-size:10px;letter-spacing:2px;text-transform:uppercase;margin-bottom:4px;">
+              ${torneo.estado?.toUpperCase()||'ACTIVO'}
+            </div>
+            <div style="color:#fff;font-size:17px;font-weight:800;font-family:Georgia,serif;">${torneo.nombre}</div>
           </div>
-          <div style="color:#fff;font-size:17px;font-weight:800;font-family:Georgia,serif;">${torneo.nombre}</div>
         </div>
         ${myPos?`<div style="text-align:right;">
           <div style="color:rgba(255,255,255,0.7);font-size:10px;">Mi posición</div>
@@ -2907,7 +2916,6 @@ function torneoCardHTML(torneo, compact=false){
       <!-- Actions -->
       <div style="border-top:1px solid var(--border);padding:12px 20px;display:flex;gap:8px;flex-wrap:wrap;">
         <button class="btn-outline" style="font-size:12px;padding:7px 14px;" onclick="verTorneoCompleto('${tid}')">Ver ranking completo →</button>
-        ${isAdmin?`<button class="btn-green" style="font-size:12px;padding:7px 14px;" onclick="openModalJornada(null,'${tid}')">+ Partida</button>`:''}
       </div>
     </div>`:``}
   </div>`;
@@ -2951,7 +2959,6 @@ function renderDashboard(){
         </div>
       </div>
       ${isAdmin?`<div class="card"><div class="card-body" style="display:flex;gap:10px;flex-wrap:wrap;">
-        <button class="btn-green" onclick="openModalJornada()">+ Partida</button>
         <button class="btn-blue" onclick="goTab('jugadores')">+ Jugador</button>
         ${STATE.jugadores.length===0?`<button class="btn-teal" onclick="seedDatos()">🌱 Cargar Datos Iniciales</button>`:''}
       </div><div id="seedMsg" style="display:none;padding:10px 20px;font-size:13px;color:var(--green);"></div></div>`:''}
@@ -3021,8 +3028,10 @@ function renderMisTorneos(){
         <!-- Card header -->
         <div style="padding:16px 20px;cursor:pointer;display:flex;align-items:center;gap:14px;"
           onclick="toggleTorneoMis('${tid}')">
-          <div style="width:48px;height:48px;border-radius:12px;background:linear-gradient(135deg,var(--green),var(--teal));
-            display:flex;align-items:center;justify-content:center;color:#fff;font-size:18px;flex-shrink:0;">⛳</div>
+          ${t.logoURL
+            ?`<img src="${t.logoURL}" style="width:48px;height:48px;border-radius:12px;object-fit:cover;flex-shrink:0;border:1px solid var(--border);"/>`
+            :`<div style="width:48px;height:48px;border-radius:12px;background:linear-gradient(135deg,var(--green),var(--teal));
+            display:flex;align-items:center;justify-content:center;color:#fff;font-size:18px;flex-shrink:0;">⛳</div>`}
           <div class="flex-1">
             <div class="text-15 font-bold">${t.nombre}</div>
             <div class="text-12 text-muted">${jugadas}/${total} partidas · ${getJugadoresTorneo(tid).filter(j=>j.activo!==false).length} jugadores</div>
@@ -3282,6 +3291,22 @@ function openModalTorneo(torneoId=null){
     document.getElementById('tDocExisting').style.display='none';
   }
 
+  // Load existing logo
+  STATE._torneoLogoURL=t?.logoURL||null;
+  STATE._torneoLogoCleared=false;
+  document.getElementById('tLogoInput').value='';
+  if(t?.logoURL){
+    document.getElementById('tLogoPreview').src=t.logoURL;
+    document.getElementById('tLogoPreview').style.display='block';
+    document.getElementById('tLogoPlaceholder').style.display='none';
+    document.getElementById('tLogoClearBtn').style.display='inline';
+  } else {
+    document.getElementById('tLogoPreview').style.display='none';
+    document.getElementById('tLogoPreview').src='';
+    document.getElementById('tLogoPlaceholder').style.display='';
+    document.getElementById('tLogoClearBtn').style.display='none';
+  }
+
   // Load co-admins
   STATE._coAdmins=[...(t?.admins||[])].filter(uid=>uid!==STATE.user?.uid);
   renderAdminsList();
@@ -3398,8 +3423,19 @@ async function saveModalTorneo(){
       }
     }
     if(STATE._torneoDocCleared){ docURL=null; docType=''; }
+
+    // Upload logo if selected
+    let logoURL=STATE._torneoLogoURL||null;
+    const logoFile=document.getElementById('tLogoInput').files[0];
+    if(logoFile){
+      const comp=await resizeAndCompress(logoFile,256,0.85);
+      const logoPath='torneos/'+(editingTorneoId||Date.now())+'_logo.jpg';
+      logoURL=await uploadPhoto(comp,logoPath,'tLogoProgress');
+    }
+    if(STATE._torneoLogoCleared){ logoURL=null; }
+
     const data={
-      nombre,
+      nombre, logoURL,
       ...(docURL?{docURL,docType}:{}),
       jornadas_total:Number(document.getElementById('tJornadasTotal').value)||0,
       estado:document.getElementById('tEstado').value,
@@ -3470,8 +3506,9 @@ function renderRanking(){
       </select>
     </div>
     <div class="card">
-      <div class="card-header">
-        <span class="card-title">🏆 ${torneo.nombre}</span>
+      <div class="card-header" style="display:flex;align-items:center;gap:10px;">
+        ${torneo.logoURL?`<img src="${torneo.logoURL}" style="width:32px;height:32px;border-radius:8px;object-fit:cover;flex-shrink:0;"/>`:''}
+        <span class="card-title" style="flex:1;">${torneo.logoURL?'':'🏆 '}${torneo.nombre}</span>
         <span class="text-11 text-muted">${oficiales}/${jugadasAll.length} partidas oficiales</span>
       </div>
       <div class="rank-head"><span>#</span><span>Jugador</span><span>Asist.</span><span>Total</span></div>
@@ -3695,6 +3732,29 @@ function clearTorneoDoc(){
   document.getElementById('tDocInput').value='';
   document.getElementById('tDocPreview').style.display='none';
   document.getElementById('tDocLabel').textContent='📎 Toca para subir PDF, imagen o reglamento';
+}
+
+function previewTorneoLogo(input){
+  const file=input.files[0];
+  if(!file) return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    document.getElementById('tLogoPreview').src=e.target.result;
+    document.getElementById('tLogoPreview').style.display='block';
+    document.getElementById('tLogoPlaceholder').style.display='none';
+    document.getElementById('tLogoClearBtn').style.display='inline';
+  };
+  reader.readAsDataURL(file);
+}
+
+function clearTorneoLogo(){
+  STATE._torneoLogoURL=null;
+  STATE._torneoLogoCleared=true;
+  document.getElementById('tLogoInput').value='';
+  document.getElementById('tLogoPreview').style.display='none';
+  document.getElementById('tLogoPreview').src='';
+  document.getElementById('tLogoPlaceholder').style.display='';
+  document.getElementById('tLogoClearBtn').style.display='none';
 }
 
 // ══════════════════════════════════════════════════════
@@ -4438,10 +4498,11 @@ function renderJugadores(){
         <div style="padding:14px 16px;">
           <!-- Header del torneo -->
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;cursor:pointer;" onclick="toggleJugadoresTorneo('${t.id}')">
-            <div>
+            <div style="display:flex;align-items:center;gap:10px;">
+              ${t.logoURL?`<img src="${t.logoURL}" style="width:32px;height:32px;border-radius:8px;object-fit:cover;flex-shrink:0;"/>`:''}<div>
               <div style="font-size:13px;font-weight:800;color:var(--green);">${t.nombre}</div>
               <div style="font-size:11px;color:var(--muted);">${jugadoresActivos.length} participante${jugadoresActivos.length!==1?'s':''}${jugadoresEliminados.length>0?` · ${jugadoresEliminados.length} eliminado${jugadoresEliminados.length!==1?'s':''}`:''}${isExpanded?'':' · Toca para ver'}</div>
-            </div>
+            </div></div>
             <span style="font-size:12px;color:var(--muted);">${isExpanded?'▲':'▼'}</span>
           </div>
 
