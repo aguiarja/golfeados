@@ -1011,7 +1011,7 @@ input,select,textarea{font-family:inherit;}
 // ══════════════════════════════════════════════════════
 // VERSIÓN — cambia este número cada vez que subas cambios
 // ══════════════════════════════════════════════════════
-const APP_VERSION = '4.3.0';
+const APP_VERSION = '4.3.1';
 
 // ══════════════════════════════════════════════════════
 // FIREBASE CONFIG
@@ -4828,6 +4828,11 @@ function initUpdateChecker(){
   // Chequeo periódico: descarga el HTML y compara versión
   async function checkForUpdate(){
     try{
+      // Also trigger SW update check
+      if('serviceWorker' in navigator){
+        const reg=await navigator.serviceWorker.getRegistration();
+        if(reg) reg.update().catch(()=>{});
+      }
       const res=await fetch(window.location.pathname+'?nc='+Date.now(),{
         cache:'no-store',
         headers:{'Cache-Control':'no-cache','Pragma':'no-cache'}
@@ -4868,14 +4873,27 @@ function doHardReload(){
 }
 
 function forceUpdate(){
-  // Limpiar caché del navegador si está disponible
   localStorage.setItem('golfeados_dismissed_ver', APP_VERSION);
+
+  // 1) Clear all caches
   if('caches' in window){
-    caches.keys().then(names=>{
-      names.forEach(n=>caches.delete(n));
-      // Después de limpiar, navegar
-      setTimeout(doHardReload, 300);
-    });
+    caches.keys().then(names=>names.forEach(n=>caches.delete(n)));
+  }
+
+  // 2) Force SW to update (or unregister + re-register)
+  if('serviceWorker' in navigator){
+    navigator.serviceWorker.getRegistrations().then(regs=>{
+      const promises=regs.map(reg=>{
+        // Try to update first
+        return reg.update().catch(()=>{
+          // If update fails, unregister entirely
+          return reg.unregister();
+        });
+      });
+      Promise.all(promises).then(()=>{
+        setTimeout(doHardReload, 500);
+      });
+    }).catch(()=> doHardReload());
   } else {
     doHardReload();
   }
@@ -4943,12 +4961,44 @@ async function seedDatos(){
 </script>
 
 <script>
-// Register Service Worker (required for PWA install prompt on Android)
+// ── Service Worker Registration with iOS-aggressive update ──
 if('serviceWorker' in navigator){
-  window.addEventListener('load', ()=>{
-    navigator.serviceWorker.register('/golfeados/sw.js')
-      .then(reg => console.log('SW registered:', reg.scope))
-      .catch(err => console.log('SW error:', err));
+  window.addEventListener('load', async ()=>{
+    try{
+      const reg=await navigator.serviceWorker.register('/golfeados/sw.js');
+      console.log('[SW] Registered:', reg.scope);
+
+      // Check for updates immediately and on each focus
+      reg.update().catch(()=>{});
+      document.addEventListener('visibilitychange',()=>{
+        if(document.visibilityState==='visible') reg.update().catch(()=>{});
+      });
+
+      // When new SW found → force it to activate immediately
+      reg.addEventListener('updatefound', ()=>{
+        const newSW=reg.installing;
+        if(!newSW) return;
+        console.log('[SW] New version found, installing...');
+        newSW.addEventListener('statechange', ()=>{
+          if(newSW.state==='installed' && navigator.serviceWorker.controller){
+            console.log('[SW] New SW installed, sending skipWaiting');
+            newSW.postMessage('skipWaiting');
+          }
+        });
+      });
+
+      // When new SW takes control → reload page to get fresh content
+      let refreshing=false;
+      navigator.serviceWorker.addEventListener('controllerchange', ()=>{
+        if(refreshing) return;
+        refreshing=true;
+        console.log('[SW] Controller changed, reloading...');
+        window.location.reload();
+      });
+
+    }catch(err){
+      console.log('[SW] Registration error:', err);
+    }
   });
 }
 </script>
