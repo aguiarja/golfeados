@@ -3077,7 +3077,7 @@ function renderMisTorneos(){
                 const jp=(j.jornadaPts||[]).find(p=>p.jornada_id===jn.id);
                 if(!jp){ html+='<td style="padding:5px 8px;text-align:center;color:var(--muted);">?</td>'; return; }
                 if(!jp.asistencia){ html+='<td style="padding:5px 8px;text-align:center;color:var(--muted);">—</td>'; return; }
-                if(jp.dq){ html+='<td style="padding:5px 8px;text-align:center;color:#C62828;font-weight:800;">DQ</td>'; return; }
+                if(jp.dq){ html+='<td style="padding:5px 8px;text-align:center;color:#C62828;">DQ</td>'; return; }
                 const col=jp.pts>=4?'var(--gold)':'var(--text)';
                 html+='<td style="padding:5px 8px;text-align:center;color:'+col+';">'+fmtPts(jp.pts)+'</td>';
               });
@@ -3500,7 +3500,7 @@ function renderRanking(){
                 const jp=(j.jornadaPts||[]).find(p=>p.jornada_id===jn.id);
                 if(!jp) return`<td style="padding:8px;text-align:center;color:var(--muted);">?</td>`;
                 if(!jp.asistencia) return`<td style="padding:8px;text-align:center;color:var(--muted);">—</td>`;
-                if(jp.dq) return`<td style="padding:8px;text-align:center;color:#C62828;font-weight:800;">DQ</td>`;
+                if(jp.dq) return`<td style="padding:8px;text-align:center;color:#C62828;">DQ</td>`;
                 const col=jp.pts>=4?'var(--gold)':'var(--text)';
                 return`<td style="padding:8px;text-align:center;color:${col};">${fmtPts(jp.pts)}</td>`;
               }).join('')}
