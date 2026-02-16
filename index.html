@@ -159,7 +159,7 @@ input,select,textarea{font-family:inherit;}
 .form-check{accent-color:var(--green);width:16px;height:16px;}
 
 /* ── BUTTONS ── */
-.btn-green{padding:9px 18px;border-radius:8px;border:none;background:var(--green);color:#fff;font-weight:700;font-size:13px;box-shadow:0 2px 8px rgba(46,125,94,0.25);}
+.btn-green{padding:9px 18px;border-radius:8px;border:none;background:var(--green);color:#fff;font-weight:700;font-size:13px;box-shadow:0 2px 8px rgba(46,125,94,0.25);cursor:pointer;}
 .btn-blue{padding:9px 18px;border-radius:8px;border:none;background:var(--blue);color:#fff;font-weight:700;font-size:13px;}
 .btn-teal{padding:9px 18px;border-radius:8px;border:none;background:var(--teal);color:#fff;font-weight:700;font-size:13px;}
 .btn-attest{padding:8px 18px;border-radius:8px;border:1px solid #9C27B0;background:#F3E5F5;color:#7B1FA2;font-weight:700;font-size:13px;}
@@ -920,7 +920,7 @@ input,select,textarea{font-family:inherit;}
           </div>
         </div>
         <div id="addJugadorError" class="error-box" style="display:none;"></div>
-        <button class="btn-green" onclick="crearYAgregarJugador()">Crear y agregar al torneo 🏌️</button>
+        <button type="button" id="btnCrearJugador" class="btn-green" style="width:100%;padding:12px;font-size:14px;cursor:pointer;">Crear y agregar al torneo 🏌️</button>
       </div>
     </div>
   </div>
@@ -4309,31 +4309,44 @@ async function agregarParticipante(jugadorId){
 }
 
 async function crearYAgregarJugador(){
-  const nombre=document.getElementById('newNombre').value.trim();
-  const alias=document.getElementById('newAlias').value.trim();
-  const foto=document.getElementById('newFoto').value.trim().toUpperCase().slice(0,2);
-  let telefono=document.getElementById('newTelefono').value.trim().replace(/\D/g,'');
-  const codigoPais=document.getElementById('newPaisCodigo').value;
-  telefono=normalizeTelVE(telefono,codigoPais);
-  const err=document.getElementById('addJugadorError');
-  err.style.display='none';
-  if(!nombre){err.textContent='El nombre es obligatorio.';err.style.display='block';return;}
-  if(telefono&&!validarFormatoTel(telefono,codigoPais)){
-    err.textContent='Formato de teléfono inválido.';err.style.display='block';return;
-  }
-  const torneo=getActiveTorneo();
-  if(!torneo){err.textContent='No hay torneo activo.';err.style.display='block';return;}
-  const initials=foto||nombre.split(' ').map(n=>n[0]).join('').toUpperCase().slice(0,2);
-  const invite_code=generateInviteCode();
-  const nombre_lower=nombre.toLowerCase();
-  const jugData={
-    nombre, alias:alias||nombre.split(' ')[0], foto:initials,
-    nombre_lower, invite_code, user_uid:null,
-    creado:firebase.firestore.FieldValue.serverTimestamp()
-  };
-  if(telefono){ jugData.telefono=telefono; jugData.codigoPais=codigoPais; jugData.telefonoCompleto=codigoPais+telefono; }
+  console.log('[crearYAgregarJugador] START');
+  let err;
   try{
+    const nombre=(document.getElementById('newNombre')?.value||'').trim();
+    const alias=(document.getElementById('newAlias')?.value||'').trim();
+    const foto=(document.getElementById('newFoto')?.value||'').trim().toUpperCase().slice(0,2);
+    let telefono=(document.getElementById('newTelefono')?.value||'').trim().replace(/\D/g,'');
+    const codigoPais=(document.getElementById('newPaisCodigo')?.value)||'+58';
+    telefono=normalizeTelVE(telefono,codigoPais);
+    err=document.getElementById('addJugadorError');
+    if(err) err.style.display='none';
+    if(!nombre){
+      if(err){err.textContent='El nombre es obligatorio.';err.style.display='block';}
+      else alert('El nombre es obligatorio.');
+      return;
+    }
+    if(telefono&&!validarFormatoTel(telefono,codigoPais)){
+      if(err){err.textContent='Formato de teléfono inválido.';err.style.display='block';}
+      return;
+    }
+    const torneo=getActiveTorneo();
+    console.log('[crearYAgregarJugador] torneo:', torneo?.id, torneo?.nombre);
+    if(!torneo){
+      if(err){err.textContent='No hay torneo activo.';err.style.display='block';}
+      else alert('No hay torneo activo.');
+      return;
+    }
+    const initials=foto||nombre.split(' ').map(n=>n[0]).join('').toUpperCase().slice(0,2);
+    const invite_code=generateInviteCode();
+    const nombre_lower=nombre.toLowerCase();
+    const jugData={
+      nombre, alias:alias||nombre.split(' ')[0], foto:initials,
+      nombre_lower, invite_code, user_uid:null,
+      creado:firebase.firestore.FieldValue.serverTimestamp()
+    };
+    if(telefono){ jugData.telefono=telefono; jugData.codigoPais=codigoPais; jugData.telefonoCompleto=codigoPais+telefono; }
     const id=nombre_lower.replace(/\s+/g,'_')+'_'+Date.now();
+    console.log('[crearYAgregarJugador] Creating jugador:', id);
     await db.collection('jugadores').doc(id).set(jugData);
     // Add to jugadores_global cache
     STATE.jugadores_global.push({id,...jugData});
@@ -4345,8 +4358,13 @@ async function crearYAgregarJugador(){
         invite_code, user_uid:null, handicap:0, activo:true,
         fecha_ingreso:firebase.firestore.FieldValue.serverTimestamp()
       });
+    console.log('[crearYAgregarJugador] SUCCESS');
     closeAgregarJugadorModal();
-  }catch(e){ err.textContent='Error: '+e.message; err.style.display='block'; }
+  }catch(e){
+    console.error('[crearYAgregarJugador] ERROR:', e);
+    if(err){err.textContent='Error: '+e.message;err.style.display='block';}
+    else alert('Error al crear jugador: '+e.message);
+  }
 }
 
 async function removeParticipante(jugadorId, nombre, torneoId, event){
@@ -4567,6 +4585,33 @@ async function seedDatos(){
     msg.textContent='✅ ¡Datos cargados! Jugadores, partidas y clubes creados.';
   }catch(e){ msg.style.color='var(--red)'; msg.textContent='❌ Error: '+e.message; }
 }
+
+// ── Register static button handlers ─────────────────
+// Button is in static HTML above this script, so it already exists in DOM
+(function(){
+  const btnCrear=document.getElementById('btnCrearJugador');
+  if(btnCrear){
+    let _crearRunning=false;
+    btnCrear.addEventListener('click', async function(e){
+      e.preventDefault();
+      e.stopPropagation();
+      if(_crearRunning) return;
+      _crearRunning=true;
+      btnCrear.textContent='Creando...';
+      btnCrear.disabled=true;
+      try{
+        await crearYAgregarJugador();
+      }finally{
+        _crearRunning=false;
+        btnCrear.textContent='Crear y agregar al torneo 🏌️';
+        btnCrear.disabled=false;
+      }
+    });
+    console.log('[init] btnCrearJugador listener OK');
+  } else {
+    console.error('[init] btnCrearJugador NOT FOUND');
+  }
+})();
 </script>
 
 <script>
