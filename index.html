@@ -2358,6 +2358,30 @@ function getJugadoresCompletesTorneo(torneoId){
     return (a.nombre||'').localeCompare(b.nombre||'');
   });
 }
+// ── Phone utility functions ──────────────────────────
+function normalizeTelVE(tel, codigoPais){
+  if(!tel) return '';
+  // Strip non-digits
+  let t=tel.replace(/\D/g,'');
+  if(!t) return '';
+  // For Venezuela (+58): if starts with 0, remove leading 0
+  if(codigoPais==='+58' && t.startsWith('0')) t=t.substring(1);
+  return t;
+}
+
+function validarFormatoTel(tel, codigoPais){
+  if(!tel) return true; // empty is valid (optional field)
+  const digits=tel.replace(/\D/g,'');
+  if(codigoPais==='+58') return digits.length>=7 && digits.length<=10;
+  return digits.length>=7 && digits.length<=15;
+}
+
+function validarTelefonoNew(input){
+  // Live validation hint for phone input in agregar jugador form
+  const v=input.value.replace(/\D/g,'');
+  input.value=v;
+}
+
 // Normaliza texto quitando acentos y caracteres especiales
 function normalizeStr(str){
   return (str||'').toLowerCase()
