@@ -4534,13 +4534,18 @@ async function removeParticipante(jugadorId, nombre, torneoId, event){
   const hasResults=jornadasT.some(jn=>
     STATE.resultados.some(r=>r.jornada_id===jn.id && r.jugador_id===jugadorId)
   );
-  const msg=hasResults
-    ?`${nombre} tiene resultados en ${t?.nombre||'este torneo'}. Se marcará como eliminado pero sus resultados se mantienen. ¿Continuar?`
-    :`¿Quitar a ${nombre} de ${t?.nombre||'este torneo'}?`;
+  // Check if jugador has a linked user account
+  const participante=(STATE.jugadores_by_torneo[tid]||[]).find(j=>j.id===jugadorId||j.jugador_id===jugadorId);
+  const hasAccount=!!participante?.user_uid;
+  // Soft-delete if has results OR has linked account (so torneo stays in their list)
+  const shouldSoftDelete=hasResults||hasAccount;
+  const msg=shouldSoftDelete
+    ?`${nombre} ${hasResults?'tiene resultados en':'está vinculado a'} ${t?.nombre||'este torneo'}. Se marcará como eliminado${hasResults?' pero sus resultados se mantienen':''}. ¿Continuar?`
+    :`¿Quitar a ${nombre} de ${t?.nombre||'este torneo'}? Se eliminará permanentemente.`;
   if(!confirm(msg)) return;
   try{
-    if(hasResults){
-      // Soft delete — mark as eliminated, keep for historical integrity
+    if(shouldSoftDelete){
+      // Soft delete — mark as eliminated, keep doc for visibility
       await db.collection('torneos').doc(tid)
         .collection('participantes').doc(jugadorId).update({
           activo:false,
@@ -4548,7 +4553,7 @@ async function removeParticipante(jugadorId, nombre, torneoId, event){
           eliminado_fecha:firebase.firestore.FieldValue.serverTimestamp()
         });
     } else {
-      // No results — safe to hard delete
+      // No results AND no linked account — safe to hard delete
       await db.collection('torneos').doc(tid)
         .collection('participantes').doc(jugadorId).delete();
     }
