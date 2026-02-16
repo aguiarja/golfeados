@@ -1042,6 +1042,7 @@ let STATE = {
   allTorneos:[],        // all platform torneos (for participant discovery)
   jugadores:[], jugadores_by_torneo:{}, jugadores_global:[], partidas:[], resultados:[], clubes:[],
   jornadas:[],
+  linked_jugador_ids:new Set(),  // ALL jugador IDs linked to this user (for multi-torneo vincular)
   currentTab:'dashboard', cargarJornadaId:null,
   expandedJornada:null, expandedTorneo:null,
   expandedJornadaMT:null,  // partida expanded inside Mis Torneos
@@ -1113,27 +1114,18 @@ async function handleVincularModal(){
   if(!code||code.length<6){err.textContent='Ingresa el código.';err.style.display='block';return;}
   btn.disabled=true;btn.textContent='Verificando...';
   try{
-    const snap=await db.collection('jugadores').where('invite_code','==',code).limit(1).get();
-    if(snap.empty){err.textContent='Código inválido. Verifica con tu admin.';err.style.display='block';btn.disabled=false;btn.textContent='Vincular 🏌️';return;}
-    const jugDoc=snap.docs[0];
-    if(jugDoc.data().user_uid){err.textContent='Este código ya fue usado.';err.style.display='block';btn.disabled=false;btn.textContent='Vincular 🏌️';return;}
-    const uid=STATE.user.uid;
-    const manualId=jugDoc.id;
-    // Link manual jugador → user
-    await db.collection('jugadores').doc(manualId).update({user_uid:uid});
-    await db.collection('users').doc(uid).update({jugador_id:manualId});
-    STATE.profile.jugador_id=manualId;
-    // Delete auto-created jugador/{uid} if exists and is different
-    if(manualId!==uid){
-      await db.collection('jugadores').doc(uid).delete().catch(()=>{});
-    }
-    // Update participantes in all torneos where this manual jugador exists
-    await _updateParticipantesUserUid(manualId, uid);
+    await vincularCodigo(code);
     document.getElementById('vincularModal').style.display='none';
     const vb=document.getElementById('vincularBadge');
     if(vb) vb.style.display='none';
+    _filterMyTorneos();
     renderCurrentTab();
-  }catch(e){err.textContent='Error: '+e.message;err.style.display='block';btn.disabled=false;btn.textContent='Vincular 🏌️';}
+  }catch(e){
+    const msg=e.message==='INVALID_CODE'?'Código inválido. Verifica con tu admin.'
+      :e.message==='CODE_USED'?'Este código ya fue usado.'
+      :'Error: '+e.message;
+    err.textContent=msg;err.style.display='block';
+  }finally{btn.disabled=false;btn.textContent='Vincular 🏌️';}
 }
 async function handleCompletarPerfil(){
   const nombre=document.getElementById('completarNombre').value.trim();
@@ -1181,44 +1173,116 @@ async function handleVincular(){
   if(!code||code.length<6){ err.textContent='Ingresa el código de invitación.'; err.style.display='block'; return; }
   btn.disabled=true; btn.textContent='Verificando...';
   try{
-    // Find jugador with this invite_code
-    const snap=await db.collection('jugadores').where('invite_code','==',code).limit(1).get();
-    if(snap.empty){ err.textContent='Código inválido. Verifica con tu administrador.'; err.style.display='block'; btn.disabled=false; btn.textContent='Vincular mi perfil 🏌️'; return; }
-    const jugDoc=snap.docs[0];
-    if(jugDoc.data().user_uid){ err.textContent='Este código ya fue usado.'; err.style.display='block'; btn.disabled=false; btn.textContent='Vincular mi perfil 🏌️'; return; }
-    // Link: update jugador + user profile
-    const uid=STATE.user.uid;
-    const manualId=jugDoc.id;
-    await db.collection('jugadores').doc(manualId).update({ user_uid:uid });
-    await db.collection('users').doc(uid).update({ jugador_id:manualId, vincular_skipped:false });
-    STATE.profile.jugador_id=manualId;
+    await vincularCodigo(code);
     STATE.profile.vincular_skipped=false;
-    // Delete auto-created jugador/{uid} if different
-    if(manualId!==uid){
-      await db.collection('jugadores').doc(uid).delete().catch(()=>{});
-    }
-    // Update participantes in all torneos
-    await _updateParticipantesUserUid(manualId, uid);
+    await db.collection('users').doc(STATE.user.uid).update({vincular_skipped:false}).catch(()=>{});
     document.getElementById('loginScreen').style.display='none';
     showApp_();
     initListeners();
   }catch(e){
-    err.textContent='Error: '+e.message; err.style.display='block';
-    btn.disabled=false; btn.textContent='Vincular mi perfil 🏌️';
-  }
+    const msg=e.message==='INVALID_CODE'?'Código inválido. Verifica con tu administrador.'
+      :e.message==='CODE_USED'?'Este código ya fue usado.'
+      :'Error: '+e.message;
+    err.textContent=msg; err.style.display='block';
+  }finally{ btn.disabled=false; btn.textContent='Vincular mi perfil 🏌️'; }
 }
 
 // ── Update participantes with user_uid after vincular ──
+// Uses collectionGroup query to find ALL participantes across ALL torneos
 async function _updateParticipantesUserUid(jugadorId, uid){
-  // Update participantes in all torneos where this jugador exists
+  console.log('[_updateParticipantesUserUid] jugadorId='+jugadorId+' uid='+uid);
+  let updated=0;
+
+  // 1) Update local cache immediately (for instant UI)
   for(const [tid, jugs] of Object.entries(STATE.jugadores_by_torneo||{})){
     const p=jugs.find(j=>j.id===jugadorId||j.jugador_id===jugadorId);
     if(p){
-      await db.collection('torneos').doc(tid)
-        .collection('participantes').doc(p.id)
-        .update({user_uid:uid}).catch(e=>console.warn('update participante',tid,e));
+      p.user_uid=uid;
+      updated++;
     }
   }
+
+  // 2) Update Firestore — search all torneos for this jugador
+  // Try collectionGroup first (most efficient)
+  try{
+    const cgSnap=await db.collectionGroup('participantes')
+      .where('jugador_id','==',jugadorId).get();
+    for(const doc of cgSnap.docs){
+      if(doc.data().user_uid!==uid){
+        await doc.ref.update({user_uid:uid});
+        updated++;
+      }
+    }
+    console.log('[_updateParticipantesUserUid] collectionGroup updated '+updated+' docs');
+  }catch(e){
+    console.warn('[_updateParticipantesUserUid] collectionGroup failed, using per-torneo fallback:',e.message);
+    // Fallback: iterate all known torneos
+    const allTids=(STATE.allTorneos||[]).map(t=>t.id);
+    for(const tid of allTids){
+      try{
+        const pDoc=await db.collection('torneos').doc(tid)
+          .collection('participantes').doc(jugadorId).get();
+        if(pDoc.exists && pDoc.data().user_uid!==uid){
+          await pDoc.ref.update({user_uid:uid});
+          updated++;
+        }
+      }catch(e2){ /* skip */ }
+    }
+    console.log('[_updateParticipantesUserUid] fallback updated '+updated+' docs');
+  }
+}
+
+// ── Unified vincular function ───────────────────────
+// Handles first vincular AND subsequent ones correctly
+async function vincularCodigo(code){
+  console.log('[vincularCodigo] code='+code);
+  // Validate
+  const snap=await db.collection('jugadores').where('invite_code','==',code).limit(1).get();
+  if(snap.empty) throw new Error('INVALID_CODE');
+  const jugDoc=snap.docs[0];
+  if(jugDoc.data().user_uid) throw new Error('CODE_USED');
+
+  const uid=STATE.user.uid;
+  const manualId=jugDoc.id;
+  const existingJugadorId=STATE.profile?.jugador_id;
+  const isFirstVincular=!existingJugadorId || existingJugadorId===uid;
+  console.log('[vincularCodigo] uid='+uid+' manualId='+manualId+' existing='+existingJugadorId+' isFirst='+isFirstVincular);
+
+  // Mark the manual jugador as linked to this user
+  await db.collection('jugadores').doc(manualId).update({user_uid:uid});
+  // Track this jugador as linked
+  STATE.linked_jugador_ids.add(manualId);
+
+  if(isFirstVincular){
+    // ── FIRST VINCULAR: adopt manual jugador as primary identity ──
+    await db.collection('users').doc(uid).update({jugador_id:manualId});
+    STATE.profile.jugador_id=manualId;
+    // Delete auto-created jugador/{uid} if different
+    if(manualId!==uid){
+      await db.collection('jugadores').doc(uid).delete().catch(()=>{});
+    }
+  } else {
+    // ── SUBSEQUENT VINCULAR: keep existing jugador_id, just link user_uid ──
+    // Don't change jugador_id — user already has a primary identity
+    console.log('[vincularCodigo] Subsequent vincular: keeping jugador_id='+existingJugadorId+', linking manual='+manualId);
+  }
+
+  // Set user_uid on all participantes of this manual jugador across all torneos
+  await _updateParticipantesUserUid(manualId, uid);
+
+  // Debug: verify which torneos see this user
+  const myTIDs=[];
+  for(const [tid, jugs] of Object.entries(STATE.jugadores_by_torneo||{})){
+    if(jugs.some(j=>j.user_uid===uid)) myTIDs.push(tid);
+  }
+  console.log('[vincularCodigo] Torneos with my user_uid:', myTIDs);
+  console.log('[vincularCodigo] STATE.profile.jugador_id='+STATE.profile?.jugador_id);
+
+  // Re-filter torneos now that user_uid is set on new participantes
+  _filterMyTorneos();
+  console.log('[vincularCodigo] After filter, STATE.torneos count='+STATE.torneos.length, STATE.torneos.map(t=>t.id+':'+t.nombre));
+
+  return { manualId, nombre: jugDoc.data().nombre||manualId, isFirstVincular };
 }
 
 // ── Generate invite code ────────────────────────────
@@ -1842,40 +1906,22 @@ async function handlePerfilVincular(){
     return;
   }
   try{
-    const snap=await db.collection('jugadores').where('invite_code','==',code).limit(1).get();
-    if(snap.empty){
-      msgEl.textContent='Código inválido. Verifica con tu admin.';
-      msgEl.style.cssText='display:block;margin-top:8px;font-size:12px;padding:8px;border-radius:8px;background:#FFEBEE;color:#C62828;';
-      return;
-    }
-    const jugDoc=snap.docs[0];
-    if(jugDoc.data().user_uid){
-      msgEl.textContent='Este código ya fue utilizado por otro jugador.';
-      msgEl.style.cssText='display:block;margin-top:8px;font-size:12px;padding:8px;border-radius:8px;background:#FFEBEE;color:#C62828;';
-      return;
-    }
-    const uid=STATE.user.uid;
-    const manualId=jugDoc.id;
-    const manualData=jugDoc.data();
-    // Link manual jugador → user
-    await db.collection('jugadores').doc(manualId).update({user_uid:uid});
-    await db.collection('users').doc(uid).update({jugador_id:manualId});
-    STATE.profile.jugador_id=manualId;
-    // Delete auto-created jugador/{uid} if different
-    if(manualId!==uid){
-      await db.collection('jugadores').doc(uid).delete().catch(()=>{});
-    }
-    // Update participantes in all torneos
-    await _updateParticipantesUserUid(manualId, uid);
+    const result=await vincularCodigo(code);
     // Update UI
     const vinc=document.getElementById('perfilJugadorInfo');
-    vinc.innerHTML=`<span style="color:var(--green);font-weight:600;">✅ ${manualData.nombre||manualId}</span>`;
+    if(vinc) vinc.innerHTML=`<span style="color:var(--green);font-weight:600;">✅ ${result.nombre}</span>`;
     document.getElementById('perfilVincularCodigo').value='';
-    msgEl.textContent='✅ ¡Vinculación exitosa! Tu perfil ahora está conectado con tus resultados.';
+    msgEl.textContent=result.isFirstVincular
+      ?'✅ ¡Vinculación exitosa! Tu perfil ahora está conectado con tus resultados.'
+      :'✅ ¡Torneo vinculado! Se agregó a tu lista de torneos.';
     msgEl.style.cssText='display:block;margin-top:8px;font-size:12px;padding:8px;border-radius:8px;background:#E8F5E9;color:#2E7D32;font-weight:600;';
+    _filterMyTorneos();
     renderCurrentTab();
   }catch(e){
-    msgEl.textContent='Error: '+e.message;
+    const msg=e.message==='INVALID_CODE'?'Código inválido. Verifica con tu admin.'
+      :e.message==='CODE_USED'?'Este código ya fue utilizado por otro jugador.'
+      :'Error: '+e.message;
+    msgEl.textContent=msg;
     msgEl.style.cssText='display:block;margin-top:8px;font-size:12px;padding:8px;border-radius:8px;background:#FFEBEE;color:#C62828;';
   }
 }
@@ -1903,6 +1949,20 @@ function initListeners(){
   stopListeners();
   const uid=STATE.user?.uid;
   const isPlataformaAdmin=STATE.profile?.role==='admin';
+
+  // Initialize linked_jugador_ids: find ALL jugadores linked to this user
+  if(uid){
+    STATE.linked_jugador_ids=new Set();
+    if(STATE.profile?.jugador_id) STATE.linked_jugador_ids.add(STATE.profile.jugador_id);
+    STATE.linked_jugador_ids.add(uid); // auto-jugador
+    // Query Firestore for all jugadores with this user_uid
+    db.collection('jugadores').where('user_uid','==',uid).get().then(snap=>{
+      snap.docs.forEach(d=>STATE.linked_jugador_ids.add(d.id));
+      console.log('[initListeners] linked_jugador_ids:', Array.from(STATE.linked_jugador_ids));
+      _filterMyTorneos();
+      renderCurrentTab();
+    }).catch(e=>console.warn('linked jugadores query error:',e));
+  }
 
   if(isPlataformaAdmin){
     // Admin de plataforma: read all (broad queries)
@@ -2005,11 +2065,16 @@ function _filterMyTorneos(){
   const uid=STATE.user?.uid;
   const jugadorId=STATE.profile?.jugador_id;
 
-  // Torneos where user has results (via jornadas)
+  // Build complete set of jugador IDs linked to this user
+  const allMyIds=new Set(STATE.linked_jugador_ids);
+  if(jugadorId) allMyIds.add(jugadorId);
+  if(uid) allMyIds.add(uid); // auto-jugador has id = uid
+
+  // Torneos where user has results (check ALL linked jugador IDs)
   const torneoIdsFromResults=new Set();
-  if(jugadorId && STATE.jornadas.length>0 && STATE.resultados.length>0){
+  if(allMyIds.size>0 && STATE.jornadas.length>0 && STATE.resultados.length>0){
     const myJornadaIds=new Set(
-      STATE.resultados.filter(r=>r.jugador_id===jugadorId).map(r=>r.jornada_id)
+      STATE.resultados.filter(r=>allMyIds.has(r.jugador_id)).map(r=>r.jornada_id)
     );
     STATE.jornadas.forEach(j=>{
       if(myJornadaIds.has(j.id) && j.torneo_id) torneoIdsFromResults.add(j.torneo_id);
@@ -2019,7 +2084,11 @@ function _filterMyTorneos(){
   // Torneos where user is in participantes subcollection
   const torneoIdsFromParticipantes=new Set();
   for(const [tid, jugs] of Object.entries(STATE.jugadores_by_torneo||{})){
-    if(jugs.some(j=>j.user_uid===uid || (jugadorId && j.jugador_id===jugadorId) || (jugadorId && j.id===jugadorId))){
+    if(jugs.some(j=>
+      j.user_uid===uid
+      || allMyIds.has(j.jugador_id)
+      || allMyIds.has(j.id)
+    )){
       torneoIdsFromParticipantes.add(tid);
     }
   }
@@ -2120,6 +2189,7 @@ function subscribeParticipantes(){
   // Use allTorneos if populated, else fall back to filtered torneos
   const source=(STATE.allTorneos&&STATE.allTorneos.length>0)?STATE.allTorneos:STATE.torneos||[];
   if(source.length===0) return;
+  const uid=STATE.user?.uid;
   source.forEach(t=>{
     const tid=t.id;
     if(_participantesUnsubs[tid]) return; // already subscribed
@@ -2130,6 +2200,15 @@ function subscribeParticipantes(){
         STATE.jugadores_by_torneo[tid]=jugs;
         if(tid===STATE.activeTorneoId){
           STATE.jugadores=jugs;
+        }
+        // Discover linked jugador IDs from participantes
+        if(uid){
+          jugs.forEach(j=>{
+            if(j.user_uid===uid){
+              STATE.linked_jugador_ids.add(j.id);
+              if(j.jugador_id) STATE.linked_jugador_ids.add(j.jugador_id);
+            }
+          });
         }
         // Re-filter torneos: might discover user is participant in this torneo
         _filterMyTorneos();
@@ -2161,6 +2240,7 @@ function stopListeners(){
   STATE.jugadores_by_torneo={};
   STATE.jugadores_global=[];
   STATE.allTorneos=[];
+  STATE.linked_jugador_ids=new Set();
   STATE._expandedJugTorneo=null;
   _torneosMergeMap={};
   _torneosReadyCount=0;
@@ -4134,7 +4214,7 @@ function renderJugadores(){
       const jugadoresActivos=allJugadores.filter(j=>j.activo!==false);
       const jugadoresEliminados=allJugadores.filter(j=>j.activo===false||j.eliminado===true);
       const jugadoresHTML=[...jugadoresActivos,...jugadoresEliminados].map(j=>{
-        const isMe=j.id===myJugadorId||j.jugador_id===myJugadorId;
+        const isMe=j.id===myJugadorId||j.jugador_id===myJugadorId||j.user_uid===uid;
         const isElim=j.activo===false||j.eliminado===true;
         const initials=j.foto||j.alias?.slice(0,2)||j.nombre?.slice(0,2)||'?';
         return `<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);${isElim?'opacity:0.5;':''}">
