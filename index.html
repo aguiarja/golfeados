@@ -1043,6 +1043,7 @@ let STATE = {
   jugadores:[], jugadores_by_torneo:{}, jugadores_global:[], partidas:[], resultados:[], clubes:[],
   jornadas:[],
   linked_jugador_ids:new Set(),  // ALL jugador IDs linked to this user (for multi-torneo vincular)
+  users_cache:{},               // Cache of user profiles by uid (for admin to enrich jugador data)
   currentTab:'dashboard', cargarJornadaId:null,
   expandedJornada:null, expandedTorneo:null,
   expandedJornadaMT:null,  // partida expanded inside Mis Torneos
@@ -1188,69 +1189,102 @@ async function handleVincular(){
 }
 
 // ── Sync user profile data to linked jugador + all participantes ──
-// Called after vincular: updates jugador doc AND all participantes with real user data
+// Uses set({merge:true}) which is more permissive than update()
 async function _syncLinkedPlayerData(jugadorId, uid){
-  console.log('[_syncLinkedPlayerData] jugadorId='+jugadorId+' uid='+uid);
+  console.log('[sync] START jugadorId='+jugadorId+' uid='+uid);
   const profile=STATE.profile||{};
   const user=STATE.user;
-
-  // Build data payload from user's real profile
   const nombre=profile.nombre||user?.displayName||'';
-  const syncData={
-    user_uid: uid,
-    nombre: nombre,
-    alias: profile.username||profile.alias||nombre.split(' ')[0]||'',
-    foto: nombre.split(' ').filter(Boolean).map(n=>n[0]).join('').toUpperCase().slice(0,2)||'?',
-    nombre_lower: nombre.toLowerCase(),
-    email: profile.email||user?.email||'',
-    telefonoCompleto: profile.telefonoCompleto||'',
-    telefono: profile.telefono||'',
-    codigoPais: profile.codigoPais||'',
-    handicap: profile.handicap||0,
-    fotoURL: profile.fotoURL||null
+  const alias=profile.username||profile.alias||nombre.split(' ')[0]||'';
+  const foto=nombre.split(' ').filter(Boolean).map(n=>n[0]).join('').toUpperCase().slice(0,2)||'?';
+
+  const profileData={
+    nombre, alias, foto,
+    nombre_lower:nombre.toLowerCase(),
+    email:profile.email||user?.email||'',
+    telefonoCompleto:profile.telefonoCompleto||'',
+    telefono:profile.telefono||'',
+    codigoPais:profile.codigoPais||'',
+    handicap:profile.handicap||0,
+    fotoURL:profile.fotoURL||user?.photoURL||null
   };
-  // Clean undefined values
-  Object.keys(syncData).forEach(k=>{ if(syncData[k]===undefined) syncData[k]=null; });
+  console.log('[sync] profileData nombre='+nombre+' alias='+alias);
 
-  console.log('[_syncLinkedPlayerData] syncData:', JSON.stringify(syncData));
-
-  // 1) Update the jugador global doc
+  // ═══ Write jugador global doc: user_uid + profile data (single set+merge) ═══
   try{
-    await db.collection('jugadores').doc(jugadorId).update(syncData);
-    console.log('[_syncLinkedPlayerData] jugador doc updated');
+    await db.collection('jugadores').doc(jugadorId).set(
+      {user_uid:uid, ...profileData}, {merge:true}
+    );
+    console.log('[sync] jugador doc set+merge OK');
   }catch(e){
-    console.warn('[_syncLinkedPlayerData] jugador doc update error:', e.message);
+    console.error('[sync] jugador doc FAILED:', e.message);
+    // Fallback: try user_uid only
+    try{
+      await db.collection('jugadores').doc(jugadorId).set({user_uid:uid},{merge:true});
+      console.log('[sync] jugador doc user_uid-only fallback OK');
+    }catch(e2){
+      console.error('[sync] jugador doc user_uid-only ALSO FAILED:', e2.message);
+      alert('[DEBUG] No se pudo escribir en jugador doc: '+e2.message);
+    }
   }
 
-  // 2) Update local cache immediately (for instant UI)
-  for(const [tid, jugs] of Object.entries(STATE.jugadores_by_torneo||{})){
-    const p=jugs.find(j=>j.id===jugadorId||j.jugador_id===jugadorId);
-    if(p) Object.assign(p, syncData);
-  }
-  // Also update jugadores_global cache
-  const gIdx=STATE.jugadores_global.findIndex(j=>j.id===jugadorId);
-  if(gIdx>=0) Object.assign(STATE.jugadores_global[gIdx], syncData);
+  // ═══ Write participante docs in ALL torneos ═══
+  const partData={user_uid:uid, nombre, alias, foto, fotoURL:profileData.fotoURL, telefonoCompleto:profileData.telefonoCompleto};
+  const allTids=new Set();
+  (STATE.allTorneos||[]).forEach(t=>allTids.add(t.id));
+  (STATE.torneos||[]).forEach(t=>allTids.add(t.id));
+  Object.keys(STATE.jugadores_by_torneo||{}).forEach(tid=>allTids.add(tid));
 
-  // 3) Update Firestore participantes — per-torneo approach (most reliable)
-  const allTids=(STATE.allTorneos||[]).map(t=>t.id);
   let updated=0;
   for(const tid of allTids){
     try{
-      const pDoc=await db.collection('torneos').doc(tid)
-        .collection('participantes').doc(jugadorId).get();
-      if(pDoc.exists){
-        // Only sync fields relevant to participante doc
-        const pSync={
-          user_uid:uid, nombre:syncData.nombre, alias:syncData.alias,
-          foto:syncData.foto, fotoURL:syncData.fotoURL,
-          telefonoCompleto:syncData.telefonoCompleto
-        };
-        await pDoc.ref.update(pSync);
+      const pRef=db.collection('torneos').doc(tid).collection('participantes').doc(jugadorId);
+      const pDoc=await pRef.get();
+      if(!pDoc.exists) continue;
+      // set+merge on participante
+      await pRef.set(partData, {merge:true});
+      updated++;
+      console.log('[sync] participante OK in '+tid);
+    }catch(e){
+      console.warn('[sync] participante FAIL in '+tid+':', e.message);
+      // Fallback: try user_uid only on participante
+      try{
+        await db.collection('torneos').doc(tid).collection('participantes').doc(jugadorId)
+          .set({user_uid:uid},{merge:true});
         updated++;
-      }
-    }catch(e2){ console.warn('[_syncLinkedPlayerData] torneo '+tid+' error:', e2.message); }
+      }catch(e2){ console.warn('[sync] participante user_uid-only also failed '+tid); }
+    }
   }
-  console.log('[_syncLinkedPlayerData] Updated '+updated+' participante docs across torneos');
+
+  // If found nothing, do full Firestore scan
+  if(updated===0){
+    console.warn('[sync] 0 participantes in cache, scanning ALL torneos...');
+    try{
+      const allSnap=await db.collection('torneos').orderBy('creado','desc').get();
+      for(const tDoc of allSnap.docs){
+        if(allTids.has(tDoc.id)) continue;
+        try{
+          const pRef=db.collection('torneos').doc(tDoc.id).collection('participantes').doc(jugadorId);
+          const pDoc=await pRef.get();
+          if(!pDoc.exists) continue;
+          await pRef.set(partData, {merge:true}).catch(()=>{});
+          updated++;
+        }catch(e2){/* skip */}
+      }
+    }catch(e3){ console.warn('[sync] full scan failed:', e3.message); }
+  }
+
+  // ═══ Update local caches (instant UI) ═══
+  const fullLocal={user_uid:uid, ...profileData};
+  for(const [tid, jugs] of Object.entries(STATE.jugadores_by_torneo||{})){
+    const p=jugs.find(j=>j.id===jugadorId||j.jugador_id===jugadorId);
+    if(p) Object.assign(p, fullLocal);
+  }
+  const gIdx=(STATE.jugadores_global||[]).findIndex(j=>j.id===jugadorId);
+  if(gIdx>=0) Object.assign(STATE.jugadores_global[gIdx], fullLocal);
+  else STATE.jugadores_global.push({id:jugadorId, ...fullLocal});
+
+  console.log('[sync] DONE. '+updated+' participante docs updated');
 }
 
 // ── Unified vincular function ───────────────────────
@@ -1266,30 +1300,43 @@ async function vincularCodigo(code){
   const manualId=jugDoc.id;
   const existingJugadorId=STATE.profile?.jugador_id;
   const isFirstVincular=!existingJugadorId || existingJugadorId===uid;
-  console.log('[vincularCodigo] uid='+uid+' manualId='+manualId+' existing='+existingJugadorId+' isFirst='+isFirstVincular);
+  console.log('[vincularCodigo] uid='+uid+' manualId='+manualId+' isFirst='+isFirstVincular);
 
-  // Track this jugador as linked
-  STATE.linked_jugador_ids.add(manualId);
-
-  if(isFirstVincular){
-    // FIRST VINCULAR: adopt manual jugador as primary identity
-    await db.collection('users').doc(uid).update({jugador_id:manualId});
-    STATE.profile.jugador_id=manualId;
-    // Delete auto-created jugador/{uid} if different
-    if(manualId!==uid){
-      await db.collection('jugadores').doc(uid).delete().catch(()=>{});
-    }
-  } else {
-    // SUBSEQUENT VINCULAR: keep existing jugador_id
-    console.log('[vincularCodigo] Subsequent: keeping jugador_id='+existingJugadorId);
+  // ═══ STEP 1: Write to OWN user doc (ALWAYS succeeds) ═══
+  try{
+    const userUpd={
+      linked_jugadores: firebase.firestore.FieldValue.arrayUnion(manualId),
+      has_linked_jugadores: true
+    };
+    if(isFirstVincular) userUpd.jugador_id=manualId;
+    await db.collection('users').doc(uid).update(userUpd);
+    if(isFirstVincular) STATE.profile.jugador_id=manualId;
+    console.log('[vincularCodigo] users/{uid} updated OK');
+  }catch(e){
+    console.error('[vincularCodigo] users/{uid} update FAILED:', e.message);
   }
 
-  // Sync ALL user profile data to jugador + participantes (nombre, tel, foto, user_uid)
+  STATE.linked_jugador_ids.add(manualId);
+
+  // ═══ STEP 2: Write user_uid to jugador doc (best effort) ═══
+  try{
+    await db.collection('jugadores').doc(manualId).set({user_uid:uid},{merge:true});
+    console.log('[vincularCodigo] jugadores/{manualId}.user_uid OK');
+  }catch(e){
+    console.warn('[vincularCodigo] jugadores/{manualId} write failed (permissions?):', e.message);
+  }
+
+  // ═══ STEP 3: Delete auto-jugador if first vincular ═══
+  if(isFirstVincular && manualId!==uid){
+    await db.collection('jugadores').doc(uid).delete().catch(()=>{});
+  }
+
+  // ═══ STEP 4: Sync full profile data to jugador + participantes (best effort) ═══
   await _syncLinkedPlayerData(manualId, uid);
 
   // Re-filter torneos
   _filterMyTorneos();
-  console.log('[vincularCodigo] After filter, torneos='+STATE.torneos.length);
+  console.log('[vincularCodigo] Done. torneos='+STATE.torneos.length);
 
   return { manualId, nombre: STATE.profile?.nombre||jugDoc.data().nombre||manualId, isFirstVincular };
 }
@@ -2260,6 +2307,9 @@ function stopListeners(){
   STATE.jugadores_global=[];
   STATE.allTorneos=[];
   STATE.linked_jugador_ids=new Set();
+  STATE.users_cache={};
+  STATE._jugadorToUserMap={};
+  STATE._lastEnrichTime=0;
   STATE._expandedJugTorneo=null;
   _torneosMergeMap={};
   _torneosReadyCount=0;
@@ -2422,12 +2472,94 @@ function getJugador(jugadorId){
 let _jugadoresGlobalUnsub=null;
 function ensureJugadoresGlobal(){
   if(_jugadoresGlobalUnsub) return; // already listening
+  let _firstLoad=true;
   _jugadoresGlobalUnsub=db.collection('jugadores').orderBy('nombre')
     .onSnapshot(s=>{
       STATE.jugadores_global=s.docs.map(d=>({id:d.id,...d.data()}));
+      // Fetch user profiles for any jugador with user_uid (for admin enrichment)
+      _enrichJugadoresWithUserProfiles();
+      // Skip render on first load (other listeners handle initial render)
+      // Re-render on subsequent updates (e.g., when user vinculars and jugador data changes)
+      if(_firstLoad){ _firstLoad=false; return; }
+      renderCurrentTab();
     }, e=>console.error('jugadores global listener:',e));
   // Add to unsubs for cleanup
   STATE.unsubs.push(()=>{ if(_jugadoresGlobalUnsub){ _jugadoresGlobalUnsub(); _jugadoresGlobalUnsub=null; }});
+}
+
+// Fetch user profiles to enrich jugador data for admin view
+// Two discovery paths:
+// 1) jugadores with user_uid → fetch users/{user_uid}
+// 2) users with linked_jugadores → reverse map jugadorId → userProfile
+let _enrichRunning=false;
+async function _enrichJugadoresWithUserProfiles(){
+  if(_enrichRunning) return;
+  _enrichRunning=true;
+  let changed=false;
+  try{
+    // PATH 1: jugadores that have user_uid set → fetch user profile
+    const uidsFromJugadores=new Set();
+    for(const jug of STATE.jugadores_global){
+      if(jug.user_uid && !STATE.users_cache[jug.user_uid]){
+        uidsFromJugadores.add(jug.user_uid);
+      }
+    }
+    if(uidsFromJugadores.size>0){
+      const uidArr=Array.from(uidsFromJugadores);
+      for(let i=0; i<uidArr.length; i+=10){
+        const batch=uidArr.slice(i,i+10);
+        try{
+          const snap=await db.collection('users').where(firebase.firestore.FieldPath.documentId(),'in',batch).get();
+          snap.docs.forEach(d=>{ STATE.users_cache[d.id]=d.data(); changed=true; });
+        }catch(e){
+          for(const uid of batch){
+            try{ const doc=await db.collection('users').doc(uid).get();
+              if(doc.exists){ STATE.users_cache[doc.id]=doc.data(); changed=true; }
+            }catch(e2){}
+          }
+        }
+      }
+    }
+
+    // PATH 2: users who have linked_jugadores → build reverse map
+    // This catches cases where user_uid didn't get written to jugador doc (permission issues)
+    if(!STATE._jugadorToUserMap) STATE._jugadorToUserMap={};
+    try{
+      const linkedSnap=await db.collection('users').where('has_linked_jugadores','==',true).get();
+      linkedSnap.docs.forEach(d=>{
+        const userData=d.data();
+        STATE.users_cache[d.id]=userData;
+        const linkedJugs=userData.linked_jugadores||[];
+        linkedJugs.forEach(jugId=>{
+          STATE._jugadorToUserMap[jugId]={uid:d.id, ...userData};
+        });
+      });
+      if(linkedSnap.docs.length>0) changed=true;
+    }catch(e){
+      console.warn('[enrich] linked_jugadores query failed:', e.message);
+    }
+
+    // PATH 2b: Also fix jugador docs that are missing user_uid (admin can write)
+    // If admin sees a jugador without user_uid but knows the user via reverse map → write it
+    const isAdmin=STATE.profile?.role==='admin';
+    if(isAdmin){
+      for(const jug of STATE.jugadores_global){
+        if(!jug.user_uid && STATE._jugadorToUserMap[jug.id]){
+          const mapping=STATE._jugadorToUserMap[jug.id];
+          try{
+            await db.collection('jugadores').doc(jug.id).update({user_uid:mapping.uid});
+            jug.user_uid=mapping.uid; // update local cache
+            console.log('[enrich] Admin fixed user_uid on jugador '+jug.id);
+            changed=true;
+          }catch(e){ /* admin can't write either, skip */ }
+        }
+      }
+    }
+  }catch(e){
+    console.warn('[enrich] error:', e.message);
+  }
+  _enrichRunning=false;
+  if(changed) renderCurrentTab();
 }
 function getJugadoresTorneo(torneoId){
   if(torneoId===STATE.activeTorneoId) return STATE.jugadores||[];
@@ -4208,6 +4340,13 @@ function renderJugadores(){
   const myJugadorId=STATE.profile?.jugador_id;
   const uid=STATE.user?.uid;
 
+  // Trigger user profile enrichment (throttled — max once per 10 seconds)
+  const now=Date.now();
+  if(!STATE._lastEnrichTime || now-STATE._lastEnrichTime>10000){
+    STATE._lastEnrichTime=now;
+    _enrichJugadoresWithUserProfiles();
+  }
+
   const todosLosTorneos=STATE.torneos;
 
   if(todosLosTorneos.length===0){
@@ -4233,27 +4372,45 @@ function renderJugadores(){
       const jugadoresActivos=allJugadores.filter(j=>j.activo!==false);
       const jugadoresEliminados=allJugadores.filter(j=>j.activo===false||j.eliminado===true);
       const jugadoresHTML=[...jugadoresActivos,...jugadoresEliminados].map(j=>{
-        const isMe=j.id===myJugadorId||j.jugador_id===myJugadorId||j.user_uid===uid;
+        // Enrich participante from multiple sources (priority: user profile > jugadores_global > participante)
+        const global=(STATE.jugadores_global||[]).find(g=>g.id===j.id||g.id===j.jugador_id);
+        const raw_user_uid=global?.user_uid||j.user_uid||null;
+        // User profile: check by user_uid OR by jugador-to-user reverse map
+        const userProfile=raw_user_uid
+          ? (STATE.users_cache[raw_user_uid]||null)
+          : ((STATE._jugadorToUserMap||{})[j.id]||(STATE._jugadorToUserMap||{})[j.jugador_id]||null);
+        const effective_user_uid=raw_user_uid||(userProfile?userProfile.uid||userProfile._uid:null)||null;
+        const nombre=userProfile?.nombre||global?.nombre||j.nombre||'';
+        const alias=userProfile?.username||userProfile?.alias||global?.alias||j.alias||'';
+        const foto=userProfile?.nombre
+          ?userProfile.nombre.split(' ').filter(Boolean).map(n=>n[0]).join('').toUpperCase().slice(0,2)
+          :(global?.foto||j.foto||'');
+        const fotoURL=userProfile?.fotoURL||global?.fotoURL||j.fotoURL||null;
+        const telefonoCompleto=userProfile?.telefonoCompleto||global?.telefonoCompleto||j.telefonoCompleto||'';
+        const user_uid=effective_user_uid;
+        const invite_code=j.invite_code||global?.invite_code||null;
+
+        const isMe=j.id===myJugadorId||j.jugador_id===myJugadorId||user_uid===uid;
         const isElim=j.activo===false||j.eliminado===true;
-        const initials=j.foto||j.alias?.slice(0,2)||j.nombre?.slice(0,2)||'?';
+        const initials=foto||alias?.slice(0,2)||nombre?.slice(0,2)||'?';
         return `<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);${isElim?'opacity:0.5;':''}">
-          ${j.fotoURL
-            ?`<img src="${j.fotoURL}" style="width:36px;height:36px;border-radius:50%;object-fit:cover;flex-shrink:0;${isElim?'filter:grayscale(1);':''}"/>`
+          ${fotoURL
+            ?`<img src="${fotoURL}" style="width:36px;height:36px;border-radius:50%;object-fit:cover;flex-shrink:0;${isElim?'filter:grayscale(1);':''}"/>`
             :`<div style="width:36px;height:36px;border-radius:50%;background:${isElim?'var(--muted)':'var(--green)'};color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0;">${initials}</div>`}
           <div style="flex:1;min-width:0;">
-            <div style="font-weight:700;font-size:13px;${isElim?'text-decoration:line-through;color:var(--muted);':''}">${j.nombre||''}${isMe?` <span style="font-size:10px;background:#E8F5E9;color:#2E7D32;padding:1px 5px;border-radius:6px;">Tú</span>`:''}${isElim?` <span style="font-size:10px;background:#FFEBEE;color:#C62828;padding:1px 5px;border-radius:6px;">Eliminado</span>`:''}</div>
+            <div style="font-weight:700;font-size:13px;${isElim?'text-decoration:line-through;color:var(--muted);':''}">${nombre}${isMe?` <span style="font-size:10px;background:#E8F5E9;color:#2E7D32;padding:1px 5px;border-radius:6px;">Tú</span>`:''}${isElim?` <span style="font-size:10px;background:#FFEBEE;color:#C62828;padding:1px 5px;border-radius:6px;">Eliminado</span>`:''}</div>
             <div style="font-size:11px;color:var(--muted);">
-              ${j.alias&&j.alias!==j.nombre?`@${j.alias}`:''} ${j.telefonoCompleto?'· '+j.telefonoCompleto:''}
+              ${alias&&alias!==nombre?`@${alias}`:''} ${telefonoCompleto?'· '+telefonoCompleto:''}
             </div>
             ${canManage?`<div style="margin-top:4px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">${
-              j.invite_code&&!j.user_uid
-              ?`<span style="background:#E8F5E9;color:#2E7D32;font-size:10px;font-weight:700;padding:2px 6px;border-radius:5px;font-family:monospace;">🔑 ${j.invite_code}</span><button onclick="enviarInvitacionWA('${(j.nombre||'').replace(/'/g,"\\'")}','${j.invite_code}','${j.telefonoCompleto||''}',event)" style="background:#25D366;color:#fff;border:none;border-radius:5px;padding:2px 8px;font-size:10px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:3px;"><svg width="12" height="12" viewBox="0 0 24 24" fill="white"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 2C6.477 2 2 6.477 2 12c0 1.89.525 3.66 1.438 5.168L2 22l4.832-1.438A9.955 9.955 0 0012 22c5.523 0 10-4.477 10-10S17.523 2 12 2zm0 18c-1.657 0-3.216-.5-4.51-1.348l-.324-.194-2.866.852.852-2.866-.194-.324A7.963 7.963 0 014 12c0-4.411 3.589-8 8-8s8 3.589 8 8-3.589 8-8 8z"/></svg> Invitar</button>`
-              :j.user_uid
+              invite_code&&!user_uid
+              ?`<span style="background:#E8F5E9;color:#2E7D32;font-size:10px;font-weight:700;padding:2px 6px;border-radius:5px;font-family:monospace;">🔑 ${invite_code}</span><button onclick="enviarInvitacionWA('${(nombre||'').replace(/'/g,"\\'")}','${invite_code}','${telefonoCompleto||''}',event)" style="background:#25D366;color:#fff;border:none;border-radius:5px;padding:2px 8px;font-size:10px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:3px;"><svg width="12" height="12" viewBox="0 0 24 24" fill="white"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 2C6.477 2 2 6.477 2 12c0 1.89.525 3.66 1.438 5.168L2 22l4.832-1.438A9.955 9.955 0 0012 22c5.523 0 10-4.477 10-10S17.523 2 12 2zm0 18c-1.657 0-3.216-.5-4.51-1.348l-.324-.194-2.866.852.852-2.866-.194-.324A7.963 7.963 0 014 12c0-4.411 3.589-8 8-8s8 3.589 8 8-3.589 8-8 8z"/></svg> Invitar</button>`
+              :user_uid
               ?`<span style="background:#E3F2FD;color:#1565C0;font-size:10px;padding:2px 6px;border-radius:5px;">✅ Con cuenta</span>`
               :''
             }</div>`:''}
           </div>
-          ${canManage&&!isElim?`<button onclick="removeParticipante('${j.id}','${(j.nombre||'').replace(/'/g,"\\'")}','${t.id}',event)"
+          ${canManage&&!isElim?`<button onclick="removeParticipante('${j.id}','${(nombre||'').replace(/'/g,"\\'")}','${t.id}',event)"
             style="background:none;border:1px solid var(--border);border-radius:6px;padding:3px 8px;color:var(--muted);font-size:12px;cursor:pointer;">✕</button>`:''}
           ${canManage&&isElim?`<button onclick="reactivarParticipante('${j.id}','${t.id}',event)"
             style="background:none;border:1px solid #A5D6A7;border-radius:6px;padding:3px 8px;color:var(--green);font-size:11px;cursor:pointer;font-weight:600;">↩ Restaurar</button>`:''}
