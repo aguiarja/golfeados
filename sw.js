@@ -1,6 +1,6 @@
 // Golfeados Service Worker — v4.3.1
 // Network-first for HTML, cache-first for static assets
-const CACHE_NAME = 'golfeados-v4.3.2';
+const CACHE_NAME = 'golfeados-v4.4.0';
 const STATIC_ASSETS = [
   'icon-192.png',
   'icon-512.png'
