@@ -3129,7 +3129,7 @@ function renderJornadas(){
             </div>
             <div class="flex items-center gap-6" style="flex-shrink:0;margin-left:8px;">
               ${badgeHTML(est)}
-              ${isAdminJornada?`<button class="btn-outline" style="padding:4px 10px;font-size:12px;" onclick="event.stopPropagation();openModalJornada('${jn.id}')">✏️</button>`:''}              <span style="color:var(--muted);font-size:13px;">${isOpen?'▲':'▼'}</span>
+              ${isAdminJornada&&est!=='Jugado'&&est!=='Oficial'?`<button class="btn-outline" style="padding:4px 10px;font-size:12px;" onclick="event.stopPropagation();openModalJornada('${jn.id}')">✏️</button>`:''}              <span style="color:var(--muted);font-size:13px;">${isOpen?'▲':'▼'}</span>
             </div></div>
           ${isOpen?`
             <div class="partida-body">
@@ -3140,7 +3140,7 @@ function renderJornadas(){
                 ${(est==='Pendiente Attest'||est==='Por Validar')&&canAttest?`<button class="btn-attest" onclick="event.stopPropagation();handleAttest('${jn.id}')">✍️ Marcar como Jugada</button>`:''}
                 ${(est==='Pendiente Attest'||est==='Por Validar')&&!canAttest&&res.length>0?`<div class="text-11 text-muted" style="padding:4px 0;">⏳ Esperando confirmación</div>`:''}
                 ${(est==='Pendiente Attest'||est==='Por Validar')&&(isAdminJornada||canCargarThis)?`<button class="btn-outline" onclick="event.stopPropagation();goCargar('${jn.id}')">✏️ Editar resultados</button>`:''}
-                ${isAdminJornada?`<button class="btn-danger" onclick="deleteJornada('${jn.id}')">🗑️ Eliminar</button>`:''}
+                ${isAdminJornada&&est!=='Jugado'&&est!=='Oficial'?`<button class="btn-danger" onclick="deleteJornada('${jn.id}')">🗑️ Eliminar</button>`:''}
               </div>
               ${res.length>0?`
                 ${res.map(r=>{
