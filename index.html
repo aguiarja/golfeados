@@ -2740,6 +2740,14 @@ function calcRankingTorneo(torneoId){
   const rawData=Array.from(jugadorIds).map(jugadorId=>{
     // Look up jugador from all sources
     const jugador=getJugador(jugadorId)||participantes.find(j=>j.id===jugadorId)||{id:jugadorId,nombre:'Jugador',foto:'?'};
+    // Enrich with latest data from jugadores_global (updated in real-time via onSnapshot)
+    const global=(STATE.jugadores_global||[]).find(g=>g.id===jugadorId||g.id===jugador.jugador_id);
+    if(global){
+      if(global.nombre) jugador.nombre=global.nombre;
+      if(global.alias) jugador.alias=global.alias;
+      if(global.foto) jugador.foto=global.foto;
+      if(global.fotoURL) jugador.fotoURL=global.fotoURL;
+    }
     const jornadaPts=jugados.map(jn=>{
       const r=STATE.resultados.find(r=>r.jornada_id===jn.id&&r.jugador_id===jugadorId);
       if(!r) return null;
