@@ -8,6 +8,17 @@
 const APP_VERSION = '4.4.2';
 
 // ══════════════════════════════════════════════════════
+// DEV MODE DETECTION
+// ══════════════════════════════════════════════════════
+const IS_DEV = location.hostname.includes('--dev') || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+if (IS_DEV) {
+  document.addEventListener('DOMContentLoaded', () => {
+    const banner = document.getElementById('devBanner');
+    if (banner) { banner.textContent = 'MODO DESARROLLO'; banner.classList.add('visible'); }
+  });
+}
+
+// ══════════════════════════════════════════════════════
 // FIREBASE CONFIG
 // ══════════════════════════════════════════════════════
 const firebaseConfig = {
