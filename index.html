@@ -299,7 +299,7 @@
       <div id="connPill" title="Estado de conexión" style="display:flex;align-items:center;padding:4px;border-radius:50%;background:transparent;transition:all 0.4s;">
         <span id="connDot" style="width:8px;height:8px;border-radius:50%;background:#4CAF50;display:inline-block;"></span>
       </div>
-      <button id="headerPelotas" onclick="goTab('wallet')" style="background:var(--cardL);border:1px solid var(--border);border-radius:8px;padding:4px 10px;font-size:12px;font-weight:700;color:var(--green);cursor:pointer;display:flex;align-items:center;gap:4px;" title="Mis pelotas">🏌️ <span id="headerPelotasCount">0</span></button>
+      <button id="headerPelotas" onclick="goTab('wallet')" style="background:var(--cardL);border:1px solid var(--border);border-radius:8px;padding:4px 10px;font-size:12px;font-weight:700;color:var(--green);cursor:pointer;display:flex;align-items:center;gap:4px;" title="Mis pelotas"><span id="headerPelotasIcon"></span> <span id="headerPelotasCount">0</span></button>
       <button id="headerUser" onclick="openPerfilModal()" style="background:var(--cardL);border:1px solid var(--border);border-radius:8px;padding:4px 12px;font-size:12px;font-weight:700;color:var(--text);cursor:pointer;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></button>
       <button class="btn-logout" onclick="handleLogout()">Salir</button>
     </div>

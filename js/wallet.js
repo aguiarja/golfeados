@@ -2,10 +2,23 @@
 // GOLFEADOS — Wallet (User Billetera)
 // ══════════════════════════════════════════════════════
 
+// Golf ball SVG icon (inline, scalable)
+function golfBallSVG(size=20){
+  return `<svg width="${size}" height="${size}" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" style="vertical-align:middle;">
+    <circle cx="20" cy="20" r="18" fill="#F5F5F5" stroke="#D0D0D0" stroke-width="1.5"/>
+    <circle cx="14" cy="13" r="2" fill="#E0E0E0"/><circle cx="22" cy="11" r="2" fill="#E0E0E0"/>
+    <circle cx="28" cy="16" r="2" fill="#E0E0E0"/><circle cx="12" cy="22" r="2" fill="#E0E0E0"/>
+    <circle cx="20" cy="20" r="2" fill="#E0E0E0"/><circle cx="27" cy="24" r="2" fill="#E0E0E0"/>
+    <circle cx="16" cy="29" r="2" fill="#E0E0E0"/><circle cx="24" cy="29" r="2" fill="#E0E0E0"/>
+  </svg>`;
+}
+
 // Update the header pelotas counter (called from any tab)
 function updateHeaderPelotas(balance){
   const countEl=document.getElementById('headerPelotasCount');
   if(countEl) countEl.textContent=balance||0;
+  const iconEl=document.getElementById('headerPelotasIcon');
+  if(iconEl&&!iconEl.dataset.set){ iconEl.innerHTML=golfBallSVG(18); iconEl.dataset.set='1'; }
 }
 
 function renderWallet(){
@@ -21,7 +34,7 @@ function renderWallet(){
   let html=`
     <div class="wallet-hero">
       <div class="wallet-balance-label">Tu saldo</div>
-      <div class="wallet-balance">🏌️ ${balance}</div>
+      <div class="wallet-balance">${golfBallSVG(44)} ${balance}</div>
       <div class="wallet-balance-label">pelotas de golf</div>
       <div class="wallet-actions">
         <button class="btn-wallet-recargar" onclick="openModalRecarga()">+ Recargar</button>
