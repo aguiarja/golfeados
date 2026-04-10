@@ -2,14 +2,21 @@
 // GOLFEADOS — Wallet (User Billetera)
 // ══════════════════════════════════════════════════════
 
-// Golf ball SVG icon (inline, scalable)
+// Golf ball on tee SVG icon (inline, scalable)
 function golfBallSVG(size=20){
-  return `<svg width="${size}" height="${size}" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" style="vertical-align:middle;">
-    <circle cx="20" cy="20" r="18" fill="#F5F5F5" stroke="#D0D0D0" stroke-width="1.5"/>
-    <circle cx="14" cy="13" r="2" fill="#E0E0E0"/><circle cx="22" cy="11" r="2" fill="#E0E0E0"/>
-    <circle cx="28" cy="16" r="2" fill="#E0E0E0"/><circle cx="12" cy="22" r="2" fill="#E0E0E0"/>
-    <circle cx="20" cy="20" r="2" fill="#E0E0E0"/><circle cx="27" cy="24" r="2" fill="#E0E0E0"/>
-    <circle cx="16" cy="29" r="2" fill="#E0E0E0"/><circle cx="24" cy="29" r="2" fill="#E0E0E0"/>
+  return `<svg width="${size}" height="${size}" viewBox="0 0 100 130" fill="none" xmlns="http://www.w3.org/2000/svg" style="vertical-align:middle;">
+    <circle cx="50" cy="45" r="38" fill="#fff" stroke="#2d2d2d" stroke-width="4"/>
+    <path d="M25 55c4-2 7-5 9-8 3-4 8-5 12-4s9 1 13-1c3-1 6-1 9 1" stroke="#2d2d2d" stroke-width="3" fill="none" stroke-linecap="round"/>
+    <path d="M20 42c3 2 7 3 11 2s8-1 11 1 7 3 11 2 7-3 10-3" stroke="#2d2d2d" stroke-width="3" fill="none" stroke-linecap="round"/>
+    <ellipse cx="30" cy="32" rx="4" ry="2.5" fill="#e8e8e8" stroke="#ccc" stroke-width="1"/>
+    <ellipse cx="42" cy="28" rx="4.5" ry="2.5" fill="#e8e8e8" stroke="#ccc" stroke-width="1"/>
+    <ellipse cx="55" cy="26" rx="4" ry="2.5" fill="#e8e8e8" stroke="#ccc" stroke-width="1"/>
+    <ellipse cx="66" cy="30" rx="4" ry="2.5" fill="#e8e8e8" stroke="#ccc" stroke-width="1"/>
+    <ellipse cx="36" cy="48" rx="3.5" ry="2" fill="#e8e8e8" stroke="#ccc" stroke-width="1"/>
+    <ellipse cx="50" cy="50" rx="3.5" ry="2" fill="#e8e8e8" stroke="#ccc" stroke-width="1"/>
+    <ellipse cx="63" cy="46" rx="3.5" ry="2" fill="#e8e8e8" stroke="#ccc" stroke-width="1"/>
+    <polygon points="45,82 55,82 52,118 48,118" fill="#2d2d2d"/>
+    <rect x="40" y="78" width="20" height="6" rx="2" fill="#2d2d2d"/>
   </svg>`;
 }
 
