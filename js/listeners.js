@@ -305,6 +305,7 @@ function _initWalletListeners(uid, isAdmin){
   STATE.unsubs.push(db.collection('wallets').doc(uid)
     .onSnapshot(s=>{
       STATE.wallet=s.exists?{id:s.id,...s.data()}:null;
+      if(typeof updateHeaderPelotas==='function') updateHeaderPelotas(STATE.wallet?.balance||0);
       renderCurrentTab();
     },err=>console.warn('wallet error:',err.message||err)));
 

@@ -2,6 +2,12 @@
 // GOLFEADOS — Wallet (User Billetera)
 // ══════════════════════════════════════════════════════
 
+// Update the header pelotas counter (called from any tab)
+function updateHeaderPelotas(balance){
+  const countEl=document.getElementById('headerPelotasCount');
+  if(countEl) countEl.textContent=balance||0;
+}
+
 function renderWallet(){
   const el=document.getElementById('tab-wallet');
   if(!el) return;
@@ -9,10 +15,13 @@ function renderWallet(){
   const balance=STATE.wallet?.balance||0;
   const txs=STATE.myTransactions||[];
 
+  // Update header pill
+  updateHeaderPelotas(balance);
+
   let html=`
     <div class="wallet-hero">
       <div class="wallet-balance-label">Tu saldo</div>
-      <div class="wallet-balance">⛳ ${balance}</div>
+      <div class="wallet-balance">🏌️ ${balance}</div>
       <div class="wallet-balance-label">pelotas de golf</div>
       <div class="wallet-actions">
         <button class="btn-wallet-recargar" onclick="openModalRecarga()">+ Recargar</button>
