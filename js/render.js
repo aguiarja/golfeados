@@ -97,6 +97,8 @@ function renderCurrentTab(){
   if(_renderRAF) cancelAnimationFrame(_renderRAF);
   _renderRAF=requestAnimationFrame(()=>{
     _renderRAF=null;
+    // Always update header pelotas counter regardless of active tab
+    if(typeof updateHeaderPelotas==='function') updateHeaderPelotas(STATE.wallet?.balance||0);
     if(STATE.currentTab==='dashboard') renderDashboard();
     else if(STATE.currentTab==='mistorneos') renderMisTorneos();
     else if(STATE.currentTab==='jornadas') renderJornadas();
