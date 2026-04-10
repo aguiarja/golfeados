@@ -6,7 +6,8 @@
 if('serviceWorker' in navigator){
   window.addEventListener('load', async ()=>{
     try{
-      const reg=await navigator.serviceWorker.register('/golfeados/sw.js');
+      const swPath=IS_DEV?'/sw.js':'/golfeados/sw.js';
+      const reg=await navigator.serviceWorker.register(swPath);
       console.log('[SW] Registered:', reg.scope);
 
       // Check for updates immediately and on each focus
