@@ -54,5 +54,14 @@ let STATE = {
   expandedJornadaMT:null,  // partida expanded inside Mis Torneos
   chartInstance:null, editingJornadaId:null,
   activeTorneoId:null,  // torneo being viewed in detail
-  unsubs:[]
+  unsubs:[],
+  // ── Wallet ──
+  wallet:null,                // { balance, creado, actualizado }
+  myTransactions:[],          // user's own transactions
+  walletConfig:null,          // app_config/wallet document
+  // ── Admin Wallet ──
+  allTransactions:[],         // admin: all transactions
+  pagoMovilPendientes:[],     // admin: pending pago movil recharges
+  // ── Admin Users ──
+  allUsers:[]                 // admin: all user profiles
 };

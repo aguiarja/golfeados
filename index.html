@@ -308,7 +308,10 @@
     <button class="nav-btn active" data-tab="dashboard" onclick="goTab('dashboard')">🏠 Inicio</button>
     <button class="nav-btn" data-tab="mistorneos" onclick="goTab('mistorneos')">🏆 Mis Torneos</button>
     <button class="nav-btn" data-tab="jornadas" onclick="goTab('jornadas')">🏌️ Partidas</button>
+    <button class="nav-btn" data-tab="wallet" onclick="goTab('wallet')">💰 Billetera</button>
     <button class="nav-btn" data-tab="clubes" onclick="goTab('clubes')" id="navClubes" style="display:none;">⛳ Clubes</button>
+    <button class="nav-btn" data-tab="admin-wallet" onclick="goTab('admin-wallet')" id="navAdminWallet" style="display:none;">💳 Recargas</button>
+    <button class="nav-btn" data-tab="admin-users" onclick="goTab('admin-users')" id="navAdminUsers" style="display:none;">👥 Usuarios</button>
   </div>
 
   <div id="content">
@@ -316,7 +319,10 @@
     <div id="tab-mistorneos" style="display:none;"></div>
     <div id="tab-jornadas" style="display:none;"></div>
     <div id="tab-jugadores" style="display:none;"></div>
+    <div id="tab-wallet" style="display:none;"></div>
     <div id="tab-clubes" style="display:none;"></div>
+    <div id="tab-admin-wallet" style="display:none;"></div>
+    <div id="tab-admin-users" style="display:none;"></div>
     <div id="tab-cargar" style="display:none;"></div>
   </div>
 </div>
@@ -821,6 +827,72 @@
   </div>
 </div>
 
+<!-- MODAL RECARGA -->
+<div id="modalRecarga" class="modal-overlay" style="display:none;" onclick="closeModalRecarga()">
+  <div class="modal-box" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <div class="modal-title">Recargar Billetera</div>
+      <button onclick="closeModalRecarga()" style="background:none;border:none;font-size:20px;color:var(--muted);cursor:pointer;">✕</button>
+    </div>
+    <div class="modal-body" id="modalRecargaBody">
+      <!-- Rendered by wallet.js -->
+    </div>
+  </div>
+</div>
+
+<!-- MODAL AJUSTE ADMIN -->
+<div id="modalAjuste" class="modal-overlay" style="display:none;" onclick="closeModalAjuste()">
+  <div class="modal-box" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <div class="modal-title">Ajustar Saldo</div>
+      <button onclick="closeModalAjuste()" style="background:none;border:none;font-size:20px;color:var(--muted);cursor:pointer;">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label>Buscar jugador</label>
+        <input type="text" class="form-input" id="ajusteSearchUser" placeholder="Nombre, email o username..." oninput="searchAjusteUser(this.value)"/>
+      </div>
+      <div id="ajusteUserResults" style="max-height:150px;overflow-y:auto;margin-bottom:12px;"></div>
+      <div id="ajusteSelectedUser" style="display:none;padding:10px;background:var(--greenPale);border-radius:10px;margin-bottom:12px;font-size:13px;font-weight:600;"></div>
+      <div class="field">
+        <label>Cantidad de pelotas (+/-)</label>
+        <input type="number" class="form-input" id="ajusteMonto" placeholder="Ej: 10 o -5"/>
+      </div>
+      <div class="field">
+        <label>Descripcion</label>
+        <input type="text" class="form-input" id="ajusteDescripcion" placeholder="Motivo del ajuste..."/>
+      </div>
+      <button class="btn-save" onclick="saveAjuste()">Aplicar Ajuste</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL CONFIG WALLET -->
+<div id="modalWalletConfig" class="modal-overlay" style="display:none;" onclick="closeModalWalletConfig()">
+  <div class="modal-box" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <div class="modal-title">Configuracion de Billetera</div>
+      <button onclick="closeModalWalletConfig()" style="background:none;border:none;font-size:20px;color:var(--muted);cursor:pointer;">✕</button>
+    </div>
+    <div class="modal-body" id="modalWalletConfigBody">
+      <!-- Rendered by admin-wallet.js -->
+    </div>
+  </div>
+</div>
+
+<!-- MODAL DETALLE USUARIO (Admin) -->
+<div id="modalUserDetail" class="modal-overlay" style="display:none;" onclick="closeModalUserDetail()">
+  <div class="modal-box" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <div class="modal-title" id="modalUserDetailTitle">Detalle Usuario</div>
+      <button onclick="closeModalUserDetail()" style="background:none;border:none;font-size:20px;color:var(--muted);cursor:pointer;">✕</button>
+    </div>
+    <div class="modal-body" id="modalUserDetailBody">
+      <!-- Rendered by admin-users.js -->
+    </div>
+  </div>
+</div>
+
 <script src="js/config.js"></script>
 <script src="js/auth.js"></script>
 <script src="js/listeners.js"></script>
@@ -828,6 +900,9 @@
 <script src="js/modals.js"></script>
 <script src="js/cargar.js"></script>
 <script src="js/jugadores.js"></script>
+<script src="js/wallet.js"></script>
+<script src="js/admin-wallet.js"></script>
+<script src="js/admin-users.js"></script>
 <script src="js/utils.js"></script>
 <script src="js/sw-register.js"></script>
 

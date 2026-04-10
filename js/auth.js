@@ -431,6 +431,10 @@ function showApp_(){
   document.getElementById('adminBadge').style.display=STATE.profile?.role==='admin'?'inline':'none';
   const navClubes=document.getElementById('navClubes');
   if(navClubes) navClubes.style.display=STATE.profile?.role==='admin'?'':'none';
+  const navAdminWallet=document.getElementById('navAdminWallet');
+  if(navAdminWallet) navAdminWallet.style.display=STATE.profile?.role==='admin'?'':'none';
+  const navAdminUsers=document.getElementById('navAdminUsers');
+  if(navAdminUsers) navAdminUsers.style.display=STATE.profile?.role==='admin'?'':'none';
   // Show vincular badge if no jugador linked
   const vBadge=document.getElementById('vincularBadge');
   if(vBadge) vBadge.style.display=(!STATE.profile?.jugador_id&&STATE.profile?.role!=='admin')?'inline-flex':'none';

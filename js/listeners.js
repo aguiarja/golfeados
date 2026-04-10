@@ -59,6 +59,9 @@ function _initBroadListeners(uid,isAdmin){
     .onSnapshot(s=>{ STATE.clubes=s.docs.map(d=>({id:d.id,...d.data()})); renderCurrentTab(); },
     err=>console.warn('clubes error:',err)));
   ensureJugadoresGlobal();
+
+  // ── Wallet listeners (admin: all transactions + pago movil pending) ──
+  _initWalletListeners(uid, true);
 }
 
 // ─── Scoped listeners (for regular users) ──────────────────
@@ -110,6 +113,9 @@ function _initScopedListeners(uid){
     err=>console.warn('clubes error:',err.message||err)));
 
   ensureJugadoresGlobal();
+
+  // ── Wallet listeners (user: own wallet + own transactions) ──
+  _initWalletListeners(uid, false);
 }
 
 // Filter allTorneos → STATE.torneos: only torneos user is involved in
@@ -291,6 +297,55 @@ function switchActiveTorneo(tid){
   renderCurrentTab();
 }
 
+// ─── Wallet Firestore Listeners ─────────────────────────
+function _initWalletListeners(uid, isAdmin){
+  if(!uid) return;
+
+  // Own wallet
+  STATE.unsubs.push(db.collection('wallets').doc(uid)
+    .onSnapshot(s=>{
+      STATE.wallet=s.exists?{id:s.id,...s.data()}:null;
+      renderCurrentTab();
+    },err=>console.warn('wallet error:',err.message||err)));
+
+  // Own transactions
+  STATE.unsubs.push(db.collection('transactions').where('user_id','==',uid).orderBy('creado','desc').limit(50)
+    .onSnapshot(s=>{
+      STATE.myTransactions=s.docs.map(d=>({id:d.id,...d.data()}));
+      renderCurrentTab();
+    },err=>console.warn('my transactions error:',err.message||err)));
+
+  // Wallet config (readable by all authenticated)
+  STATE.unsubs.push(db.doc('app_config/wallet')
+    .onSnapshot(s=>{
+      STATE.walletConfig=s.exists?s.data():null;
+      renderCurrentTab();
+    },err=>console.warn('wallet config error:',err.message||err)));
+
+  if(isAdmin){
+    // All transactions
+    STATE.unsubs.push(db.collection('transactions').orderBy('creado','desc').limit(200)
+      .onSnapshot(s=>{
+        STATE.allTransactions=s.docs.map(d=>({id:d.id,...d.data()}));
+        renderCurrentTab();
+      },err=>console.warn('all transactions error:',err.message||err)));
+
+    // Pending pago movil
+    STATE.unsubs.push(db.collection('pago_movil_recargas').where('estado','==','pendiente').orderBy('creado','desc')
+      .onSnapshot(s=>{
+        STATE.pagoMovilPendientes=s.docs.map(d=>({id:d.id,...d.data()}));
+        renderCurrentTab();
+      },err=>console.warn('pago movil error:',err.message||err)));
+
+    // All users
+    STATE.unsubs.push(db.collection('users').orderBy('creado','desc')
+      .onSnapshot(s=>{
+        STATE.allUsers=s.docs.map(d=>({id:d.id,...d.data()}));
+        renderCurrentTab();
+      },err=>console.warn('all users error:',err.message||err)));
+  }
+}
+
 function stopListeners(){
   STATE.unsubs.forEach(u=>u()); STATE.unsubs=[];
   Object.values(_participantesUnsubs).forEach(u=>{ try{u();}catch(e){} });
@@ -305,6 +360,12 @@ function stopListeners(){
   STATE._jugadorToUserMap={};
   STATE._lastEnrichTime=0;
   STATE._expandedJugTorneo=null;
+  STATE.wallet=null;
+  STATE.myTransactions=[];
+  STATE.walletConfig=null;
+  STATE.allTransactions=[];
+  STATE.pagoMovilPendientes=[];
+  STATE.allUsers=[];
   _torneosMergeMap={};
   _torneosReadyCount=0;
 }

@@ -73,7 +73,7 @@ function goTab(tab){
   document.querySelector('[data-tab="'+tab+'"]')?.classList.add('active');
   // For jugadores sub-view, highlight Mis Torneos tab
   if(tab==='jugadores') document.querySelector('[data-tab="mistorneos"]')?.classList.add('active');
-  ['dashboard','mistorneos','jornadas','jugadores','clubes','cargar'].forEach(t=>{
+  ['dashboard','mistorneos','jornadas','jugadores','wallet','clubes','admin-wallet','admin-users','cargar'].forEach(t=>{
     const el=document.getElementById('tab-'+t); if(el) el.style.display='none';
   });
   const tEl=document.getElementById('tab-'+tab); if(tEl) tEl.style.display='block';
@@ -85,7 +85,7 @@ function goCargar(jornadaId){
   STATE._jornadaFotoFiles=[null,null,null];  // store File objects here
   cargarParticipantes=[]; cargarPosiciones=[]; cargarStep=1;
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
-  ['dashboard','mistorneos','jornadas','jugadores','clubes','cargar'].forEach(t=>{
+  ['dashboard','mistorneos','jornadas','jugadores','wallet','clubes','admin-wallet','admin-users','cargar'].forEach(t=>{
     const el=document.getElementById('tab-'+t); if(el) el.style.display='none';
   });
   const ct=document.getElementById('tab-cargar');
@@ -101,7 +101,10 @@ function renderCurrentTab(){
     else if(STATE.currentTab==='mistorneos') renderMisTorneos();
     else if(STATE.currentTab==='jornadas') renderJornadas();
     else if(STATE.currentTab==='jugadores') renderJugadores();
+    else if(STATE.currentTab==='wallet') renderWallet();
     else if(STATE.currentTab==='clubes') renderClubes();
+    else if(STATE.currentTab==='admin-wallet') renderAdminWallet();
+    else if(STATE.currentTab==='admin-users') renderAdminUsers();
     else if(STATE.currentTab==='cargar') renderCargar();
   });
 }

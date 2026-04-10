@@ -209,3 +209,77 @@ input,select,textarea{font-family:inherit;}
 .input-icon-wrap{position:relative;}
 .input-icon-wrap input{padding-right:40px;}
 .input-icon-wrap .toggle-pass{position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px;}
+
+/* ══════════════════════════════════════════════════════ */
+/* ── WALLET ── */
+/* ══════════════════════════════════════════════════════ */
+.wallet-hero{background:linear-gradient(135deg,#2E7D5E 0%,#1A6B8A 60%,#0D7377 100%);border-radius:16px;padding:28px;position:relative;overflow:hidden;margin-bottom:16px;box-shadow:var(--shadow-md);text-align:center;color:#fff;}
+.wallet-hero::after{content:'';position:absolute;top:-60px;right:-60px;width:200px;height:200px;border-radius:50%;background:rgba(255,255,255,0.06);}
+.wallet-balance{font-size:48px;font-weight:800;font-family:Georgia,serif;margin:8px 0;}
+.wallet-balance-label{font-size:11px;letter-spacing:3px;text-transform:uppercase;color:rgba(255,255,255,0.7);}
+.wallet-actions{display:flex;gap:10px;justify-content:center;margin-top:16px;}
+.btn-wallet-recargar{padding:12px 28px;border-radius:12px;border:none;background:#fff;color:var(--green);font-weight:800;font-size:14px;font-family:Georgia,serif;letter-spacing:1px;box-shadow:0 4px 14px rgba(0,0,0,0.15);cursor:pointer;transition:transform 0.15s;}
+.btn-wallet-recargar:hover{transform:scale(1.03);}
+
+/* Transaction list */
+.tx-list{list-style:none;padding:0;}
+.tx-item{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--border);}
+.tx-icon{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;}
+.tx-icon.credit{background:var(--greenPale);color:var(--green);}
+.tx-icon.debit{background:var(--redPale);color:var(--red);}
+.tx-icon.pending{background:var(--goldPale);color:var(--gold);}
+.tx-info{flex:1;min-width:0;}
+.tx-desc{font-size:13px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.tx-date{font-size:11px;color:var(--muted);}
+.tx-amount{font-size:15px;font-weight:800;font-family:Georgia,serif;white-space:nowrap;}
+.tx-amount.credit{color:var(--green);}
+.tx-amount.debit{color:var(--red);}
+.tx-amount.pending{color:var(--gold);}
+.tx-badge{font-size:10px;padding:2px 8px;border-radius:10px;font-weight:700;letter-spacing:0.5px;}
+.tx-badge.completado{background:var(--greenPale);color:var(--green);}
+.tx-badge.pendiente{background:var(--goldPale);color:var(--gold);}
+.tx-badge.fallido{background:var(--redPale);color:var(--red);}
+.tx-badge.rechazado{background:var(--redPale);color:var(--red);}
+
+/* Package cards */
+.pkg-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin:16px 0;}
+.pkg-card{border:2px solid var(--border);border-radius:14px;padding:20px 16px;text-align:center;cursor:pointer;transition:all 0.2s;background:var(--white);}
+.pkg-card:hover,.pkg-card.selected{border-color:var(--green);background:var(--greenPale);transform:translateY(-2px);box-shadow:var(--shadow-md);}
+.pkg-balls{font-size:32px;font-weight:800;color:var(--green);font-family:Georgia,serif;}
+.pkg-label{font-size:11px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-top:2px;}
+.pkg-price{font-size:14px;font-weight:700;color:var(--text);margin-top:8px;}
+
+/* Admin stats */
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin-bottom:16px;}
+.stat-card{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:16px;text-align:center;box-shadow:var(--shadow);}
+.stat-value{font-size:24px;font-weight:800;font-family:Georgia,serif;color:var(--green);}
+.stat-label{font-size:10px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-top:4px;}
+
+/* Admin table */
+.admin-table{width:100%;border-collapse:collapse;font-size:12px;}
+.admin-table th{background:var(--cardL);padding:10px 12px;text-align:left;font-size:10px;color:var(--muted);font-weight:700;letter-spacing:1px;text-transform:uppercase;border-bottom:1px solid var(--border);}
+.admin-table td{padding:10px 12px;border-bottom:1px solid var(--border);vertical-align:middle;}
+.admin-table tr:hover{background:var(--cardL);}
+
+/* User card */
+.user-card{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--border);transition:background 0.15s;}
+.user-card:hover{background:var(--cardL);}
+.user-card-info{flex:1;min-width:0;}
+.user-card-name{font-size:13px;font-weight:700;color:var(--text);}
+.user-card-email{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.user-card-meta{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px;}
+
+/* Search bar */
+.search-bar{width:100%;padding:10px 14px 10px 36px;background:var(--bg);border:1.5px solid var(--border);border-radius:10px;color:var(--text);font-size:14px;outline:none;transition:border-color 0.2s;}
+.search-bar:focus{border-color:var(--green);background:var(--white);}
+.search-wrap{position:relative;margin-bottom:14px;}
+.search-wrap::before{content:'🔍';position:absolute;left:12px;top:50%;transform:translateY(-50%);font-size:14px;}
+
+/* Config section */
+.config-section{background:var(--cardL);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:12px;}
+.config-row{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);}
+.config-row:last-child{border-bottom:none;}
+.config-label{font-size:12px;font-weight:600;color:var(--text2);}
+.config-value{font-size:14px;font-weight:700;color:var(--green);}
+.config-input{width:80px;padding:6px 10px;background:var(--white);border:1.5px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;font-weight:700;text-align:center;outline:none;}
+.config-input:focus{border-color:var(--green);}
