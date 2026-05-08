@@ -6,7 +6,9 @@
 if('serviceWorker' in navigator){
   window.addEventListener('load', async ()=>{
     try{
-      const swPath=IS_DEV?'/sw.js':'/golfeados/sw.js';
+      // GitHub Pages serves from /golfeados/ subpath; Firebase Hosting serves from root
+      const isGitHubPages=location.hostname.includes('github.io');
+      const swPath=isGitHubPages?'/golfeados/sw.js':'/sw.js';
       const reg=await navigator.serviceWorker.register(swPath);
       console.log('[SW] Registered:', reg.scope);
 

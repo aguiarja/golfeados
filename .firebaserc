@@ -1,5 +1,18 @@
 {
   "projects": {
     "default": "golfeados-660b3"
-  }
+  },
+  "targets": {
+    "golfeados-660b3": {
+      "hosting": {
+        "production": [
+          "golfeados-660b3"
+        ],
+        "dev": [
+          "golfeados-dev"
+        ]
+      }
+    }
+  },
+  "etags": {}
 }

@@ -60,6 +60,11 @@ function _initBroadListeners(uid,isAdmin){
     err=>console.warn('clubes error:',err)));
   ensureJugadoresGlobal();
 
+  // ── Inscripciones (admin: all) ──
+  STATE.unsubs.push(db.collection('inscripciones').orderBy('creado','desc')
+    .onSnapshot(s=>{ STATE.inscripciones=s.docs.map(d=>({id:d.id,...d.data()})); renderCurrentTab(); },
+    err=>console.warn('inscripciones error:',err)));
+
   // ── Wallet listeners (admin: all transactions + pago movil pending) ──
   _initWalletListeners(uid, true);
 }
@@ -113,6 +118,11 @@ function _initScopedListeners(uid){
     err=>console.warn('clubes error:',err.message||err)));
 
   ensureJugadoresGlobal();
+
+  // ── Inscripciones (user: own) ──
+  STATE.unsubs.push(db.collection('inscripciones').where('user_id','==',uid).orderBy('creado','desc')
+    .onSnapshot(s=>{ STATE.inscripciones=s.docs.map(d=>({id:d.id,...d.data()})); renderCurrentTab(); },
+    err=>console.warn('inscripciones error:',err)));
 
   // ── Wallet listeners (user: own wallet + own transactions) ──
   _initWalletListeners(uid, false);
@@ -356,6 +366,7 @@ function stopListeners(){
   STATE.jugadores_by_torneo={};
   STATE.jugadores_global=[];
   STATE.allTorneos=[];
+  STATE.inscripciones=[];
   STATE.linked_jugador_ids=new Set();
   STATE.users_cache={};
   STATE._jugadorToUserMap={};

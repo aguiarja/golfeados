@@ -24,7 +24,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-storage-compat.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 
-<link rel="stylesheet" href="css/styles.css?v=4.4.5"/>
+<link rel="stylesheet" href="css/styles.css?v=4.5.3"/>
 </head>
 <body>
 
@@ -306,9 +306,10 @@
   </div>
 
   <div id="nav">
-    <button class="nav-btn active" data-tab="dashboard" onclick="goTab('dashboard')">🏠 Inicio</button>
-    <button class="nav-btn" data-tab="mistorneos" onclick="goTab('mistorneos')">🏆 Mis Torneos</button>
-    <button class="nav-btn" data-tab="jornadas" onclick="goTab('jornadas')">🏌️ Partidas</button>
+    <button class="nav-btn active" data-tab="dashboard" onclick="goTab('dashboard')">🏆 Torneos</button>
+    <button class="nav-btn" data-tab="mistorneos" onclick="goTab('mistorneos')">📋 Mis Torneos</button>
+    <button class="nav-btn" data-tab="jornadas" onclick="goTab('jornadas')">🏌️ Mis Partidas</button>
+    <button class="nav-btn" data-tab="creartorneo" onclick="goTab('creartorneo')">➕ Crear</button>
     <button class="nav-btn" data-tab="clubes" onclick="goTab('clubes')" id="navClubes" style="display:none;">⛳ Clubes</button>
     <button class="nav-btn" data-tab="admin-wallet" onclick="goTab('admin-wallet')" id="navAdminWallet" style="display:none;">💳 Recargas</button>
     <button class="nav-btn" data-tab="admin-users" onclick="goTab('admin-users')" id="navAdminUsers" style="display:none;">👥 Usuarios</button>
@@ -324,6 +325,7 @@
     <div id="tab-admin-wallet" style="display:none;"></div>
     <div id="tab-admin-users" style="display:none;"></div>
     <div id="tab-cargar" style="display:none;"></div>
+    <div id="tab-creartorneo" style="display:none;"></div>
   </div>
 </div>
 
@@ -602,6 +604,18 @@
                 <option value="admins">Solo admins</option>
                 <option value="cualquiera">Cualquier jugador</option>
               </select></div>
+          </div>
+          <div style="display:flex;gap:12px;margin-top:12px;">
+            <div style="flex:1;"><label class="form-label">Costo de inscripción</label>
+              <input type="number" class="form-input" id="tCostoInscripcion" min="0" step="1" placeholder="0 = gratis" style="width:100%;"/>
+            </div>
+            <div style="flex:1;"><label class="form-label">Moneda</label>
+              <select class="form-select" id="tMonedaInscripcion" style="width:100%;">
+                <option value="pelotas">⛳ Pelotas</option>
+                <option value="USD">💵 USD</option>
+                <option value="BS">🇻🇪 Bs</option>
+              </select>
+            </div>
           </div>
         </div>
       </div>
@@ -893,18 +907,39 @@
   </div>
 </div>
 
-<script src="js/config.js?v=4.4.5"></script>
-<script src="js/auth.js?v=4.4.5"></script>
-<script src="js/listeners.js?v=4.4.5"></script>
-<script src="js/render.js?v=4.4.5"></script>
-<script src="js/modals.js?v=4.4.5"></script>
-<script src="js/cargar.js?v=4.4.5"></script>
-<script src="js/jugadores.js?v=4.4.5"></script>
-<script src="js/wallet.js?v=4.4.5"></script>
-<script src="js/admin-wallet.js?v=4.4.5"></script>
-<script src="js/admin-users.js?v=4.4.5"></script>
-<script src="js/utils.js?v=4.4.5"></script>
-<script src="js/sw-register.js?v=4.4.5"></script>
+<!-- MODAL INSCRIPCIÓN TORNEO -->
+<div id="modalInscripcion" class="modal-overlay" style="display:none;" onclick="closeModalInscripcion()">
+  <div class="modal-box" onclick="event.stopPropagation()" style="max-width:420px;">
+    <div class="modal-header">
+      <div class="modal-title" id="modalInscripcionTitle">Inscripción al Torneo</div>
+      <button onclick="closeModalInscripcion()" style="background:none;border:none;font-size:20px;color:var(--muted);cursor:pointer;">✕</button>
+    </div>
+    <div class="modal-body" id="modalInscripcionBody"></div>
+  </div>
+</div>
+<!-- MODAL PENDIENTES INSCRIPCIONES -->
+<div id="modalPendientes" class="modal-overlay" style="display:none;" onclick="closeModalPendientes()">
+  <div class="modal-box" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <div class="modal-title" id="modalPendientesTitle">Inscripciones Pendientes</div>
+      <button onclick="closeModalPendientes()" style="background:none;border:none;font-size:20px;color:var(--muted);cursor:pointer;">✕</button>
+    </div>
+    <div class="modal-body" id="modalPendientesBody"></div>
+  </div>
+</div>
+<script src="js/config.js?v=4.5.3"></script>
+<script src="js/auth.js?v=4.5.3"></script>
+<script src="js/listeners.js?v=4.5.3"></script>
+<script src="js/render.js?v=4.5.3"></script>
+<script src="js/modals.js?v=4.5.3"></script>
+<script src="js/cargar.js?v=4.5.3"></script>
+<script src="js/jugadores.js?v=4.5.3"></script>
+<script src="js/wallet.js?v=4.5.3"></script>
+<script src="js/admin-wallet.js?v=4.5.3"></script>
+<script src="js/admin-users.js?v=4.5.3"></script>
+<script src="js/inscripcion.js?v=4.5.3"></script>
+<script src="js/utils.js?v=4.5.3"></script>
+<script src="js/sw-register.js?v=4.5.3"></script>
 
 </body>
 </html>

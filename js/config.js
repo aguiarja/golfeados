@@ -5,12 +5,12 @@
 // ══════════════════════════════════════════════════════
 // VERSIÓN — cambia este número cada vez que subas cambios
 // ══════════════════════════════════════════════════════
-const APP_VERSION = '4.4.2';
+const APP_VERSION = '4.5.3';
 
 // ══════════════════════════════════════════════════════
 // DEV MODE DETECTION
 // ══════════════════════════════════════════════════════
-const IS_DEV = location.hostname.includes('--dev') || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+const IS_DEV = location.hostname.includes('--dev') || location.hostname.includes('golfeados-dev') || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
 if (IS_DEV) {
   document.addEventListener('DOMContentLoaded', () => {
     const banner = document.getElementById('devBanner');
@@ -63,5 +63,7 @@ let STATE = {
   allTransactions:[],         // admin: all transactions
   pagoMovilPendientes:[],     // admin: pending pago movil recharges
   // ── Admin Users ──
-  allUsers:[]                 // admin: all user profiles
+  allUsers:[],                // admin: all user profiles
+  // ── Inscripciones ──
+  inscripciones:[]            // tournament inscriptions
 };

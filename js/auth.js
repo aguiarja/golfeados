@@ -346,6 +346,12 @@ function showLogin(){ showLoginView('loginView'); }
 function showRegister(){ showLoginView('registerView'); }
 function showVerifyChoice(){ showLoginView('verifyChoiceView'); }
 
+// ─── Capture deep link params before auth ────────────
+(function(){
+  const p=new URLSearchParams(window.location.search).get('torneo');
+  if(p) sessionStorage.setItem('pendingTorneo', p);
+})();
+
 // ─── onAuthStateChanged ───────────────────────────────
 auth.onAuthStateChanged(async user=>{
   if(user){
@@ -440,6 +446,14 @@ function showApp_(){
   if(vBadge) vBadge.style.display=(!STATE.profile?.jugador_id&&STATE.profile?.role!=='admin')?'inline-flex':'none';
   initConnectionMonitor();
   initUpdateChecker();
+
+  // Deep link: ?torneo=XXX → open inscription modal after login
+  window.history.replaceState({}, '', window.location.pathname);
+  const pendingTorneo=sessionStorage.getItem('pendingTorneo');
+  if(pendingTorneo){
+    sessionStorage.removeItem('pendingTorneo');
+    setTimeout(()=>{ if(typeof openModalInscripcion==='function') openModalInscripcion(pendingTorneo); }, 1500);
+  }
 }
 
 // Keep showApp as alias

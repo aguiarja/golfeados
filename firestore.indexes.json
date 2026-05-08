@@ -4,16 +4,42 @@
       "collectionGroup": "transactions",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "user_id", "order": "ASCENDING" },
-        { "fieldPath": "creado", "order": "DESCENDING" }
+        {
+          "fieldPath": "user_id",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "creado",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "pago_movil_recargas",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "estado", "order": "ASCENDING" },
-        { "fieldPath": "creado", "order": "DESCENDING" }
+        {
+          "fieldPath": "estado",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "creado",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "inscripciones",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "user_id",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "creado",
+          "order": "DESCENDING"
+        }
       ]
     }
   ],

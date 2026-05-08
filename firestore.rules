@@ -65,5 +65,12 @@ service cloud.firestore {
       allow create: if isLoggedIn();
       allow update: if isAdmin();
     }
+
+    // ── Inscripciones ─────────────────────────────────
+    match /inscripciones/{docId} {
+      allow read: if isLoggedIn();
+      allow create: if isLoggedIn();
+      allow update: if isLoggedIn();
+    }
   }
 }

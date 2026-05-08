@@ -73,9 +73,10 @@ function goTab(tab){
   document.querySelector('[data-tab="'+tab+'"]')?.classList.add('active');
   // For jugadores sub-view, highlight Mis Torneos tab
   if(tab==='jugadores') document.querySelector('[data-tab="mistorneos"]')?.classList.add('active');
-  ['dashboard','mistorneos','jornadas','jugadores','wallet','clubes','admin-wallet','admin-users','cargar'].forEach(t=>{
+  ['dashboard','mistorneos','jornadas','jugadores','wallet','clubes','admin-wallet','admin-users','cargar','creartorneo'].forEach(t=>{
     const el=document.getElementById('tab-'+t); if(el) el.style.display='none';
   });
+  if(tab==='creartorneo'){ const ct=document.getElementById('tab-creartorneo'); if(ct) ct.dataset.ready=''; }
   const tEl=document.getElementById('tab-'+tab); if(tEl) tEl.style.display='block';
   renderCurrentTab();
 }
@@ -85,7 +86,7 @@ function goCargar(jornadaId){
   STATE._jornadaFotoFiles=[null,null,null];  // store File objects here
   cargarParticipantes=[]; cargarPosiciones=[]; cargarStep=1;
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
-  ['dashboard','mistorneos','jornadas','jugadores','wallet','clubes','admin-wallet','admin-users','cargar'].forEach(t=>{
+  ['dashboard','mistorneos','jornadas','jugadores','wallet','clubes','admin-wallet','admin-users','cargar','creartorneo'].forEach(t=>{
     const el=document.getElementById('tab-'+t); if(el) el.style.display='none';
   });
   const ct=document.getElementById('tab-cargar');
@@ -108,6 +109,7 @@ function renderCurrentTab(){
     else if(STATE.currentTab==='admin-wallet') renderAdminWallet();
     else if(STATE.currentTab==='admin-users') renderAdminUsers();
     else if(STATE.currentTab==='cargar') renderCargar();
+    else if(STATE.currentTab==='creartorneo') renderCrearTorneo();
   });
 }
 
@@ -617,56 +619,57 @@ function verTorneoCompleto(torneoId){
 function renderDashboard(){
   const el=document.getElementById('tab-dashboard');
   const isAdmin=STATE.profile?.role==='admin';
-  const torneos=STATE.torneos;
-  const MAX_DASH=3; // max cards on dashboard
-
-  // Sort: active first, then by creation
-  const sorted=[...torneos].sort((a,b)=>{
-    const order={activo:0,Activo:0,borrador:1,Borrador:1,finalizado:2,Finalizado:2};
-    return (order[a.estado]||1)-(order[b.estado]||1);
+  const publicos=(STATE.allTorneos||[]).filter(t=>t.visibilidad==='publico'&&(t.estado==='Activo'||t.estado==='activo'));
+  const sorted=[...publicos].sort((a,b)=>{
+    const fa=a.creado?.toDate?a.creado.toDate():new Date(a.creado||0);
+    const fb=b.creado?.toDate?b.creado.toDate():new Date(b.creado||0);
+    return fb-fa;
   });
-  const visible=sorted.slice(0,MAX_DASH);
-  const hasMore=sorted.length>MAX_DASH;
-
-  if(torneos.length===0){
-    el.innerHTML=`
-      <div class="hero">
-        <div class="hero-label">Bienvenido a Golfeados</div>
-        <div class="hero-title">No hay torneos activos</div>
-        <div style="color:rgba(255,255,255,0.8);font-size:13px;margin-top:8px;">Ve a Mis Torneos para crear o unirte a un torneo</div>
-      </div>
-      <div class="card" style="margin-top:12px;">
-        <div class="card-body" style="text-align:center;padding:24px;">
-          <button class="btn-outline" onclick="goTab('mistorneos')" style="font-size:14px;padding:12px 24px;">🏆 Ir a Mis Torneos</button>
+  let html=`<div style="margin-bottom:12px;"><div class="text-15 font-bold">Torneos Públicos</div></div>`;
+  if(sorted.length===0){
+    html+=`<div class="card"><div class="card-body" style="text-align:center;padding:32px;">
+      <div style="font-size:40px;margin-bottom:8px;">🏆</div>
+      <div class="text-14 font-bold">No hay torneos públicos</div>
+      <div class="text-12 text-muted" style="margin-top:6px;">Usa <strong>➕ Crear</strong> para crear tu primer torneo público</div>
+    </div></div>`;
+  } else {
+    sorted.forEach(t=>{
+      const costoTxt=t.costoInscripcion>0
+        ?`${t.costoInscripcion} ${t.monedaInscripcion==='pelotas'?'⛳':t.monedaInscripcion}`
+        :'Gratis';
+      const logoEl=t.logoURL
+        ?`<img src="${t.logoURL}" style="width:44px;height:44px;border-radius:10px;object-fit:cover;flex-shrink:0;border:1px solid var(--border);"/>`
+        :`<div style="width:44px;height:44px;border-radius:10px;background:var(--green);display:flex;align-items:center;justify-content:center;color:#fff;font-size:20px;flex-shrink:0;">🏆</div>`;
+      html+=`<div class="card" style="margin-bottom:10px;cursor:pointer;" onclick="openTorneoPublico('${t.id}')">
+        <div style="padding:14px 18px;display:flex;align-items:center;gap:14px;">
+          ${logoEl}
+          <div class="flex-1">
+            <div class="text-14 font-bold">${t.nombre}</div>
+            <div class="text-12 text-muted">${t.descripcion||'Sin descripción'}</div>
+          </div>
+          <div style="text-align:right;">
+            <div class="text-12 font-bold" style="color:var(--green);">${costoTxt}</div>
+            <div class="text-11 text-muted">Inscripción</div>
+          </div>
         </div>
-      </div>
-      ${isAdmin?`<div class="card"><div class="card-body" style="display:flex;gap:10px;flex-wrap:wrap;">
-        <button class="btn-blue" onclick="goTab('jugadores')">+ Jugador</button>
-        ${STATE.jugadores.length===0?`<button class="btn-teal" onclick="seedDatos()">🌱 Cargar Datos Iniciales</button>`:''}
-      </div><div id="seedMsg" style="display:none;padding:10px 20px;font-size:13px;color:var(--green);"></div></div>`:''}
-    `;
-    return;
+      </div>`;
+    });
   }
-
-  el.innerHTML=`
-    ${visible.map(t=>torneoCardHTML(t)).join('')}
-    ${hasMore?`
-      <div style="text-align:center;margin:4px 0 16px;">
-        <button class="btn-outline" onclick="goTab('mistorneos')" style="width:100%;padding:12px;font-size:13px;">
-          Ver todos mis torneos (${torneos.length}) →
-        </button>
-      </div>`:''}
-    ${isAdmin?`
-    <div class="card">
+  if(isAdmin){
+    html+=`<div class="card" style="margin-top:12px;">
       <div class="card-header"><span class="card-title">⚙️ Admin</span></div>
       <div class="card-body" style="display:flex;gap:10px;flex-wrap:wrap;">
-        <button class="btn-green" onclick="openModalTorneo()">+ Torneo</button>
         <button class="btn-outline" onclick="goTab('jugadores')">+ Jugador</button>
-        ${STATE.jugadores.length===0?`<button class="btn-teal" onclick="seedDatos()">🌱 Cargar Datos Iniciales</button>`:''}
+        ${STATE.jugadores.length===0?`<button class="btn-teal" onclick="seedDatos()">🌱 Datos Iniciales</button>`:''}
       </div>
       <div id="seedMsg" style="display:none;padding:10px 20px;font-size:13px;color:var(--green);"></div>
-    </div>`:''}
-  `;
+    </div>`;
+  }
+  el.innerHTML=html;
+}
+
+function openTorneoPublico(torneoId){
+  if(typeof openModalInscripcion==='function') openModalInscripcion(torneoId);
 }
 
 
@@ -682,17 +685,14 @@ function renderMisTorneos(){
   });
 
   el.innerHTML=`
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-      <div>
-        <div class="text-15 font-bold" style="font-family:Georgia,serif;">Mis Torneos</div>
-        <div class="text-12 text-muted">${torneos.length} torneo${torneos.length!==1?'s':''}</div>
-      </div>
-      <button class="btn-green" style="font-size:13px;padding:8px 16px;" onclick="openModalTorneo()">+ Nuevo</button>
+    <div style="margin-bottom:16px;">
+      <div class="text-15 font-bold" style="font-family:Georgia,serif;">Mis Torneos</div>
+      <div class="text-12 text-muted">${torneos.length} torneo${torneos.length!==1?'s':''}</div>
     </div>
     ${torneos.length===0?`<div class="card"><div class="card-body" style="text-align:center;color:var(--muted);padding:40px;">
       <div style="font-size:48px;margin-bottom:12px;">⛳</div>
-      <div style="margin-bottom:16px;">No tienes torneos aún.</div>
-      <button class="btn-green" onclick="openModalTorneo()">+ Crear primer torneo</button>
+      <div>No tienes torneos aún.</div>
+      <div class="text-12" style="margin-top:8px;">Usa la pestaña <strong>➕ Crear</strong> para crear tu primer torneo.</div>
     </div></div>`:''}
     ${torneos.map(t=>{
       const tid=t.id;
@@ -792,6 +792,8 @@ function renderMisTorneos(){
 
           <!-- Acciones -->
           <div style="border-top:1px solid var(--border);padding:12px 20px;display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="btn-blue" style="font-size:12px;padding:7px 14px;" onclick="shareTorneoWA('${tid}',event)">📲 Compartir</button>
+            ${(()=>{const pc=(STATE.inscripciones||[]).filter(i=>i.torneo_id===tid&&i.estado==='pendiente').length;return isAdminT&&pc>0?`<button class="btn-outline" style="font-size:12px;padding:7px 14px;" onclick="openModalPendientes('${tid}')">📋 Pendientes <span style="background:#E65100;color:#fff;border-radius:10px;font-size:10px;padding:1px 6px;margin-left:2px;">${pc}</span></button>`:''})()}
             ${isAdminT?`<button class="btn-outline" style="font-size:12px;padding:7px 14px;" onclick="openJugadoresTorneo('${tid}')">👤 Jugadores</button>`:''}
             ${isAdminT?`<button class="btn-green" style="font-size:12px;padding:7px 14px;" onclick="openModalJornada(null,'${tid}')">+ Partida</button>`:''}
             ${isAdminT?`<button class="btn-outline" style="font-size:12px;padding:7px 14px;" onclick="openModalEditTorneo('${tid}')">✏️ Editar torneo</button>`:''}
@@ -944,6 +946,8 @@ function openModalTorneo(torneoId=null){
   document.getElementById('tDescripcion').value=t?.descripcion||'';
   document.getElementById('tVisibilidad').value=t?.visibilidad||'privado';
   document.getElementById('tQuienCarga').value=t?.quienCargaResultados||'admins';
+  if(document.getElementById('tCostoInscripcion')) document.getElementById('tCostoInscripcion').value=t?.costoInscripcion||0;
+  if(document.getElementById('tMonedaInscripcion')) document.getElementById('tMonedaInscripcion').value=t?.monedaInscripcion||'pelotas';
 
   // Reglas
   const r=t?.reglas||{};
@@ -1001,6 +1005,57 @@ function openModalTorneo(torneoId=null){
 
 // Alias for edit button
 function openModalEditTorneo(torneoId){ openModalTorneo(torneoId); }
+
+// ── Share tournament via WhatsApp ─────────────────────
+function shareTorneoWA(torneoId, event){
+  if(event) event.stopPropagation();
+  const t=(STATE.allTorneos||STATE.torneos||[]).find(x=>x.id===torneoId);
+  if(!t) return;
+  const url=(window.location.origin+window.location.pathname).replace(/\/$/, '')+'?torneo='+torneoId;
+  const costoTxt=t.costoInscripcion>0
+    ?t.costoInscripcion+' '+(t.monedaInscripcion==='pelotas'?'pelotas':t.monedaInscripcion)
+    :'Gratis';
+  const msg='🏌️ *¡Te invito a un torneo en Golfeados!*\n\n'
+    +'🏆 *'+t.nombre+'*\n'
+    +(t.descripcion?t.descripcion+'\n':'')
+    +'\n💰 Inscripción: '+costoTxt+'\n\n'
+    +'👉 Inscríbete aquí: '+url+'\n\n'
+    +'¡Nos vemos en el campo! ⛳';
+  window.open('https://wa.me/?text='+encodeURIComponent(msg), '_blank');
+}
+
+// ── Crear Torneo — Tab inline ─────────────────────────
+function renderCrearTorneo(){
+  const el=document.getElementById('tab-creartorneo');
+  if(!el) return;
+  if(el.dataset.ready==='1') return;
+  el.dataset.ready='1';
+  const modalBody=document.querySelector('#modalTorneo .modal-body');
+  if(!modalBody) return;
+  el.innerHTML=`
+    <div style="margin-bottom:16px;">
+      <div class="text-15 font-bold" style="font-family:Georgia,serif;">Crear Torneo</div>
+      <div class="text-12 text-muted">Configura los detalles de tu nuevo torneo</div>
+    </div>
+    ${modalBody.innerHTML}
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px;padding-bottom:20px;">
+      <button class="btn-green" id="btnGuardarTorneo" onclick="saveModalTorneo()" style="padding:12px 28px;font-size:14px;">Crear Torneo ⛳</button>
+    </div>`;
+  editingTorneoId=null;
+  STATE._torneoDocURL=null; STATE._torneoDocCleared=false;
+  STATE._torneoLogoURL=null; STATE._torneoLogoCleared=false;
+  STATE._coAdmins=[]; STATE._adminUsers={};
+  const fv={tNombre:'',tJornadasTotal:'',tDescripcion:'',addAdminInput:''};
+  Object.entries(fv).forEach(([id,v])=>{ const e=document.getElementById(id); if(e) e.value=v; });
+  const sv={tEstado:'Activo',tVisibilidad:'privado',tQuienCarga:'admins',tCostoInscripcion:'0',tMonedaInscripcion:'pelotas',rPts1:'4',rPts2:'3',rPts3:'2',rPtsResto:'1',rBonus:'0',rPenalNoAsist:'0',rPenalDQ:'0',rDescartes:'0',rEmpates:'comparten'};
+  Object.entries(sv).forEach(([id,v])=>{ const e=document.getElementById(id); if(e) e.value=v; });
+  ['tDocPreview','tDocExisting','tLogoPreview','tLogoClearBtn','modalTorneoError'].forEach(id=>{
+    const e=document.getElementById(id); if(e) e.style.display='none';
+  });
+  const ph=document.getElementById('tLogoPlaceholder'); if(ph) ph.style.display='';
+  updateEmpateEjemplo();
+  renderAdminsList();
+}
 
 function renderAdminsList(){
   const el=document.getElementById('adminsList');
@@ -1125,6 +1180,8 @@ async function saveModalTorneo(){
       descripcion:document.getElementById('tDescripcion').value.trim(),
       visibilidad:document.getElementById('tVisibilidad').value,
       quienCargaResultados:document.getElementById('tQuienCarga').value,
+      costoInscripcion:Number(document.getElementById('tCostoInscripcion')?.value)||0,
+      monedaInscripcion:document.getElementById('tMonedaInscripcion')?.value||'pelotas',
       reglas:{
         puntos:{
           1:Number(document.getElementById('rPts1').value)||4,
