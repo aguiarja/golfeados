@@ -561,15 +561,19 @@
           </div>
           <div><label class="form-label">Nombre del Torneo *</label>
             <input class="form-input" id="tNombre" placeholder="Ej: Torneo Apertura 2026"/></div>
-          <div style="display:flex;gap:12px;">
-            <div style="flex:1;"><label class="form-label">Ciudad</label>
-              <input class="form-input" id="tCiudad" placeholder="Ej: Caracas"/></div>
-            <div style="flex:1;"><label class="form-label">Campo / Club</label>
-              <select class="form-select" id="tClubId" style="width:100%;">
-                <option value="">— Sin especificar —</option>
-              </select></div>
+          <div>
+            <label class="form-label">Campo / Club</label>
+            <select class="form-select" id="tClubId" style="width:100%;" onchange="onTorneoClubChange()">
+              <option value="">— Sin especificar —</option>
+            </select>
+            <div id="tClubCiudadInfo" class="text-11 text-muted" style="margin-top:4px;display:none;">📍 <span id="tClubCiudadTxt"></span></div>
           </div>
-<!-- fechas: se gestionan por partidas -->
+          <div style="display:flex;gap:12px;">
+            <div style="flex:1;"><label class="form-label">Fecha del torneo</label>
+              <input type="date" class="form-input" id="tFechaTorneo" style="width:100%;"/></div>
+            <div style="flex:1;"><label class="form-label">Fecha límite inscripción</label>
+              <input type="date" class="form-input" id="tFechaLimite" style="width:100%;"/></div>
+          </div>
           <div style="display:flex;gap:12px;">
             <div style="flex:1;"><label class="form-label">N° Partidas</label>
               <input type="number" class="form-input" id="tJornadasTotal" min="1" max="52" placeholder="8"/></div>

@@ -641,10 +641,22 @@ function renderDashboard(){
         ?`<img src="${t.logoURL}" data-torneo-id="${t.id}" style="width:52px;height:52px;border-radius:12px;object-fit:cover;flex-shrink:0;border:1px solid var(--border);" onerror="refreshLogoURL(this,null)"/>`
         :`<div style="width:52px;height:52px;border-radius:12px;background:linear-gradient(135deg,var(--green),var(--teal));display:flex;align-items:center;justify-content:center;color:#fff;font-size:22px;flex-shrink:0;">🏆</div>`;
       const infoLine=[
-        t.ciudad?`📍 ${t.ciudad}`:'',
         t.club_nombre?`⛳ ${t.club_nombre}`:'',
+        t.ciudad?`📍 ${t.ciudad}`:'',
       ].filter(Boolean).join(' · ');
-      const partidasLine=t.jornadas_total>0?`${t.jornadas_total} partidas`:'';
+      const _fmtD=(v)=>{
+        if(!v) return '';
+        const d=v.toDate?v.toDate():new Date(v);
+        if(isNaN(d)) return '';
+        return d.toLocaleDateString('es-VE',{day:'2-digit',month:'short',year:'numeric'});
+      };
+      const fechaT=_fmtD(t.fecha_torneo);
+      const fechaL=_fmtD(t.fecha_limite_inscripcion);
+      const fechaLine=[
+        fechaT?`🗓 ${fechaT}`:(t.jornadas_total>0?`🗓 ${t.jornadas_total} partidas`:''),
+        fechaL?`⏰ Cierra ${fechaL}`:''
+      ].filter(Boolean).join(' · ');
+      const partidasLine=fechaLine;
       html+=`<div class="card" style="margin-bottom:10px;cursor:pointer;" onclick="openTorneoPublico('${t.id}')">
         <div style="padding:14px 16px;display:flex;align-items:center;gap:14px;">
           ${logoEl}
@@ -676,6 +688,20 @@ function renderDashboard(){
 
 function openTorneoPublico(torneoId){
   if(typeof openModalInscripcion==='function') openModalInscripcion(torneoId);
+}
+
+function onTorneoClubChange(){
+  const sel=document.getElementById('tClubId'); if(!sel) return;
+  const cid=sel.value;
+  const club=cid?(STATE.clubes||[]).find(c=>c.id===cid):null;
+  const info=document.getElementById('tClubCiudadInfo');
+  const txt=document.getElementById('tClubCiudadTxt');
+  if(club&&club.ciudad){
+    txt.textContent=club.ciudad;
+    info.style.display='block';
+  } else {
+    info.style.display='none';
+  }
 }
 
 
@@ -946,7 +972,6 @@ function openModalTorneo(torneoId=null){
 
   // Info básica
   document.getElementById('tNombre').value=t?.nombre||'';
-  document.getElementById('tCiudad').value=t?.ciudad||'';
   // Populate club select with current clubs list
   const clubSel=document.getElementById('tClubId');
   clubSel.innerHTML='<option value="">— Sin especificar —</option>';
@@ -956,6 +981,16 @@ function openModalTorneo(torneoId=null){
     if(c.id===t?.club_id) opt.selected=true;
     clubSel.appendChild(opt);
   });
+  onTorneoClubChange();
+  // Fechas torneo
+  const _toDateInput=(v)=>{
+    if(!v) return '';
+    if(v.toDate) v=v.toDate();
+    const d=new Date(v); if(isNaN(d)) return '';
+    return d.toISOString().slice(0,10);
+  };
+  document.getElementById('tFechaTorneo').value=_toDateInput(t?.fecha_torneo);
+  document.getElementById('tFechaLimite').value=_toDateInput(t?.fecha_limite_inscripcion);
   // dates removed — managed through partidas
   document.getElementById('tJornadasTotal').value=t?.jornadas_total||'';
   document.getElementById('tEstado').value=t?.estado||'Activo';
@@ -1189,12 +1224,18 @@ async function saveModalTorneo(){
     if(STATE._torneoLogoCleared){ logoURL=null; }
 
     const _clubId=document.getElementById('tClubId')?.value||'';
-    const _clubNombre=_clubId?(STATE.clubes||[]).find(c=>c.id===_clubId)?.nombre||'':'';
+    const _club=_clubId?(STATE.clubes||[]).find(c=>c.id===_clubId):null;
+    const _clubNombre=_club?.nombre||'';
+    const _ciudad=_club?.ciudad||'';
+    const _fechaT=document.getElementById('tFechaTorneo')?.value||'';
+    const _fechaL=document.getElementById('tFechaLimite')?.value||'';
     const data={
       nombre, logoURL,
-      ciudad:document.getElementById('tCiudad').value.trim(),
+      ciudad:_ciudad,
       club_id:_clubId,
       club_nombre:_clubNombre,
+      fecha_torneo:_fechaT?firebase.firestore.Timestamp.fromDate(new Date(_fechaT+'T12:00:00')):null,
+      fecha_limite_inscripcion:_fechaL?firebase.firestore.Timestamp.fromDate(new Date(_fechaL+'T23:59:59')):null,
       ...(docURL?{docURL,docType}:{}),
       jornadas_total:Number(document.getElementById('tJornadasTotal').value)||0,
       estado:document.getElementById('tEstado').value,
