@@ -24,7 +24,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-storage-compat.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 
-<link rel="stylesheet" href="css/styles.css?v=4.5.3"/>
+<link rel="stylesheet" href="css/styles.css?v=4.5.4"/>
 </head>
 <body>
 
@@ -313,6 +313,7 @@
     <button class="nav-btn" data-tab="clubes" onclick="goTab('clubes')" id="navClubes" style="display:none;">⛳ Clubes</button>
     <button class="nav-btn" data-tab="admin-wallet" onclick="goTab('admin-wallet')" id="navAdminWallet" style="display:none;">💳 Recargas</button>
     <button class="nav-btn" data-tab="admin-users" onclick="goTab('admin-users')" id="navAdminUsers" style="display:none;">👥 Usuarios</button>
+    <button class="nav-btn" data-tab="admin-config" onclick="goTab('admin-config')" id="navAdminConfig" style="display:none;">⚙️ Config</button>
   </div>
 
   <div id="content">
@@ -324,6 +325,7 @@
     <div id="tab-clubes" style="display:none;"></div>
     <div id="tab-admin-wallet" style="display:none;"></div>
     <div id="tab-admin-users" style="display:none;"></div>
+    <div id="tab-admin-config" style="display:none;"></div>
     <div id="tab-cargar" style="display:none;"></div>
     <div id="tab-creartorneo" style="display:none;"></div>
   </div>
@@ -628,6 +630,11 @@
                 <option value="BS">🇻🇪 Bs</option>
               </select>
             </div>
+          </div>
+          <div id="tMetodosPagoSection" style="margin-top:12px;display:none;">
+            <label class="form-label">Modalidades de pago aceptadas</label>
+            <div id="tMetodosPagoList" style="display:flex;flex-direction:column;gap:6px;padding:10px;background:var(--cardL);border:1px solid var(--border);border-radius:8px;max-height:200px;overflow-y:auto;"></div>
+            <div class="text-11 text-muted" style="margin-top:4px;">Selecciona las opciones de pago que aceptarás. Configurar nuevas modalidades en <strong>⚙️ Config</strong> (admin).</div>
           </div>
         </div>
       </div>
@@ -939,19 +946,62 @@
     <div class="modal-body" id="modalPendientesBody"></div>
   </div>
 </div>
-<script src="js/config.js?v=4.5.3"></script>
-<script src="js/auth.js?v=4.5.3"></script>
-<script src="js/listeners.js?v=4.5.3"></script>
-<script src="js/render.js?v=4.5.3"></script>
-<script src="js/modals.js?v=4.5.3"></script>
-<script src="js/cargar.js?v=4.5.3"></script>
-<script src="js/jugadores.js?v=4.5.3"></script>
-<script src="js/wallet.js?v=4.5.3"></script>
-<script src="js/admin-wallet.js?v=4.5.3"></script>
-<script src="js/admin-users.js?v=4.5.3"></script>
-<script src="js/inscripcion.js?v=4.5.3"></script>
-<script src="js/utils.js?v=4.5.3"></script>
-<script src="js/sw-register.js?v=4.5.3"></script>
+<!-- MODAL MODALIDAD DE PAGO (Admin Config) -->
+<div id="modalMetodoPago" class="modal-overlay" style="display:none;" onclick="closeModalMetodoPago(event)">
+  <div class="modal-box" onclick="event.stopPropagation()" style="max-width:480px;">
+    <div class="modal-header">
+      <div class="modal-title" id="modalMetodoPagoTitle">Nueva Modalidad de Pago</div>
+      <button onclick="closeModalMetodoPago()" style="background:none;border:none;font-size:20px;color:var(--muted);cursor:pointer;">✕</button>
+    </div>
+    <div class="modal-body" style="display:flex;flex-direction:column;gap:14px;">
+      <div id="modalMetodoPagoError" class="error-box" style="display:none;"></div>
+      <div><label class="form-label">Nombre *</label>
+        <input class="form-input" id="mpNombre" placeholder="Ej: Pago Móvil Banesco"/></div>
+      <div><label class="form-label">Tipo</label>
+        <select class="form-select" id="mpTipo" style="width:100%;">
+          <option value="transferencia">🏦 Transferencia bancaria</option>
+          <option value="pago_movil">📱 Pago Móvil</option>
+          <option value="zelle">💵 Zelle</option>
+          <option value="tarjeta">💳 Tarjeta / link de pago</option>
+          <option value="efectivo">💰 Efectivo</option>
+          <option value="cripto">₿ Cripto</option>
+          <option value="otro">🔧 Otro</option>
+        </select></div>
+      <div><label class="form-label">Instrucciones / Datos de pago *</label>
+        <textarea class="form-input" id="mpInstrucciones" rows="5" placeholder="Ej:&#10;Banco: Banesco&#10;Titular: Juan Pérez&#10;CI: V-12345678&#10;Teléfono: 04141234567" style="resize:vertical;"></textarea>
+        <div class="text-11 text-muted" style="margin-top:4px;">Se mostrará al jugador cuando seleccione esta modalidad al inscribirse.</div></div>
+      <div><label class="form-label">URL / Link (opcional)</label>
+        <input class="form-input" id="mpUrl" placeholder="Ej: https://pay.stripe.com/..."/>
+        <div class="text-11 text-muted" style="margin-top:4px;">Útil para tarjeta, link de Stripe/MercadoPago, etc.</div></div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <input type="checkbox" id="mpRequiereRef" style="width:16px;height:16px;accent-color:var(--green);"/>
+        <label for="mpRequiereRef" class="text-13">Requiere número de referencia / comprobante</label>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <input type="checkbox" id="mpActivo" checked style="width:16px;height:16px;accent-color:var(--green);"/>
+        <label for="mpActivo" class="text-13">Activo</label>
+      </div>
+    </div>
+    <div class="modal-footer" style="display:flex;gap:10px;justify-content:flex-end;padding:14px;border-top:1px solid var(--border);">
+      <button class="btn-outline" onclick="closeModalMetodoPago()">Cancelar</button>
+      <button class="btn-green" onclick="saveMetodoPago()">Guardar</button>
+    </div>
+  </div>
+</div>
+<script src="js/config.js?v=4.5.4"></script>
+<script src="js/auth.js?v=4.5.4"></script>
+<script src="js/listeners.js?v=4.5.4"></script>
+<script src="js/render.js?v=4.5.4"></script>
+<script src="js/modals.js?v=4.5.4"></script>
+<script src="js/cargar.js?v=4.5.4"></script>
+<script src="js/jugadores.js?v=4.5.4"></script>
+<script src="js/wallet.js?v=4.5.4"></script>
+<script src="js/admin-wallet.js?v=4.5.4"></script>
+<script src="js/admin-users.js?v=4.5.4"></script>
+<script src="js/inscripcion.js?v=4.5.4"></script>
+<script src="js/admin-config.js?v=4.5.4"></script>
+<script src="js/utils.js?v=4.5.4"></script>
+<script src="js/sw-register.js?v=4.5.4"></script>
 
 </body>
 </html>

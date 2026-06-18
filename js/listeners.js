@@ -65,6 +65,11 @@ function _initBroadListeners(uid,isAdmin){
     .onSnapshot(s=>{ STATE.inscripciones=s.docs.map(d=>({id:d.id,...d.data()})); renderCurrentTab(); },
     err=>console.warn('inscripciones error:',err)));
 
+  // ── Modalidades de pago (todos pueden leer; admin escribe) ──
+  STATE.unsubs.push(db.collection('metodos_pago').orderBy('nombre')
+    .onSnapshot(s=>{ STATE.metodosPago=s.docs.map(d=>({id:d.id,...d.data()})); renderCurrentTab(); },
+    err=>console.warn('metodos_pago error:',err)));
+
   // ── Wallet listeners (admin: all transactions + pago movil pending) ──
   _initWalletListeners(uid, true);
 }
@@ -123,6 +128,11 @@ function _initScopedListeners(uid){
   STATE.unsubs.push(db.collection('inscripciones').where('user_id','==',uid).orderBy('creado','desc')
     .onSnapshot(s=>{ STATE.inscripciones=s.docs.map(d=>({id:d.id,...d.data()})); renderCurrentTab(); },
     err=>console.warn('inscripciones error:',err)));
+
+  // ── Modalidades de pago (lectura para mostrar al inscribirse) ──
+  STATE.unsubs.push(db.collection('metodos_pago').orderBy('nombre')
+    .onSnapshot(s=>{ STATE.metodosPago=s.docs.map(d=>({id:d.id,...d.data()})); renderCurrentTab(); },
+    err=>console.warn('metodos_pago error:',err)));
 
   // ── Wallet listeners (user: own wallet + own transactions) ──
   _initWalletListeners(uid, false);
@@ -378,6 +388,7 @@ function stopListeners(){
   STATE.allTransactions=[];
   STATE.pagoMovilPendientes=[];
   STATE.allUsers=[];
+  STATE.metodosPago=[];
   _torneosMergeMap={};
   _torneosReadyCount=0;
 }

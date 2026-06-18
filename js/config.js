@@ -5,7 +5,7 @@
 // ══════════════════════════════════════════════════════
 // VERSIÓN — cambia este número cada vez que subas cambios
 // ══════════════════════════════════════════════════════
-const APP_VERSION = '4.5.3';
+const APP_VERSION = '4.5.4';
 
 // ══════════════════════════════════════════════════════
 // DEV MODE DETECTION
@@ -65,5 +65,7 @@ let STATE = {
   // ── Admin Users ──
   allUsers:[],                // admin: all user profiles
   // ── Inscripciones ──
-  inscripciones:[]            // tournament inscriptions
+  inscripciones:[],           // tournament inscriptions
+  // ── Modalidades de pago (admin config) ──
+  metodosPago:[]              // [{ id, nombre, tipo, instrucciones, url, requiere_ref, activo }]
 };

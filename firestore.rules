@@ -72,5 +72,11 @@ service cloud.firestore {
       allow create: if isLoggedIn();
       allow update: if isLoggedIn();
     }
+
+    // ── Modalidades de pago (config global) ───────────
+    match /metodos_pago/{docId} {
+      allow read: if isLoggedIn();
+      allow write: if isAdmin();
+    }
   }
 }

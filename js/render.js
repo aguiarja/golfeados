@@ -73,7 +73,7 @@ function goTab(tab){
   document.querySelector('[data-tab="'+tab+'"]')?.classList.add('active');
   // For jugadores sub-view, highlight Mis Torneos tab
   if(tab==='jugadores') document.querySelector('[data-tab="mistorneos"]')?.classList.add('active');
-  ['dashboard','mistorneos','jornadas','jugadores','wallet','clubes','admin-wallet','admin-users','cargar','creartorneo'].forEach(t=>{
+  ['dashboard','mistorneos','jornadas','jugadores','wallet','clubes','admin-wallet','admin-users','admin-config','cargar','creartorneo'].forEach(t=>{
     const el=document.getElementById('tab-'+t); if(el) el.style.display='none';
   });
   if(tab==='creartorneo'){ const ct=document.getElementById('tab-creartorneo'); if(ct) ct.dataset.ready=''; }
@@ -86,7 +86,7 @@ function goCargar(jornadaId){
   STATE._jornadaFotoFiles=[null,null,null];  // store File objects here
   cargarParticipantes=[]; cargarPosiciones=[]; cargarStep=1;
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
-  ['dashboard','mistorneos','jornadas','jugadores','wallet','clubes','admin-wallet','admin-users','cargar','creartorneo'].forEach(t=>{
+  ['dashboard','mistorneos','jornadas','jugadores','wallet','clubes','admin-wallet','admin-users','admin-config','cargar','creartorneo'].forEach(t=>{
     const el=document.getElementById('tab-'+t); if(el) el.style.display='none';
   });
   const ct=document.getElementById('tab-cargar');
@@ -108,6 +108,7 @@ function renderCurrentTab(){
     else if(STATE.currentTab==='clubes') renderClubes();
     else if(STATE.currentTab==='admin-wallet') renderAdminWallet();
     else if(STATE.currentTab==='admin-users') renderAdminUsers();
+    else if(STATE.currentTab==='admin-config') renderAdminConfig();
     else if(STATE.currentTab==='cargar') renderCargar();
     else if(STATE.currentTab==='creartorneo') renderCrearTorneo();
   });
@@ -690,6 +691,34 @@ function openTorneoPublico(torneoId){
   if(typeof openModalInscripcion==='function') openModalInscripcion(torneoId);
 }
 
+// ── Modal Torneo: render checkbox list of payment methods ──
+function renderTorneoMetodosPago(selectedIds){
+  const section=document.getElementById('tMetodosPagoSection');
+  const list=document.getElementById('tMetodosPagoList');
+  if(!section||!list) return;
+  const costo=Number(document.getElementById('tCostoInscripcion')?.value)||0;
+  const moneda=document.getElementById('tMonedaInscripcion')?.value||'pelotas';
+  // Hide section if free or paid with pelotas (wallet-based, no method needed)
+  if(costo<=0||moneda==='pelotas'){ section.style.display='none'; return; }
+  section.style.display='block';
+  const metodos=(STATE.metodosPago||[]).filter(m=>m.activo!==false);
+  if(metodos.length===0){
+    list.innerHTML=`<div class="text-12 text-muted" style="padding:8px;text-align:center;">No hay modalidades de pago configuradas. ${STATE.profile?.role==='admin'?'Crea una en <strong>⚙️ Config</strong>.':'Pide al administrador que configure modalidades de pago.'}</div>`;
+    return;
+  }
+  const sel=new Set(selectedIds||[]);
+  list.innerHTML=metodos.map(m=>`
+    <label style="display:flex;align-items:center;gap:8px;padding:6px;border-radius:6px;cursor:pointer;font-size:13px;">
+      <input type="checkbox" class="mp-checkbox" value="${m.id}" ${sel.has(m.id)?'checked':''} style="width:16px;height:16px;accent-color:var(--green);"/>
+      <span>${m.nombre}</span>
+      <span class="text-11 text-muted" style="margin-left:auto;">${(_MP_TIPOS_LABEL[m.tipo]||m.tipo)}</span>
+    </label>`).join('');
+}
+const _MP_TIPOS_LABEL={transferencia:'🏦',pago_movil:'📱',zelle:'💵',tarjeta:'💳',efectivo:'💰',cripto:'₿',otro:'🔧'};
+function _collectSelectedMetodos(){
+  return Array.from(document.querySelectorAll('.mp-checkbox:checked')).map(c=>c.value);
+}
+
 function onTorneoClubChange(){
   const sel=document.getElementById('tClubId'); if(!sel) return;
   const cid=sel.value;
@@ -999,6 +1028,12 @@ function openModalTorneo(torneoId=null){
   document.getElementById('tQuienCarga').value=t?.quienCargaResultados||'admins';
   if(document.getElementById('tCostoInscripcion')) document.getElementById('tCostoInscripcion').value=t?.costoInscripcion||0;
   if(document.getElementById('tMonedaInscripcion')) document.getElementById('tMonedaInscripcion').value=t?.monedaInscripcion||'pelotas';
+  renderTorneoMetodosPago(t?.metodos_pago_aceptados||[]);
+  // Listen on cost changes to toggle visibility
+  const _tCosto=document.getElementById('tCostoInscripcion');
+  if(_tCosto){ _tCosto.oninput=()=>renderTorneoMetodosPago(_collectSelectedMetodos()); }
+  const _tMoneda=document.getElementById('tMonedaInscripcion');
+  if(_tMoneda){ _tMoneda.onchange=()=>renderTorneoMetodosPago(_collectSelectedMetodos()); }
 
   // Reglas
   const r=t?.reglas||{};
@@ -1244,6 +1279,7 @@ async function saveModalTorneo(){
       quienCargaResultados:document.getElementById('tQuienCarga').value,
       costoInscripcion:Number(document.getElementById('tCostoInscripcion')?.value)||0,
       monedaInscripcion:document.getElementById('tMonedaInscripcion')?.value||'pelotas',
+      metodos_pago_aceptados:_collectSelectedMetodos(),
       reglas:{
         puntos:{
           1:Number(document.getElementById('rPts1').value)||4,

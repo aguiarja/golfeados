@@ -441,6 +441,8 @@ function showApp_(){
   if(navAdminWallet) navAdminWallet.style.display=STATE.profile?.role==='admin'?'':'none';
   const navAdminUsers=document.getElementById('navAdminUsers');
   if(navAdminUsers) navAdminUsers.style.display=STATE.profile?.role==='admin'?'':'none';
+  const navAdminConfig=document.getElementById('navAdminConfig');
+  if(navAdminConfig) navAdminConfig.style.display=STATE.profile?.role==='admin'?'':'none';
   // Show vincular badge if no jugador linked
   const vBadge=document.getElementById('vincularBadge');
   if(vBadge) vBadge.style.display=(!STATE.profile?.jugador_id&&STATE.profile?.role!=='admin')?'inline-flex':'none';
