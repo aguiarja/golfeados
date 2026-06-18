@@ -24,7 +24,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-storage-compat.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 
-<link rel="stylesheet" href="css/styles.css?v=4.5.4"/>
+<link rel="stylesheet" href="css/styles.css?v=4.5.5"/>
 </head>
 <body>
 
@@ -539,6 +539,7 @@
     </div>
     <div class="modal-body" style="display:flex;flex-direction:column;gap:16px;">
       <div id="modalTorneoError" class="error-box" style="display:none;"></div>
+      <div id="torneoFormSlot" style="display:flex;flex-direction:column;gap:16px;">
 
       <!-- INFO BÁSICA -->
       <div style="background:var(--cardL);border-radius:10px;padding:14px;border:1px solid var(--border);">
@@ -639,6 +640,17 @@
         </div>
       </div>
 
+      <!-- CATEGORÍAS -->
+      <div style="background:var(--cardL);border-radius:10px;padding:14px;border:1px solid var(--border);">
+        <div class="text-12 font-bold text-muted" style="letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;">🏷️ Categorías</div>
+        <div class="text-11 text-muted" style="margin-bottom:10px;">Define las categorías que se ofrecerán a los jugadores al inscribirse (ej: 1ª, 2ª, 3ª, Profesional). Si no agregas ninguna, no se pedirá categoría.</div>
+        <div id="tCategoriasList" style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px;"></div>
+        <div style="display:flex;gap:8px;">
+          <input type="text" class="form-input" id="tNuevaCategoria" placeholder="Ej: 1ª Categoría" style="flex:1;" onkeydown="if(event.key==='Enter'){event.preventDefault();addCategoriaTorneo();}"/>
+          <button type="button" class="btn-outline" onclick="addCategoriaTorneo()">+ Agregar</button>
+        </div>
+      </div>
+
       <!-- REGLAS DE PUNTUACIÓN -->
       <div style="background:var(--cardL);border-radius:10px;padding:14px;border:1px solid var(--border);">
         <div class="text-12 font-bold text-muted" style="letter-spacing:1px;text-transform:uppercase;margin-bottom:12px;">⚙️ Reglas de Puntuación</div>
@@ -722,6 +734,7 @@
         </div>
         <div id="addAdminError" style="font-size:11px;color:var(--red);margin-top:6px;display:none;"></div>
       </div>
+      </div><!-- /#torneoFormSlot -->
     </div>
 
     <div class="modal-footer">
@@ -988,20 +1001,20 @@
     </div>
   </div>
 </div>
-<script src="js/config.js?v=4.5.4"></script>
-<script src="js/auth.js?v=4.5.4"></script>
-<script src="js/listeners.js?v=4.5.4"></script>
-<script src="js/render.js?v=4.5.4"></script>
-<script src="js/modals.js?v=4.5.4"></script>
-<script src="js/cargar.js?v=4.5.4"></script>
-<script src="js/jugadores.js?v=4.5.4"></script>
-<script src="js/wallet.js?v=4.5.4"></script>
-<script src="js/admin-wallet.js?v=4.5.4"></script>
-<script src="js/admin-users.js?v=4.5.4"></script>
-<script src="js/inscripcion.js?v=4.5.4"></script>
-<script src="js/admin-config.js?v=4.5.4"></script>
-<script src="js/utils.js?v=4.5.4"></script>
-<script src="js/sw-register.js?v=4.5.4"></script>
+<script src="js/config.js?v=4.5.5"></script>
+<script src="js/auth.js?v=4.5.5"></script>
+<script src="js/listeners.js?v=4.5.5"></script>
+<script src="js/render.js?v=4.5.5"></script>
+<script src="js/modals.js?v=4.5.5"></script>
+<script src="js/cargar.js?v=4.5.5"></script>
+<script src="js/jugadores.js?v=4.5.5"></script>
+<script src="js/wallet.js?v=4.5.5"></script>
+<script src="js/admin-wallet.js?v=4.5.5"></script>
+<script src="js/admin-users.js?v=4.5.5"></script>
+<script src="js/inscripcion.js?v=4.5.5"></script>
+<script src="js/admin-config.js?v=4.5.5"></script>
+<script src="js/utils.js?v=4.5.5"></script>
+<script src="js/sw-register.js?v=4.5.5"></script>
 
 </body>
 </html>

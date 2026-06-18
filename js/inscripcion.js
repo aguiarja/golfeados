@@ -6,7 +6,7 @@
 //   Paso 4: Confirmación
 // ══════════════════════════════════════════════════════
 
-let _inscState={ torneoId:null, step:1, handicap:'', metodoPagoId:'', referencia:'', nota:'' };
+let _inscState={ torneoId:null, step:1, handicap:'', categoria:'', metodoPagoId:'', referencia:'', nota:'' };
 
 function _fmtCosto(t){
   if(!t.costoInscripcion||t.costoInscripcion<=0) return 'Gratis';
@@ -31,6 +31,7 @@ function openModalInscripcion(torneoId){
   _inscState={
     torneoId, step:1,
     handicap: yaInscrito?.handicap_thegreen||STATE.profile?.handicap_thegreen||'',
+    categoria: yaInscrito?.categoria||'',
     metodoPagoId: yaInscrito?.metodo_pago_id||'',
     referencia: yaInscrito?.referencia||'',
     nota: yaInscrito?.nota||''
@@ -100,15 +101,29 @@ function _renderStep1(t){
       <label class="form-label">Nombre</label>
       <input class="form-input" value="${nombre}" disabled style="background:var(--cardL);"/>
     </div>
-    <div style="margin-bottom:16px;">
+    <div style="margin-bottom:14px;">
       <label class="form-label">Handicap (TheGreen) *</label>
       <input type="number" step="0.1" class="form-input" id="inscHandicap" value="${_inscState.handicap}" placeholder="Ej: 18.5"/>
       <div class="text-11 text-muted" style="margin-top:4px;">Tu índice handicap registrado en TheGreen.</div>
     </div>
+    ${_categoriasHTML(t)}
     <div style="display:flex;gap:10px;">
       <button class="btn-outline" onclick="closeModalInscripcion()" style="flex:1;">Cancelar</button>
       <button class="btn-green" onclick="inscNextStep()" style="flex:1;" ${vencido?'disabled':''}>Continuar →</button>
     </div>`;
+}
+
+function _categoriasHTML(t){
+  const cats=Array.isArray(t.categorias)?t.categorias.filter(c=>c&&c.nombre):[];
+  if(cats.length===0) return '';
+  return `<div style="margin-bottom:16px;">
+    <label class="form-label">Categoría *</label>
+    <select class="form-select" id="inscCategoria" style="width:100%;">
+      <option value="">— Selecciona tu categoría —</option>
+      ${cats.map(c=>`<option value="${c.nombre}" ${_inscState.categoria===c.nombre?'selected':''}>${c.nombre}</option>`).join('')}
+    </select>
+    <div class="text-11 text-muted" style="margin-top:4px;">Categoría en la que participarás en este torneo.</div>
+  </div>`;
 }
 
 // ── PASO 2: Selección modalidad de pago ──
@@ -255,6 +270,14 @@ function inscNextStep(){
     const hcap=document.getElementById('inscHandicap')?.value.trim();
     if(!hcap){ alert('Ingresa tu handicap de TheGreen.'); return; }
     _inscState.handicap=hcap;
+    // Categoría si el torneo la requiere
+    const hasCats=Array.isArray(t.categorias)&&t.categorias.filter(c=>c&&c.nombre).length>0;
+    if(hasCats){
+      const catSel=document.getElementById('inscCategoria');
+      const catVal=catSel?catSel.value:'';
+      if(!catVal){ alert('Selecciona tu categoría.'); return; }
+      _inscState.categoria=catVal;
+    }
     // If free → skip to confirm
     if(!t.costoInscripcion||t.costoInscripcion<=0){ _inscState.step=3; }
     else { _inscState.step=2; }
@@ -293,6 +316,7 @@ function _inscripcionEstadoHTML(insc,t){
   </div>
   <div style="background:var(--cardL);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:14px;font-size:12px;">
     ${insc.handicap_thegreen?`<div style="display:flex;justify-content:space-between;margin-bottom:4px;"><span class="text-muted">Handicap (TheGreen)</span><strong>${insc.handicap_thegreen}</strong></div>`:''}
+    ${insc.categoria?`<div style="display:flex;justify-content:space-between;margin-bottom:4px;"><span class="text-muted">Categoría</span><strong>🏷️ ${insc.categoria}</strong></div>`:''}
     <div style="display:flex;justify-content:space-between;margin-bottom:4px;"><span class="text-muted">Modalidad</span><strong>${m?m.nombre:insc.metodo_pago_id==='__pelotas__'?'⛳ Pelotas':'—'}</strong></div>
     ${insc.referencia?`<div style="display:flex;justify-content:space-between;margin-bottom:4px;"><span class="text-muted">Referencia</span><strong>${insc.referencia}</strong></div>`:''}
     <div style="display:flex;justify-content:space-between;"><span class="text-muted">Monto</span><strong>${insc.costo} ${insc.moneda}</strong></div>
@@ -319,6 +343,7 @@ async function submitInscripcion(){
       user_nombre:STATE.profile?.nombre||STATE.user.displayName||'',
       user_email:STATE.user.email||'',
       handicap_thegreen:_inscState.handicap||'',
+      categoria:_inscState.categoria||'',
       metodo_pago_id:_inscState.metodoPagoId||'',
       metodo_pago_nombre:m_nombre,
       costo, moneda:t.monedaInscripcion||'pelotas',
@@ -401,9 +426,30 @@ function closeModalPendientes(){ document.getElementById('modalPendientes').styl
 
 async function aprobarInscripcion(inscId,torneoId){
   try{
-    await db.collection('inscripciones').doc(inscId).update({estado:'aprobada',aprobado_en:firebase.firestore.FieldValue.serverTimestamp()});
+    const insc=(STATE.inscripciones||[]).find(i=>i.id===inscId);
+    const batch=db.batch();
+    batch.update(db.collection('inscripciones').doc(inscId),{estado:'aprobada',aprobado_en:firebase.firestore.FieldValue.serverTimestamp()});
+    // Crea / actualiza el participante en el torneo con nombre, categoría, handicap
+    if(insc&&insc.user_id){
+      const partRef=db.collection('torneos').doc(torneoId).collection('participantes').doc(insc.user_id);
+      const initials=(insc.user_nombre||insc.user_email||'?').split(' ').map(s=>s[0]).join('').toUpperCase().slice(0,2);
+      batch.set(partRef,{
+        jugador_id:insc.user_id,
+        user_uid:insc.user_id,
+        nombre:insc.user_nombre||insc.user_email||'',
+        foto:initials,
+        fotoURL:null,
+        handicap:Number(insc.handicap_thegreen)||0,
+        handicap_thegreen:insc.handicap_thegreen||'',
+        categoria:insc.categoria||'',
+        inscripcion_id:inscId,
+        activo:true,
+        fecha_ingreso:firebase.firestore.FieldValue.serverTimestamp()
+      },{merge:true});
+    }
+    await batch.commit();
     openModalPendientes(torneoId);
-  }catch(e){ alert('Error: '+e.message); }
+  }catch(e){ console.error('aprobar:',e); alert('Error: '+e.message); }
 }
 
 async function rechazarInscripcion(inscId,torneoId){

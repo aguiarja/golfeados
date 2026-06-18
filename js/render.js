@@ -995,6 +995,8 @@ let editingTorneoId = null;
 
 function openModalTorneo(torneoId=null){
   editingTorneoId=torneoId;
+  // Garantiza que el slot del form esté de vuelta en el modal (no en el tab Crear)
+  _restoreTorneoFormSlotToModal();
   document.getElementById('modalTorneoError').style.display='none';
   const t=torneoId?STATE.torneos.find(t=>t.id===torneoId):null;
   document.getElementById('modalTorneoTitle').textContent=torneoId?'Editar Torneo':'Nuevo Torneo';
@@ -1080,9 +1082,15 @@ function openModalTorneo(torneoId=null){
     document.getElementById('tLogoClearBtn').style.display='none';
   }
 
-  // Load co-admins
-  STATE._coAdmins=[...(t?.admins||[])].filter(uid=>uid!==STATE.user?.uid);
+  // Load co-admins (dedup — handle BD con duplicados históricos)
+  const _adminId=t?.adminId||t?.creado_por||STATE.user?.uid;
+  STATE._coAdmins=Array.from(new Set((t?.admins||[]).filter(uid=>uid!==STATE.user?.uid&&uid!==_adminId)));
   renderAdminsList();
+
+  // Load categorías
+  STATE._categorias=Array.isArray(t?.categorias)?t.categorias.map(c=>typeof c==='string'?{nombre:c}:c):[];
+  const _nuevaCatInput=document.getElementById('tNuevaCategoria'); if(_nuevaCatInput) _nuevaCatInput.value='';
+  renderCategoriasList();
 
   // Hide co-admins section for new torneos (show after creation)
   document.getElementById('seccionAdmins').style.display=torneoId?'block':'none';
@@ -1111,36 +1119,107 @@ function shareTorneoWA(torneoId, event){
 }
 
 // ── Crear Torneo — Tab inline ─────────────────────────
+// Move el slot del form entre modal y tab (sin clonar — evita IDs duplicados)
+function _moveTorneoFormSlotTo(parentId){
+  const slot=document.getElementById('torneoFormSlot');
+  const target=document.getElementById(parentId);
+  if(!slot||!target) return;
+  if(slot.parentNode!==target) target.appendChild(slot);
+}
+// Cuando se abre el modal Editar, regresa el slot al modal
+function _restoreTorneoFormSlotToModal(){
+  const slot=document.getElementById('torneoFormSlot');
+  const modalBody=document.querySelector('#modalTorneo .modal-body');
+  if(slot&&modalBody&&slot.parentNode!==modalBody) modalBody.appendChild(slot);
+}
+
 function renderCrearTorneo(){
   const el=document.getElementById('tab-creartorneo');
   if(!el) return;
-  if(el.dataset.ready==='1') return;
-  el.dataset.ready='1';
-  const modalBody=document.querySelector('#modalTorneo .modal-body');
-  if(!modalBody) return;
-  el.innerHTML=`
-    <div style="margin-bottom:16px;">
-      <div class="text-15 font-bold" style="font-family:Georgia,serif;">Crear Torneo</div>
-      <div class="text-12 text-muted">Configura los detalles de tu nuevo torneo</div>
-    </div>
-    ${modalBody.innerHTML}
-    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px;padding-bottom:20px;">
-      <button class="btn-green" id="btnGuardarTorneo" onclick="saveModalTorneo()" style="padding:12px 28px;font-size:14px;">Crear Torneo ⛳</button>
-    </div>`;
+  // Inicializa el shell del tab solo una vez
+  if(el.dataset.ready!=='1'){
+    el.innerHTML=`
+      <div style="margin-bottom:16px;">
+        <div class="text-15 font-bold" style="font-family:Georgia,serif;">Crear Torneo</div>
+        <div class="text-12 text-muted">Configura los detalles de tu nuevo torneo</div>
+      </div>
+      <div id="crearTorneoError" class="error-box" style="display:none;"></div>
+      <div id="crearTorneoSlotContainer"></div>
+      <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px;padding-bottom:20px;">
+        <button class="btn-green" onclick="saveModalTorneo()" style="padding:12px 28px;font-size:14px;">Crear Torneo ⛳</button>
+      </div>`;
+    el.dataset.ready='1';
+  }
+  // Si el modal Editar está abierto, no muevas el slot
+  const modalOpen=document.getElementById('modalTorneo')?.style.display==='flex';
+  if(modalOpen) return;
+  // Mueve el slot del modal al tab
+  _moveTorneoFormSlotTo('crearTorneoSlotContainer');
+  // Reset state for new torneo
   editingTorneoId=null;
   STATE._torneoDocURL=null; STATE._torneoDocCleared=false;
   STATE._torneoLogoURL=null; STATE._torneoLogoCleared=false;
   STATE._coAdmins=[]; STATE._adminUsers={};
-  const fv={tNombre:'',tJornadasTotal:'',tDescripcion:'',addAdminInput:''};
+  STATE._categorias=[];
+  const fv={tNombre:'',tJornadasTotal:'',tDescripcion:'',tCiudad:'',tFechaTorneo:'',tFechaLimite:'',addAdminInput:'',tNuevaCategoria:''};
   Object.entries(fv).forEach(([id,v])=>{ const e=document.getElementById(id); if(e) e.value=v; });
-  const sv={tEstado:'Activo',tVisibilidad:'privado',tQuienCarga:'admins',tCostoInscripcion:'0',tMonedaInscripcion:'pelotas',rPts1:'4',rPts2:'3',rPts3:'2',rPtsResto:'1',rBonus:'0',rPenalNoAsist:'0',rPenalDQ:'0',rDescartes:'0',rEmpates:'comparten'};
+  const sv={tEstado:'Activo',tVisibilidad:'privado',tQuienCarga:'admins',tCostoInscripcion:'0',tMonedaInscripcion:'pelotas',tClubId:'',rPts1:'4',rPts2:'3',rPts3:'2',rPtsResto:'1',rBonus:'0',rPenalNoAsist:'0',rPenalDQ:'0',rDescartes:'0',rEmpates:'comparten'};
   Object.entries(sv).forEach(([id,v])=>{ const e=document.getElementById(id); if(e) e.value=v; });
+  // Re-populate club select
+  const clubSel=document.getElementById('tClubId');
+  if(clubSel){
+    clubSel.innerHTML='<option value="">— Sin especificar —</option>';
+    (STATE.clubes||[]).forEach(c=>{
+      const opt=document.createElement('option'); opt.value=c.id; opt.textContent=c.nombre; clubSel.appendChild(opt);
+    });
+  }
+  if(typeof onTorneoClubChange==='function') onTorneoClubChange();
   ['tDocPreview','tDocExisting','tLogoPreview','tLogoClearBtn','modalTorneoError'].forEach(id=>{
     const e=document.getElementById(id); if(e) e.style.display='none';
   });
   const ph=document.getElementById('tLogoPlaceholder'); if(ph) ph.style.display='';
+  // Hide seccionAdmins for new torneo
+  const sa=document.getElementById('seccionAdmins'); if(sa) sa.style.display='none';
   updateEmpateEjemplo();
   renderAdminsList();
+  renderCategoriasList();
+  renderTorneoMetodosPago([]);
+}
+
+// ── Categorías del torneo ────────────────────────────
+function addCategoriaTorneo(){
+  const input=document.getElementById('tNuevaCategoria');
+  if(!input) return;
+  const nombre=(input.value||'').trim();
+  if(!nombre) return;
+  if(!Array.isArray(STATE._categorias)) STATE._categorias=[];
+  // Dedup (case insensitive)
+  if(STATE._categorias.some(c=>(c.nombre||'').toLowerCase()===nombre.toLowerCase())){
+    input.value=''; return;
+  }
+  STATE._categorias.push({nombre});
+  input.value='';
+  renderCategoriasList();
+}
+function removeCategoriaTorneo(idx){
+  if(!Array.isArray(STATE._categorias)) return;
+  STATE._categorias.splice(idx,1);
+  renderCategoriasList();
+}
+function renderCategoriasList(){
+  const el=document.getElementById('tCategoriasList');
+  if(!el) return;
+  const cats=STATE._categorias||[];
+  if(cats.length===0){
+    el.innerHTML='<div class="text-11 text-muted" style="padding:6px;text-align:center;">Sin categorías. Añade al menos una si quieres clasificar a los jugadores.</div>';
+    return;
+  }
+  el.innerHTML=cats.map((c,i)=>`
+    <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--white);border:1px solid var(--border);border-radius:8px;">
+      <div style="width:24px;height:24px;border-radius:50%;background:var(--green);color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;">${i+1}</div>
+      <div style="flex:1;" class="text-13 font-bold">${c.nombre}</div>
+      <button type="button" onclick="removeCategoriaTorneo(${i})" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px;">✕</button>
+    </div>`).join('');
 }
 
 function renderAdminsList(){
@@ -1199,6 +1278,8 @@ function closeModalTorneo(event){
   if(event&&event.currentTarget!==event.target)return;
   document.getElementById('modalTorneo').style.display='none';
   editingTorneoId=null;
+  // Marca el tab Crear como "no listo" para que la próxima vez se re-popule
+  const ct=document.getElementById('tab-creartorneo'); if(ct) ct.dataset.ready='';
 }
 
 function updateEmpateEjemplo(){
@@ -1279,7 +1360,8 @@ async function saveModalTorneo(){
       quienCargaResultados:document.getElementById('tQuienCarga').value,
       costoInscripcion:Number(document.getElementById('tCostoInscripcion')?.value)||0,
       monedaInscripcion:document.getElementById('tMonedaInscripcion')?.value||'pelotas',
-      metodos_pago_aceptados:_collectSelectedMetodos(),
+      metodos_pago_aceptados:Array.from(new Set(_collectSelectedMetodos())),
+      categorias:(STATE._categorias||[]).map(c=>({nombre:(c.nombre||'').trim()})).filter(c=>c.nombre),
       reglas:{
         puntos:{
           1:Number(document.getElementById('rPts1').value)||4,
@@ -1299,7 +1381,7 @@ async function saveModalTorneo(){
       data.updated_at=firebase.firestore.FieldValue.serverTimestamp();
       // Keep original adminId, update admins list
       const origTorneo=STATE.torneos.find(t=>t.id===editingTorneoId);
-      data.admins=[origTorneo?.adminId||STATE.user.uid,...(STATE._coAdmins||[])];
+      data.admins=Array.from(new Set([origTorneo?.adminId||STATE.user.uid,...(STATE._coAdmins||[])]));
       await db.collection('torneos').doc(editingTorneoId).update(data);
     } else {
       data.adminId=STATE.user.uid;

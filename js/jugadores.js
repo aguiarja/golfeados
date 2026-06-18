@@ -56,7 +56,8 @@ function renderJugadores(){
   const jugadoresActivos=allJugadores.filter(j=>j.activo!==false);
   const jugadoresEliminados=allJugadores.filter(j=>j.activo===false||j.eliminado===true);
 
-  const jugadoresHTML=[...jugadoresActivos,...jugadoresEliminados].map(j=>{
+  // ── Render single participante row (reutilizable para agrupado por categoría) ──
+  const renderRow=(j)=>{
     const global=(STATE.jugadores_global||[]).find(g=>g.id===j.id||g.id===j.jugador_id);
     const raw_user_uid=global?.user_uid||j.user_uid||null;
     const userProfile=raw_user_uid
@@ -76,14 +77,18 @@ function renderJugadores(){
     const isMe=j.id===myJugadorId||j.jugador_id===myJugadorId||user_uid===uid;
     const isElim=j.activo===false||j.eliminado===true;
     const initials=foto||alias?.slice(0,2)||nombre?.slice(0,2)||'?';
+    const hcap=j.handicap_thegreen||(j.handicap!=null&&j.handicap!==0?j.handicap:'');
+    const cat=j.categoria||'';
     return `<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border);${isElim?'opacity:0.5;':''}">
       ${fotoURL
         ?`<img src="${fotoURL}" style="width:40px;height:40px;border-radius:50%;object-fit:cover;flex-shrink:0;${isElim?'filter:grayscale(1);':''}"/>`
         :`<div style="width:40px;height:40px;border-radius:50%;background:${isElim?'var(--muted)':'var(--green)'};color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;flex-shrink:0;">${initials}</div>`}
       <div style="flex:1;min-width:0;">
         <div style="font-weight:700;font-size:13px;${isElim?'text-decoration:line-through;color:var(--muted);':''}">${nombre}${isMe?` <span style="font-size:10px;background:#E8F5E9;color:#2E7D32;padding:1px 5px;border-radius:6px;">Tú</span>`:''}${isElim?` <span style="font-size:10px;background:#FFEBEE;color:#C62828;padding:1px 5px;border-radius:6px;">Eliminado</span>`:''}</div>
-        <div style="font-size:11px;color:var(--muted);">
-          ${alias&&alias!==nombre?`@${alias}`:''} ${telefonoCompleto?'· '+telefonoCompleto:''}
+        <div style="font-size:11px;color:var(--muted);display:flex;gap:6px;flex-wrap:wrap;">
+          ${cat?`<span style="background:#E8F5E9;color:#2E7D32;font-weight:700;padding:1px 6px;border-radius:6px;">🏷️ ${cat}</span>`:''}
+          ${hcap!==''?`<span style="background:#E3F2FD;color:#1565C0;font-weight:700;padding:1px 6px;border-radius:6px;">⛳ Hcp ${hcap}</span>`:''}
+          ${alias&&alias!==nombre?`<span>@${alias}</span>`:''} ${telefonoCompleto?`<span>${telefonoCompleto}</span>`:''}
         </div>
         ${canManage?`<div style="margin-top:4px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">${
           invite_code&&!user_uid
@@ -98,7 +103,41 @@ function renderJugadores(){
       ${canManage&&isElim?`<button onclick="reactivarParticipante('${j.id}','${tid}',event)"
         style="background:none;border:1px solid #A5D6A7;border-radius:6px;padding:3px 8px;color:var(--green);font-size:11px;cursor:pointer;font-weight:600;">↩ Restaurar</button>`:''}
     </div>`;
-  }).join('');
+  };
+
+  // ── Agrupar activos por categoría (en el orden definido en el torneo) ──
+  const cats=(Array.isArray(t.categorias)?t.categorias:[]).map(c=>typeof c==='string'?{nombre:c}:c).filter(c=>c&&c.nombre);
+  const _byCat={}; const _sinCat=[];
+  jugadoresActivos.forEach(j=>{
+    if(j.categoria){
+      (_byCat[j.categoria]=_byCat[j.categoria]||[]).push(j);
+    } else { _sinCat.push(j); }
+  });
+  let jugadoresHTML='';
+  if(cats.length>0){
+    // Orden: primero las categorías declaradas en el torneo, luego las "huérfanas", luego sin categoría
+    const orderedNames=cats.map(c=>c.nombre);
+    const extraNames=Object.keys(_byCat).filter(n=>!orderedNames.includes(n));
+    const allNames=[...orderedNames,...extraNames];
+    allNames.forEach(name=>{
+      const arr=(_byCat[name]||[]).sort((a,b)=>(Number(b.handicap_thegreen||b.handicap||0))-(Number(a.handicap_thegreen||a.handicap||0)));
+      if(arr.length===0&&!orderedNames.includes(name)) return;
+      jugadoresHTML+=`<div style="background:linear-gradient(90deg,var(--green),var(--teal));color:#fff;padding:8px 14px;font-size:12px;font-weight:800;letter-spacing:0.5px;">🏷️ ${name} <span style="opacity:0.85;font-weight:600;">· ${arr.length} jugador${arr.length!==1?'es':''}</span></div>`;
+      jugadoresHTML+= arr.length===0
+        ?`<div style="padding:12px 14px;color:var(--muted);font-size:12px;font-style:italic;">Sin jugadores en esta categoría aún.</div>`
+        :arr.map(renderRow).join('');
+    });
+    if(_sinCat.length>0){
+      jugadoresHTML+=`<div style="background:var(--cardL);color:var(--muted);padding:8px 14px;font-size:12px;font-weight:700;border-top:1px solid var(--border);">Sin categoría · ${_sinCat.length}</div>`;
+      jugadoresHTML+=_sinCat.map(renderRow).join('');
+    }
+  } else {
+    jugadoresHTML=jugadoresActivos.map(renderRow).join('');
+  }
+  if(jugadoresEliminados.length>0){
+    jugadoresHTML+=`<div style="background:#FFEBEE;color:#C62828;padding:8px 14px;font-size:12px;font-weight:700;border-top:1px solid var(--border);">Eliminados · ${jugadoresEliminados.length}</div>`;
+    jugadoresHTML+=jugadoresEliminados.map(renderRow).join('');
+  }
 
   el.innerHTML=`
     <!-- Sticky header -->
