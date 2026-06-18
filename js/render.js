@@ -635,21 +635,27 @@ function renderDashboard(){
   } else {
     sorted.forEach(t=>{
       const costoTxt=t.costoInscripcion>0
-        ?`${t.costoInscripcion} ${t.monedaInscripcion==='pelotas'?'⛳':t.monedaInscripcion}`
+        ?`${t.costoInscripcion} ${t.monedaInscripcion==='pelotas'?'⛳':t.monedaInscripcion==='USD'?'💵 USD':'🇻🇪 Bs'}`
         :'Gratis';
       const logoEl=t.logoURL
-        ?`<img src="${t.logoURL}" style="width:44px;height:44px;border-radius:10px;object-fit:cover;flex-shrink:0;border:1px solid var(--border);"/>`
-        :`<div style="width:44px;height:44px;border-radius:10px;background:var(--green);display:flex;align-items:center;justify-content:center;color:#fff;font-size:20px;flex-shrink:0;">🏆</div>`;
+        ?`<img src="${t.logoURL}" data-torneo-id="${t.id}" style="width:52px;height:52px;border-radius:12px;object-fit:cover;flex-shrink:0;border:1px solid var(--border);" onerror="refreshLogoURL(this,null)"/>`
+        :`<div style="width:52px;height:52px;border-radius:12px;background:linear-gradient(135deg,var(--green),var(--teal));display:flex;align-items:center;justify-content:center;color:#fff;font-size:22px;flex-shrink:0;">🏆</div>`;
+      const infoLine=[
+        t.ciudad?`📍 ${t.ciudad}`:'',
+        t.club_nombre?`⛳ ${t.club_nombre}`:'',
+      ].filter(Boolean).join(' · ');
+      const partidasLine=t.jornadas_total>0?`${t.jornadas_total} partidas`:'';
       html+=`<div class="card" style="margin-bottom:10px;cursor:pointer;" onclick="openTorneoPublico('${t.id}')">
-        <div style="padding:14px 18px;display:flex;align-items:center;gap:14px;">
+        <div style="padding:14px 16px;display:flex;align-items:center;gap:14px;">
           ${logoEl}
-          <div class="flex-1">
-            <div class="text-14 font-bold">${t.nombre}</div>
-            <div class="text-12 text-muted">${t.descripcion||'Sin descripción'}</div>
+          <div style="flex:1;min-width:0;">
+            <div class="text-14 font-bold" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${t.nombre}</div>
+            ${infoLine?`<div class="text-12 text-muted" style="margin-top:2px;">${infoLine}</div>`:''}
+            ${partidasLine?`<div class="text-11 text-muted" style="margin-top:1px;">🗓 ${partidasLine}</div>`:''}
           </div>
-          <div style="text-align:right;">
-            <div class="text-12 font-bold" style="color:var(--green);">${costoTxt}</div>
-            <div class="text-11 text-muted">Inscripción</div>
+          <div style="text-align:right;flex-shrink:0;">
+            <div class="text-13 font-bold" style="color:${t.costoInscripcion>0?'var(--green)':'var(--teal)'};">${costoTxt}</div>
+            <div class="text-10 text-muted" style="margin-top:2px;">Inscripción</div>
           </div>
         </div>
       </div>`;
@@ -940,6 +946,16 @@ function openModalTorneo(torneoId=null){
 
   // Info básica
   document.getElementById('tNombre').value=t?.nombre||'';
+  document.getElementById('tCiudad').value=t?.ciudad||'';
+  // Populate club select with current clubs list
+  const clubSel=document.getElementById('tClubId');
+  clubSel.innerHTML='<option value="">— Sin especificar —</option>';
+  (STATE.clubes||[]).forEach(c=>{
+    const opt=document.createElement('option');
+    opt.value=c.id; opt.textContent=c.nombre;
+    if(c.id===t?.club_id) opt.selected=true;
+    clubSel.appendChild(opt);
+  });
   // dates removed — managed through partidas
   document.getElementById('tJornadasTotal').value=t?.jornadas_total||'';
   document.getElementById('tEstado').value=t?.estado||'Activo';
@@ -1172,8 +1188,13 @@ async function saveModalTorneo(){
     }
     if(STATE._torneoLogoCleared){ logoURL=null; }
 
+    const _clubId=document.getElementById('tClubId')?.value||'';
+    const _clubNombre=_clubId?(STATE.clubes||[]).find(c=>c.id===_clubId)?.nombre||'':'';
     const data={
       nombre, logoURL,
+      ciudad:document.getElementById('tCiudad').value.trim(),
+      club_id:_clubId,
+      club_nombre:_clubNombre,
       ...(docURL?{docURL,docType}:{}),
       jornadas_total:Number(document.getElementById('tJornadasTotal').value)||0,
       estado:document.getElementById('tEstado').value,
