@@ -52,9 +52,32 @@ function _renderInscripcionStep(t, yaInscrito){
     body.innerHTML=header+_inscripcionEstadoHTML(yaInscrito,t);
     return;
   }
+  // Si la fecha límite de inscripción ya venció y el usuario NO está inscrito,
+  // solo mostramos info del torneo + mensaje. Sin formulario, sin botones de continuar.
+  if(_isInscripcionVencida(t)){
+    body.innerHTML=header+_renderVencidoHTML(t);
+    return;
+  }
   if(_inscState.step===1) body.innerHTML=header+_renderStep1(t);
   else if(_inscState.step===2) body.innerHTML=header+_renderStep2(t);
   else if(_inscState.step===3) body.innerHTML=header+_renderStep3(t);
+}
+
+function _isInscripcionVencida(t){
+  if(!t.fecha_limite_inscripcion) return false;
+  const d=t.fecha_limite_inscripcion.toDate?t.fecha_limite_inscripcion.toDate():new Date(t.fecha_limite_inscripcion);
+  return !isNaN(d)&&d<new Date();
+}
+
+function _renderVencidoHTML(t){
+  const fechaL=_fmtFechaInsc(t.fecha_limite_inscripcion);
+  return `
+    <div style="background:#FFEBEE;border:1px solid #FFCDD2;color:#C62828;border-radius:10px;padding:14px;margin-bottom:14px;text-align:center;">
+      <div style="font-size:32px;margin-bottom:6px;">⏰</div>
+      <div class="text-14 font-bold" style="margin-bottom:4px;">El proceso de inscripción para este torneo finalizó</div>
+      ${fechaL?`<div class="text-12">La fecha límite fue el <strong>${fechaL}</strong>.</div>`:''}
+    </div>
+    <button class="btn-outline" onclick="closeModalInscripcion()" style="width:100%;">Cerrar</button>`;
 }
 
 function _torneoHeaderHTML(t, yaInscrito){
@@ -87,15 +110,9 @@ function _torneoHeaderHTML(t, yaInscrito){
 // ── PASO 1: Datos del jugador ──
 function _renderStep1(t){
   const nombre=STATE.profile?.nombre||STATE.user?.displayName||STATE.user?.email||'';
-  // Fecha límite vencida?
-  let vencido=false;
-  if(t.fecha_limite_inscripcion){
-    const d=t.fecha_limite_inscripcion.toDate?t.fecha_limite_inscripcion.toDate():new Date(t.fecha_limite_inscripcion);
-    if(!isNaN(d)&&d<new Date()) vencido=true;
-  }
+  const vencido=_isInscripcionVencida(t);
   return `
     ${_stepIndicator(1,t)}
-    ${vencido?`<div style="background:#FFEBEE;border:1px solid #FFCDD2;color:#C62828;border-radius:8px;padding:10px;margin-bottom:14px;font-size:12px;">⚠️ La fecha límite de inscripción ya venció.</div>`:''}
     <div class="text-13 font-bold" style="margin-bottom:10px;">Tus datos</div>
     <div style="margin-bottom:12px;">
       <label class="form-label">Nombre</label>
