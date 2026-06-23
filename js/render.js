@@ -1551,12 +1551,14 @@ function renderJornadas(){
             <div class="flex items-center gap-10" style="flex:1;min-width:0;">
               ${clubAvatarHTML(jn.sede)}
               <div style="flex:1;min-width:0;">
-                <div class="text-14 font-bold" style="line-height:1.3;">
-                  ${jn.sede||'Sin sede'}${jn.cuentaRanking===false?' 🚫':''}${jn.reglasOverride?` <span style="background:#FEF3C7;color:#92400E;font-size:10px;font-weight:700;padding:1px 5px;border-radius:4px;white-space:nowrap;">⭐ Especial</span>`:''}
+                ${(()=>{const t=findTorneo(jn.torneo_id);return t
+                  ?`<div class="font-bold" style="font-size:16px;line-height:1.2;color:var(--green);font-family:Georgia,serif;">🏆 ${t.nombre}</div>`
+                  :'';})()}
+                <div style="font-size:13px;font-weight:700;color:var(--text);margin-top:3px;line-height:1.3;">
+                  ⛳ ${jn.sede||'Sin sede'}${jn.cuentaRanking===false?' 🚫':''}${jn.reglasOverride?` <span style="background:#FEF3C7;color:#92400E;font-size:10px;font-weight:700;padding:1px 5px;border-radius:4px;white-space:nowrap;">⭐ Especial</span>`:''}
                 </div>
-                <div style="font-size:12px;color:var(--text2);font-weight:600;margin-top:2px;">${fmtFechaJornada(jn)}${jn.teeTime?' · ⏰ '+jn.teeTime:''}</div>
-                ${jn.notas?`<div class="text-11 text-muted">${jn.notas}</div>`:''}
-                ${(()=>{const t=findTorneo(jn.torneo_id);return t?`<div class="text-11" style="color:var(--green);font-weight:600;margin-top:1px;">🏆 ${t.nombre}</div>`:'';})()} 
+                <div style="font-size:12px;color:var(--text2);font-weight:600;margin-top:2px;">🗓 ${fmtFechaJornada(jn)}${jn.teeTime?' · ⏰ '+jn.teeTime:''}</div>
+                ${jn.notas?`<div class="text-11 text-muted" style="margin-top:2px;">${jn.notas}</div>`:''}
               </div>
               ${jn.fotos&&jn.fotos.length>0?`<div style="display:flex;flex-direction:row;gap:0;flex-shrink:0;margin-left:4px;cursor:pointer;" onclick="event.stopPropagation();toggleJornada('${jn.id}')">${jn.fotos.slice(0,3).map((url,fi)=>'<img src="'+url+'" style="width:34px;height:34px;object-fit:cover;border-radius:6px;border:2px solid var(--white);'+(fi>0?'margin-left:-8px;':'')+'box-shadow:0 1px 3px rgba(0,0,0,0.15);"/>').join('')}</div>`:''}
             </div>
