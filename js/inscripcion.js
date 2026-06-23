@@ -103,8 +103,11 @@ function _torneoHeaderHTML(t, yaInscrito){
         <div class="text-13 font-bold" style="color:${t.costoInscripcion>0?'var(--green)':'var(--teal)'};">${_fmtCosto(t)}</div>
       </div>
     </div>
-    ${t.descripcion?`<details style="margin-bottom:14px;"><summary style="font-size:12px;color:var(--muted);cursor:pointer;">📝 Ver descripción del torneo</summary><div class="text-12" style="margin-top:8px;padding:10px;background:var(--cardL);border-radius:8px;white-space:pre-wrap;line-height:1.5;">${t.descripcion}</div></details>`:''}
-    ${t.docURL?`<div style="margin-bottom:14px;"><a href="${t.docURL}" target="_blank" class="text-12" style="color:var(--blue);text-decoration:none;">${t.docType==='pdf'?'📄 Ver reglamento':'🖼️ Ver imagen / reglamento'}</a></div>`:''}`;
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:14px;flex-wrap:wrap;">
+      <button class="btn-blue" style="font-size:12px;padding:7px 14px;" onclick="shareTorneoWA('${t.id}',event)">📲 Compartir por WhatsApp</button>
+      ${t.docURL?`<a href="${t.docURL}" target="_blank" class="text-12" style="color:var(--blue);text-decoration:none;padding:7px 4px;">${t.docType==='pdf'?'📄 Ver reglamento':'🖼️ Ver imagen / reglamento'}</a>`:''}
+    </div>
+    ${t.descripcion?`<details style="margin-bottom:14px;"><summary style="font-size:12px;color:var(--muted);cursor:pointer;">📝 Ver descripción del torneo</summary><div class="text-12" style="margin-top:8px;padding:10px;background:var(--cardL);border-radius:8px;white-space:pre-wrap;line-height:1.5;">${t.descripcion}</div></details>`:''}`;
 }
 
 // ── PASO 1: Datos del jugador ──
