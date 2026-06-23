@@ -765,6 +765,11 @@ function renderMisTorneos(){
       const myJugadorId=STATE.profile?.jugador_id;
       const myPos=rk.find(r=>r.id===myJugadorId);
       const isAdminT=isTorneoAdmin(t);
+      // ── Stats de inscripción ──
+      const cuposMax=Number(t.cupos_maximos)||0;
+      const inscritosCount=getJugadoresTorneo(tid).filter(j=>j.activo!==false).length;
+      const pendientesCount=(STATE.inscripciones||[]).filter(i=>i.torneo_id===tid&&i.estado==='pendiente').length;
+      const pctInsc=cuposMax>0?Math.min(100,Math.round((inscritosCount/cuposMax)*100)):0;
 
       return`
       <div class="card" style="margin-bottom:12px;">
@@ -777,7 +782,7 @@ function renderMisTorneos(){
             display:flex;align-items:center;justify-content:center;color:#fff;font-size:18px;flex-shrink:0;">⛳</div>`}
           <div class="flex-1">
             <div class="text-15 font-bold">${t.nombre}</div>
-            <div class="text-12 text-muted">${jugadas}/${total} partidas · ${getJugadoresTorneo(tid).filter(j=>j.activo!==false).length} jugadores</div>
+            <div class="text-12 text-muted">${jugadas}/${total} partidas · ${inscritosCount}${cuposMax>0?'/'+cuposMax:''} inscritos${pendientesCount>0?` · ⏳ ${pendientesCount} por aprobar`:''}</div>
             ${myPos?`<div class="text-11" style="color:var(--green);margin-top:2px;">Tu posición: #${myPos.pos} · ${myPos.ptsT} pts</div>`:''}
           </div>
           <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
@@ -787,21 +792,33 @@ function renderMisTorneos(){
         </div>
 
         ${isExpanded?`
-        <!-- Ranking completo -->
+        <!-- Stats de inscripción -->
         <div style="border-top:1px solid var(--border);">
           <div style="padding:14px 20px 4px;">
-            <div class="text-11 text-muted font-bold" style="letter-spacing:1px;text-transform:uppercase;margin-bottom:10px;">📊 Ranking</div>
-            <div class="rank-head"><span>#</span><span>Jugador</span><span>Asist.</span><span>Total</span></div>
-            ${rk.map(j=>`
-              <div class="rank-row ${j.pos<=3?'top':''}">
-                <div>${medal(j.pos)}</div>
-                <div class="flex items-center gap-8">
-                  ${j.fotoURL?`<img src="${j.fotoURL}" style="width:28px;height:28px;border-radius:50%;object-fit:cover;flex-shrink:0;"/>`:avatarHTML(j.foto,j.pos,'sm')}
-                  <div><div class="text-13 font-bold">${j.nombre}</div><div class="text-11 text-muted">${j.alias||''}</div></div>
-                </div>
-                <div class="text-13 text-muted">${j.asist}✓</div>
-                <div style="font-size:15px;font-weight:800;color:${j.pos===1?'var(--gold)':'var(--text)'};">${j.ptsT}</div>
-              </div>`).join('')}
+            <div class="text-11 text-muted font-bold" style="letter-spacing:1px;text-transform:uppercase;margin-bottom:10px;">👥 Inscripciones</div>
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px;">
+              <div style="background:var(--cardL);border:1px solid var(--border);border-radius:10px;padding:10px 8px;text-align:center;">
+                <div style="font-size:20px;font-weight:800;color:var(--text);">${cuposMax>0?cuposMax:'—'}</div>
+                <div class="text-11 text-muted">Cupos máx.</div>
+              </div>
+              <div style="background:#E8F5E9;border:1px solid #A5D6A7;border-radius:10px;padding:10px 8px;text-align:center;">
+                <div style="font-size:20px;font-weight:800;color:#2E7D32;">${inscritosCount}</div>
+                <div class="text-11" style="color:#2E7D32;">Inscritos</div>
+              </div>
+              <div style="background:${pendientesCount>0?'#FFF3E0':'var(--cardL)'};border:1px solid ${pendientesCount>0?'#FFB74D':'var(--border)'};border-radius:10px;padding:10px 8px;text-align:center;">
+                <div style="font-size:20px;font-weight:800;color:${pendientesCount>0?'#E65100':'var(--muted)'};">${pendientesCount}</div>
+                <div class="text-11" style="color:${pendientesCount>0?'#E65100':'var(--muted)'};">Por aprobar</div>
+              </div>
+            </div>
+            ${cuposMax>0?`
+              <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;margin-bottom:4px;">
+                <span class="text-muted">% de inscripción</span>
+                <strong style="color:${pctInsc>=100?'var(--gold)':pctInsc>=80?'#E65100':'var(--green)'};">${pctInsc}%</strong>
+              </div>
+              <div style="height:8px;background:var(--border);border-radius:4px;overflow:hidden;">
+                <div style="height:100%;width:${pctInsc}%;background:${pctInsc>=100?'var(--gold)':pctInsc>=80?'#FFB74D':'var(--green)'};transition:width 0.3s;"></div>
+              </div>
+            `:`<div class="text-11 text-muted" style="font-style:italic;">Define los cupos máximos al editar el torneo para ver el % de inscripción.</div>`}
           </div>
 
           <!-- Partidas del torneo — clickeables -->
@@ -810,35 +827,6 @@ function renderMisTorneos(){
             ${jornadasT.length===0?`<div class="text-13 text-muted">Sin partidas aún.</div>`:''}
             ${[...jornadasT].sort((a,b)=>{const fa=a.fecha&&typeof a.fecha==='object'&&a.fecha.seconds?new Date(a.fecha.seconds*1000):new Date(a.fecha||0);const fb=b.fecha&&typeof b.fecha==='object'&&b.fecha.seconds?new Date(b.fecha.seconds*1000):new Date(b.fecha||0);return fa-fb;}).map(jn=>jornadaRowMT(jn)).join('')}
           </div>
-
-          <!-- Desglose por partida -->
-          ${(()=>{
-            const jJugadas=jornadasT.filter(j=>j.estado!=='Planificada');
-            if(!jJugadas.length) return '';
-            const minW=80+jJugadas.length*60;
-            let html='<div style="border-top:1px solid var(--border);padding:14px 20px 8px;overflow-x:auto;">';
-            html+='<div class="text-11 text-muted font-bold" style="letter-spacing:1px;text-transform:uppercase;margin-bottom:10px;">Desglose por Partida</div>';
-            html+='<table style="width:100%;border-collapse:collapse;font-size:12px;min-width:'+minW+'px;">';
-            html+='<tr><td style="padding:4px 8px;color:var(--muted);font-weight:700;white-space:nowrap;">Jugador</td>';
-            jJugadas.forEach(jn=>{html+='<td style="padding:4px 8px;text-align:center;color:var(--muted);font-weight:700;white-space:nowrap;">'+jn.sede+(jn.reglasOverride?' ⭐':'')+'<br/><span style="font-size:10px;opacity:0.75;">'+fmtFechaJornada(jn)+'</span><br/>'+badgeHTML(getEstadoJornada(jn))+'</td>';});
-            html+='<td style="padding:4px 8px;text-align:center;color:var(--green);font-weight:700;">TOT</td></tr>';
-            rk.forEach(j=>{
-              html+='<tr style="border-top:1px solid var(--border);">';
-              html+='<td style="padding:5px 8px;font-weight:600;white-space:nowrap;">'+j.nombre+'</td>';
-              jJugadas.forEach(jn=>{
-                const jp=(j.jornadaPts||[]).find(p=>p.jornada_id===jn.id);
-                if(!jp){ html+='<td style="padding:5px 8px;text-align:center;color:var(--muted);">?</td>'; return; }
-                if(!jp.asistencia){ html+='<td style="padding:5px 8px;text-align:center;color:var(--muted);">—</td>'; return; }
-                if(jp.dq){ html+='<td style="padding:5px 8px;text-align:center;color:#C62828;">DQ</td>'; return; }
-                const col=jp.pts>=4?'var(--gold)':'var(--text)';
-                html+='<td style="padding:5px 8px;text-align:center;color:'+col+';">'+fmtPts(jp.pts)+'</td>';
-              });
-              html+='<td style="padding:5px 8px;text-align:center;font-weight:800;color:'+(j.pos===1?'var(--gold)':'var(--text)')+';">'+fmtPts(j.ptsT)+'</td>';
-              html+='</tr>';
-            });
-            html+='</table></div>';
-            return html;
-          })()}
 
           <!-- Reglas del torneo -->
           <div style="border-top:1px solid var(--border);padding:14px 20px 8px;">
@@ -1024,6 +1012,7 @@ function openModalTorneo(torneoId=null){
   document.getElementById('tFechaLimite').value=_toDateInput(t?.fecha_limite_inscripcion);
   // dates removed — managed through partidas
   document.getElementById('tJornadasTotal').value=t?.jornadas_total||'';
+  if(document.getElementById('tCuposMaximos')) document.getElementById('tCuposMaximos').value=t?.cupos_maximos||'';
   document.getElementById('tEstado').value=t?.estado||'Activo';
   document.getElementById('tDescripcion').value=t?.descripcion||'';
   document.getElementById('tVisibilidad').value=t?.visibilidad||'privado';
@@ -1161,7 +1150,7 @@ function renderCrearTorneo(){
   STATE._torneoLogoURL=null; STATE._torneoLogoCleared=false;
   STATE._coAdmins=[]; STATE._adminUsers={};
   STATE._categorias=[];
-  const fv={tNombre:'',tJornadasTotal:'',tDescripcion:'',tCiudad:'',tFechaTorneo:'',tFechaLimite:'',addAdminInput:'',tNuevaCategoria:''};
+  const fv={tNombre:'',tJornadasTotal:'',tCuposMaximos:'',tDescripcion:'',tCiudad:'',tFechaTorneo:'',tFechaLimite:'',addAdminInput:'',tNuevaCategoria:''};
   Object.entries(fv).forEach(([id,v])=>{ const e=document.getElementById(id); if(e) e.value=v; });
   const sv={tEstado:'Activo',tVisibilidad:'privado',tQuienCarga:'admins',tCostoInscripcion:'0',tMonedaInscripcion:'pelotas',tClubId:'',rPts1:'4',rPts2:'3',rPts3:'2',rPtsResto:'1',rBonus:'0',rPenalNoAsist:'0',rPenalDQ:'0',rDescartes:'0',rEmpates:'comparten'};
   Object.entries(sv).forEach(([id,v])=>{ const e=document.getElementById(id); if(e) e.value=v; });
@@ -1354,6 +1343,7 @@ async function saveModalTorneo(){
       fecha_limite_inscripcion:_fechaL?firebase.firestore.Timestamp.fromDate(new Date(_fechaL+'T23:59:59')):null,
       ...(docURL?{docURL,docType}:{}),
       jornadas_total:Number(document.getElementById('tJornadasTotal').value)||0,
+      cupos_maximos:Number(document.getElementById('tCuposMaximos')?.value)||0,
       estado:document.getElementById('tEstado').value,
       descripcion:document.getElementById('tDescripcion').value.trim(),
       visibilidad:document.getElementById('tVisibilidad').value,
