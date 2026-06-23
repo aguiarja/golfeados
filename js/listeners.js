@@ -62,7 +62,7 @@ function _initBroadListeners(uid,isAdmin){
 
   // ── Inscripciones (admin: all) ──
   STATE.unsubs.push(db.collection('inscripciones').orderBy('creado','desc')
-    .onSnapshot(s=>{ STATE.inscripciones=s.docs.map(d=>({id:d.id,...d.data()})); renderCurrentTab(); },
+    .onSnapshot(s=>{ STATE.inscripciones=s.docs.map(d=>({id:d.id,...d.data()})); _filterMyTorneos(); renderCurrentTab(); },
     err=>console.warn('inscripciones error:',err)));
 
   // ── Modalidades de pago (todos pueden leer; admin escribe) ──
@@ -126,7 +126,7 @@ function _initScopedListeners(uid){
 
   // ── Inscripciones (user: own) ──
   STATE.unsubs.push(db.collection('inscripciones').where('user_id','==',uid).orderBy('creado','desc')
-    .onSnapshot(s=>{ STATE.inscripciones=s.docs.map(d=>({id:d.id,...d.data()})); renderCurrentTab(); },
+    .onSnapshot(s=>{ STATE.inscripciones=s.docs.map(d=>({id:d.id,...d.data()})); _filterMyTorneos(); renderCurrentTab(); },
     err=>console.warn('inscripciones error:',err)));
 
   // ── Modalidades de pago (lectura para mostrar al inscribirse) ──
@@ -179,6 +179,14 @@ function _filterMyTorneos(){
     }
   }
 
+  // Torneos donde el usuario tiene una inscripción aprobada
+  // (incluso si subscribeParticipantes aún no ha cargado los participantes)
+  const torneoIdsFromInscripciones=new Set(
+    (STATE.inscripciones||[])
+      .filter(i=>i.user_id===uid&&i.estado==='aprobada')
+      .map(i=>i.torneo_id)
+  );
+
   STATE.torneos=STATE.allTorneos.filter(t=>{
     if(t.creado_por===uid) return true;
     if(t.adminId===uid) return true;
@@ -186,6 +194,7 @@ function _filterMyTorneos(){
     if((t.cargadores||[]).includes(uid)) return true;
     if(torneoIdsFromParticipantes.has(t.id)) return true;
     if(torneoIdsFromResults.has(t.id)) return true;
+    if(torneoIdsFromInscripciones.has(t.id)) return true;
     return false;
   });
 
