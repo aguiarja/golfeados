@@ -245,8 +245,12 @@ async function _enrichJugadoresWithUserProfiles(){
   if(changed) renderCurrentTab();
 }
 function getJugadoresTorneo(torneoId){
+  // Fuente confiable: jugadores_by_torneo (poblada por subscribeParticipantes para cada torneo)
+  const byT=STATE.jugadores_by_torneo?.[torneoId];
+  if(byT&&byT.length) return byT;
+  // Fallback al cache legacy de jugadores activos
   if(torneoId===STATE.activeTorneoId) return STATE.jugadores||[];
-  return STATE.jugadores_by_torneo[torneoId]||[];
+  return byT||[];
 }
 
 // Returns unified list: participantes + players from resultados (same source as calcRankingTorneo)

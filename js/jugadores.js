@@ -13,6 +13,8 @@ function openJugadoresTorneo(tid){
   // Ensure participantes are subscribed for this torneo
   STATE.activeTorneoId=tid;
   STATE.torneo=STATE.torneos.find(t=>t.id===tid)||null;
+  // Sincroniza STATE.jugadores con la subcoleccion del torneo
+  STATE.jugadores=STATE.jugadores_by_torneo?.[tid]||[];
   if(!_participantesUnsubs[tid]) subscribeParticipantes();
   ensureJugadoresGlobal();
   goTab('jugadores');
