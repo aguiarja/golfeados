@@ -1496,11 +1496,27 @@ function renderJornadas(){
     if(jornadasConResultado.has(j.id)) return true;                // tiene resultado
     return false;
   });
+  const _jornadaDate=(j)=>{
+    if(!j.fecha) return null;
+    if(typeof j.fecha==='object'&&j.fecha.seconds) return new Date(j.fecha.seconds*1000);
+    const d=new Date(j.fecha); return isNaN(d)?null:d;
+  };
+  // Orden descendente: futuras primero, luego pasadas más recientes
   const jornadasOrdenadas=[...misJornadas].sort((a,b)=>{
-    const da=a.fecha?(typeof a.fecha==='object'&&a.fecha.seconds?new Date(a.fecha.seconds*1000):new Date(a.fecha)):null;
-    const db_=b.fecha?(typeof b.fecha==='object'&&b.fecha.seconds?new Date(b.fecha.seconds*1000):new Date(b.fecha)):null;
+    const da=_jornadaDate(a), db_=_jornadaDate(b);
+    if(!da&&!db_) return 0;
     if(!da) return 1; if(!db_) return -1;
-    return da-db_;
+    return db_-da;
+  });
+  // Agrupar por mes/año. Las sin fecha caen al final en su propio grupo.
+  const _MESES=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  const _grupos=[]; const _gIdx={};
+  jornadasOrdenadas.forEach(jn=>{
+    const d=_jornadaDate(jn);
+    const key=d?(d.getFullYear()*100+d.getMonth()):'sin_fecha';
+    const label=d?`${_MESES[d.getMonth()]} ${d.getFullYear()}`:'Sin fecha';
+    if(_gIdx[key]==null){ _gIdx[key]=_grupos.length; _grupos.push({key,label,jornadas:[]}); }
+    _grupos[_gIdx[key]].jornadas.push(jn);
   });
 
   el.innerHTML=`
@@ -1509,7 +1525,9 @@ function renderJornadas(){
       <div class="text-12 text-muted">Partidas de los torneos en que participas</div>
     </div>
     ${jornadasOrdenadas.length===0?`<div class="card"><div class="card-body" style="text-align:center;color:var(--muted);padding:40px;">No hay partidas creadas aún.</div></div>`:''}
-    ${jornadasOrdenadas.map(jn=>{
+    ${_grupos.map(g=>`
+      <div style="background:linear-gradient(90deg,var(--green),var(--teal));color:#fff;padding:7px 14px;font-size:12px;font-weight:800;letter-spacing:0.5px;border-radius:8px;margin:14px 0 8px;text-transform:uppercase;">📅 ${g.label} <span style="opacity:0.85;font-weight:600;text-transform:none;">· ${g.jornadas.length} partida${g.jornadas.length!==1?'s':''}</span></div>
+      ${g.jornadas.map(jn=>{
       const res=STATE.resultados.filter(r=>r.jornada_id===jn.id).sort((a,b)=>a.pos-b.pos);
       const isOpen=STATE.expandedJornada===jn.id;
       const cargador=getJugador(jn.cargado_por);
@@ -1604,6 +1622,7 @@ function renderJornadas(){
             </div>`:``}
         </div>`;
     }).join('')}
+    `).join('')}
   `;
 }
 
