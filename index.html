@@ -683,10 +683,10 @@
           <label class="form-label">Modalidad de resultado</label>
           <div style="display:flex;gap:14px;margin-top:4px;">
             <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;">
-              <input type="checkbox" id="tModNeto" style="width:16px;height:16px;accent-color:var(--green);"/> Neto
+              <input type="checkbox" id="tModNeto" onchange="_capturarPremiosDOM&&_capturarPremiosDOM();renderPremiosBox&&renderPremiosBox()" style="width:16px;height:16px;accent-color:var(--green);"/> Neto
             </label>
             <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;">
-              <input type="checkbox" id="tModGross" style="width:16px;height:16px;accent-color:var(--green);"/> Gross
+              <input type="checkbox" id="tModGross" onchange="_capturarPremiosDOM&&_capturarPremiosDOM();renderPremiosBox&&renderPremiosBox()" style="width:16px;height:16px;accent-color:var(--green);"/> Gross
             </label>
           </div>
           <div class="text-11 text-muted" style="margin-top:4px;">Marca ambas si el torneo premia neto y gross (ranking doble).</div>
@@ -725,9 +725,41 @@
         </div>
       </div>
 
-      <!-- REGLAS DE PUNTUACIÓN -->
+      <!-- MODALIDAD DE PREMIACIÓN -->
       <div style="background:var(--cardL);border-radius:10px;padding:14px;border:1px solid var(--border);">
-        <div class="text-12 font-bold text-muted" style="letter-spacing:1px;text-transform:uppercase;margin-bottom:12px;">⚙️ Reglas de Puntuación</div>
+        <div class="text-12 font-bold text-muted" style="letter-spacing:1px;text-transform:uppercase;margin-bottom:12px;">🏆 Modalidad de Premiación</div>
+
+        <!-- Selector de modalidad -->
+        <div style="margin-bottom:14px;">
+          <label class="form-label">¿Cómo se premiará este torneo?</label>
+          <div style="display:flex;flex-direction:column;gap:8px;margin-top:6px;">
+            <label style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border:2px solid var(--border);border-radius:10px;cursor:pointer;" id="tModoPuntosLbl">
+              <input type="radio" name="tModoPremiacion" value="puntos_posicion" id="tModoPuntos" onchange="onModoPremiacionChange()" style="margin-top:2px;width:16px;height:16px;accent-color:var(--green);"/>
+              <div style="flex:1;">
+                <div class="text-13 font-bold">📊 Puntos por posición</div>
+                <div class="text-11 text-muted" style="margin-top:2px;">Ideal para campeonato de varias jornadas — los jugadores acumulan puntos según la posición en cada partida.</div>
+              </div>
+            </label>
+            <label style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border:2px solid var(--border);border-radius:10px;cursor:pointer;" id="tModoPremiosLbl">
+              <input type="radio" name="tModoPremiacion" value="premios_torneo" id="tModoPremios" onchange="onModoPremiacionChange()" style="margin-top:2px;width:16px;height:16px;accent-color:var(--green);"/>
+              <div style="flex:1;">
+                <div class="text-13 font-bold">🥇 Premios por torneo</div>
+                <div class="text-11 text-muted" style="margin-top:2px;">Ideal para campeonato de una sola jornada — el organizador define cuántos puestos premia por categoría y modalidad.</div>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <!-- Bloque: Premios por torneo (premios por categoría/modalidad) -->
+        <div id="tPremiosBox" style="display:none;margin-bottom:14px;padding:12px;background:var(--white);border:1px solid var(--border);border-radius:10px;">
+          <div class="text-12 font-bold" style="margin-bottom:8px;">Premios por categoría</div>
+          <div class="text-11 text-muted" style="margin-bottom:10px;line-height:1.5;">Indica cuántas posiciones premiarás en cada categoría y modalidad de resultado. Las modalidades dependen de lo seleccionado arriba (Neto / Gross).</div>
+          <div id="tPremiosList"></div>
+          <div id="tPremiosVacio" class="text-11 text-muted" style="font-style:italic;display:none;">⚠️ Agrega categorías y marca al menos una modalidad de resultado (Neto o Gross) en la sección anterior.</div>
+        </div>
+
+        <!-- Bloque: Reglas de puntuación (puntos por posición) -->
+        <div id="tPuntosBox">
 
         <!-- Puntos por posición -->
         <div style="margin-bottom:14px;">
@@ -794,6 +826,7 @@
           </select>
           <div id="empateEjemplo" style="margin-top:6px;font-size:11px;color:var(--muted);padding:8px 10px;background:var(--bg);border-radius:6px;"></div>
         </div>
+        </div><!-- /#tPuntosBox -->
       </div>
 
 
