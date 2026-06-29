@@ -624,10 +624,10 @@
           </div>
           <div style="display:flex;gap:12px;margin-top:12px;">
             <div style="flex:1;"><label class="form-label">Costo de inscripción</label>
-              <input type="number" class="form-input" id="tCostoInscripcion" min="0" step="1" placeholder="0 = gratis" style="width:100%;"/>
+              <input type="number" class="form-input" id="tCostoInscripcion" min="0" step="1" placeholder="0 = gratis" style="width:100%;" oninput="renderTorneoMetodosPago&&renderTorneoMetodosPago(_collectSelectedMetodos&&_collectSelectedMetodos())"/>
             </div>
             <div style="flex:1;"><label class="form-label">Moneda</label>
-              <select class="form-select" id="tMonedaInscripcion" style="width:100%;">
+              <select class="form-select" id="tMonedaInscripcion" style="width:100%;" onchange="renderTorneoMetodosPago&&renderTorneoMetodosPago(_collectSelectedMetodos&&_collectSelectedMetodos())">
                 <option value="pelotas">⛳ Pelotas</option>
                 <option value="USD">💵 USD</option>
                 <option value="BS">🇻🇪 Bs</option>
@@ -651,6 +651,14 @@
           <input type="text" class="form-input" id="tNuevaCategoria" placeholder="Ej: 1ª Categoría" style="flex:1;" onkeydown="if(event.key==='Enter'){event.preventDefault();addCategoriaTorneo();}"/>
           <button type="button" class="btn-outline" onclick="addCategoriaTorneo()">+ Agregar</button>
         </div>
+      </div>
+
+      <!-- PARTIDAS DEL TORNEO -->
+      <div style="background:var(--cardL);border-radius:10px;padding:14px;border:1px solid var(--border);">
+        <div class="text-12 font-bold text-muted" style="letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;">📅 Partidas del Torneo</div>
+        <div class="text-11 text-muted" style="margin-bottom:10px;">Define cada partida con su <strong>club, fecha y hora de salida</strong>. Se crearán automáticamente al guardar el torneo.</div>
+        <div id="tPartidasList" style="display:flex;flex-direction:column;gap:8px;margin-bottom:10px;"></div>
+        <button type="button" class="btn-outline" onclick="addPartidaTorneo()">+ Agregar partida</button>
       </div>
 
       <!-- FORMATO DEL TORNEO -->

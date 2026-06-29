@@ -791,6 +791,65 @@ function renderPremiosBox(){
   }).join('');
 }
 
+// ── Partidas del Torneo (inline en el modal Crear/Editar) ────
+function _toDateInputStr(v){
+  if(!v) return '';
+  if(v.toDate) v=v.toDate();
+  const d=new Date(v); if(isNaN(d)) return '';
+  // Ajusta a zona horaria local para el input type=date
+  const off=d.getTimezoneOffset();
+  const local=new Date(d.getTime()-off*60000);
+  return local.toISOString().slice(0,10);
+}
+function addPartidaTorneo(){
+  _capturarPartidasDOM();
+  if(!Array.isArray(STATE._partidas)) STATE._partidas=[];
+  STATE._partidas.push({_id:null,sede:'',fecha:'',hora:''});
+  renderPartidasList();
+}
+function removePartidaTorneo(idx){
+  _capturarPartidasDOM();
+  if(!Array.isArray(STATE._partidas)) return;
+  const p=STATE._partidas[idx];
+  if(p&&p._id){
+    if(!confirm('Esta partida ya existe en el torneo. Quitarla aquí la marcará para eliminación al guardar (no se eliminarán resultados ya cargados, pero la partida desaparecerá). ¿Continuar?')) return;
+    if(!STATE._partidasEliminar) STATE._partidasEliminar=[];
+    STATE._partidasEliminar.push(p._id);
+  }
+  STATE._partidas.splice(idx,1);
+  renderPartidasList();
+}
+function _capturarPartidasDOM(){
+  if(!Array.isArray(STATE._partidas)) STATE._partidas=[];
+  document.querySelectorAll('.partida-row').forEach((row,i)=>{
+    if(!STATE._partidas[i]) return;
+    STATE._partidas[i].sede=row.querySelector('.partida-sede')?.value||'';
+    STATE._partidas[i].fecha=row.querySelector('.partida-fecha')?.value||'';
+    STATE._partidas[i].hora=row.querySelector('.partida-hora')?.value||'';
+  });
+}
+function renderPartidasList(){
+  const el=document.getElementById('tPartidasList');
+  if(!el) return;
+  const lst=STATE._partidas||[];
+  const clubes=STATE.clubes||[];
+  if(lst.length===0){
+    el.innerHTML='<div class="text-11 text-muted" style="font-style:italic;padding:4px 0;">Sin partidas aún. Haz clic en "+ Agregar partida" para crear la primera.</div>';
+    return;
+  }
+  el.innerHTML=lst.map((p,i)=>{
+    const opts=`<option value="">— Selecciona club —</option>`+
+      clubes.map(c=>`<option value="${c.nombre.replace(/"/g,'&quot;')}" ${p.sede===c.nombre?'selected':''}>${c.nombre}</option>`).join('');
+    return `<div class="partida-row" style="background:var(--white);border:1px solid var(--border);border-radius:8px;padding:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+      <div style="width:24px;height:24px;border-radius:50%;background:var(--green);color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;">${i+1}</div>
+      <select class="form-select partida-sede" style="flex:2;min-width:140px;">${opts}</select>
+      <input type="date" class="form-input partida-fecha" value="${p.fecha||''}" style="flex:1;min-width:130px;"/>
+      <input type="time" class="form-input partida-hora" value="${p.hora||''}" style="width:100px;"/>
+      <button type="button" onclick="removePartidaTorneo(${i})" style="background:none;border:1px solid var(--border);border-radius:6px;padding:4px 8px;color:var(--muted);cursor:pointer;font-size:13px;">✕</button>
+    </div>`;
+  }).join('');
+}
+
 // ── Premios Especiales ───────────────────────────────
 function addPremioEspecial(){
   const nIn=document.getElementById('tPESpecialNombre');
@@ -1219,6 +1278,14 @@ function openModalTorneo(torneoId=null){
   const _radioR=document.getElementById('tModoPremios'); if(_radioR) _radioR.checked=(_modoPrem==='premios_torneo');
   STATE._premios=(t?.premios&&typeof t.premios==='object')?JSON.parse(JSON.stringify(t.premios)):{};
   STATE._premiosEspeciales=Array.isArray(t?.premios_especiales)?t.premios_especiales.map(p=>({nombre:p.nombre||'',descripcion:p.descripcion||''})):[];
+  // Partidas — precarga jornadas existentes del torneo (ordenadas por fecha)
+  STATE._partidas=[]; STATE._partidasEliminar=[];
+  if(torneoId){
+    const jns=(STATE.jornadas||[]).filter(j=>j.torneo_id===torneoId)
+      .sort((a,b)=>{ const fa=a.fecha?.seconds?a.fecha.seconds:0; const fb=b.fecha?.seconds?b.fecha.seconds:0; return fa-fb; });
+    STATE._partidas=jns.map(j=>({_id:j.id,sede:j.sede||'',fecha:_toDateInputStr(j.fecha),hora:j.teeTime||''}));
+  }
+  renderPartidasList();
   const _pen=document.getElementById('tPESpecialNombre'); if(_pen) _pen.value='';
   const _ped=document.getElementById('tPESpecialDesc'); if(_ped) _ped.value='';
   renderPremiosEspecialesList();
@@ -1295,6 +1362,7 @@ function renderCrearTorneo(){
   STATE._categorias=[];
   STATE._premios={};
   STATE._premiosEspeciales=[];
+  STATE._partidas=[]; STATE._partidasEliminar=[];
   const fv={tNombre:'',tJornadasTotal:'',tCuposMaximos:'',tDescripcion:'',tCiudad:'',tFechaTorneo:'',tFechaLimite:'',addAdminInput:'',tNuevaCategoria:'',tHcapPorcentaje:'100',tHcapEquipoPorcentaje:'50'};
   Object.entries(fv).forEach(([id,v])=>{ const e=document.getElementById(id); if(e) e.value=v; });
   const sv={tEstado:'Activo',tVisibilidad:'privado',tQuienCarga:'admins',tCostoInscripcion:'0',tMonedaInscripcion:'pelotas',tClubId:'',tTipoParticipacion:'individual',tModalidadJuego:'stroke_play',tFormatoSalida:'tee_time',rPts1:'4',rPts2:'3',rPts3:'2',rPtsResto:'1',rBonus:'0',rPenalNoAsist:'0',rPenalDQ:'0',rDescartes:'0',rEmpates:'comparten'};
@@ -1308,6 +1376,7 @@ function renderCrearTorneo(){
   const _pen=document.getElementById('tPESpecialNombre'); if(_pen) _pen.value='';
   const _ped=document.getElementById('tPESpecialDesc'); if(_ped) _ped.value='';
   if(typeof renderPremiosEspecialesList==='function') renderPremiosEspecialesList();
+  if(typeof renderPartidasList==='function') renderPartidasList();
   if(typeof onModoPremiacionChange==='function') onModoPremiacionChange();
   if(typeof onTipoParticipacionChange==='function') onTipoParticipacionChange();
   // Re-populate club select
@@ -1544,6 +1613,7 @@ async function saveModalTorneo(){
       }
     };
 
+    let torneoIdFinal=editingTorneoId;
     if(editingTorneoId){
       data.updated_at=firebase.firestore.FieldValue.serverTimestamp();
       // Keep original adminId, update admins list
@@ -1557,8 +1627,38 @@ async function saveModalTorneo(){
       data.cargadores=[];
       data.creado=firebase.firestore.FieldValue.serverTimestamp();
       const ref=await db.collection('torneos').add(data);
+      torneoIdFinal=ref.id;
       switchActiveTorneo(ref.id);
     }
+    // ── Persistir partidas (jornadas) inline ──
+    _capturarPartidasDOM();
+    const partidas=(STATE._partidas||[]).filter(p=>p.sede||p.fecha); // ignora filas vacías
+    const partidaPromises=[];
+    partidas.forEach((p,idx)=>{
+      const jornadaDoc={
+        torneo_id:torneoIdFinal,
+        sede:p.sede||'',
+        fecha:p.fecha?firebase.firestore.Timestamp.fromDate(new Date(p.fecha+'T'+(p.hora||'07:00')+':00')):null,
+        teeTime:p.hora||'',
+        numero:idx+1
+      };
+      if(p._id){
+        partidaPromises.push(db.collection('jornadas').doc(p._id).update(jornadaDoc));
+      } else {
+        jornadaDoc.estado='Planificada';
+        jornadaDoc.nombre='J'+(idx+1);
+        jornadaDoc.notas='';
+        jornadaDoc.fotos=[];
+        jornadaDoc.cuentaRanking=true;
+        jornadaDoc.creado=firebase.firestore.FieldValue.serverTimestamp();
+        partidaPromises.push(db.collection('jornadas').add(jornadaDoc));
+      }
+    });
+    // Eliminar jornadas marcadas para eliminación
+    (STATE._partidasEliminar||[]).forEach(jid=>{
+      partidaPromises.push(db.collection('jornadas').doc(jid).delete().catch(()=>{}));
+    });
+    if(partidaPromises.length) await Promise.all(partidaPromises);
     closeModalTorneo();
     goTab('mistorneos');
   }catch(e){
