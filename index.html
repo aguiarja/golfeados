@@ -657,6 +657,27 @@
       <div style="background:var(--cardL);border-radius:10px;padding:14px;border:1px solid var(--border);">
         <div class="text-12 font-bold text-muted" style="letter-spacing:1px;text-transform:uppercase;margin-bottom:12px;">🎯 Formato del Torneo</div>
 
+        <!-- Modalidad de juego -->
+        <div style="margin-bottom:14px;">
+          <label class="form-label">Modalidad de juego</label>
+          <select class="form-select" id="tModalidadJuego" style="width:100%;">
+            <option value="stroke_play">🏌️ Stroke Play</option>
+            <option value="scramble">👥 Scramble</option>
+            <option value="baseball">⚾ Baseball</option>
+            <option value="stableford">🎯 Stableford</option>
+            <option value="match_play">⚔️ Match Play</option>
+          </select>
+        </div>
+
+        <!-- Formato de salida -->
+        <div style="margin-bottom:14px;">
+          <label class="form-label">Formato de salida</label>
+          <select class="form-select" id="tFormatoSalida" style="width:100%;">
+            <option value="tee_time">⏰ Tee Time</option>
+            <option value="shotgun">🔫 Shotgun</option>
+          </select>
+        </div>
+
         <!-- Modalidad de resultado -->
         <div style="margin-bottom:14px;">
           <label class="form-label">Modalidad de resultado</label>
@@ -684,7 +705,7 @@
 
         <!-- Cálculo de handicap -->
         <div>
-          <label class="form-label">Cálculo del handicap de juego</label>
+          <label class="form-label" id="tHcapLabel">Cálculo del handicap de juego</label>
           <div id="tHcapIndividualBox">
             <div style="display:flex;align-items:center;gap:10px;">
               <span class="text-13">% del handicap del jugador:</span>
@@ -693,13 +714,13 @@
             </div>
             <div class="text-11 text-muted" style="margin-top:4px;">Ej: 100% = handicap completo · 75% = tres cuartos · 90% = nueve décimos.</div>
           </div>
-          <div id="tHcapEquipoBox" style="display:none;margin-top:10px;padding:10px;background:var(--white);border:1px solid var(--border);border-radius:8px;">
+          <div id="tHcapEquipoBox" style="display:none;">
             <div style="display:flex;align-items:center;gap:10px;">
-              <span class="text-13">Promedio del equipo · % del promedio:</span>
+              <span class="text-13">% del promedio del equipo:</span>
               <input type="number" class="form-input" id="tHcapEquipoPorcentaje" min="0" max="100" step="1" placeholder="50" style="width:90px;"/>
               <span class="text-13">%</span>
             </div>
-            <div class="text-11 text-muted" style="margin-top:6px;line-height:1.45;">El handicap de juego del equipo será el promedio de los handicaps de los jugadores, multiplicado por este porcentaje. <strong>Regla:</strong> si el resultado supera al handicap menor del equipo, se juega con ese handicap menor.</div>
+            <div class="text-11 text-muted" style="margin-top:6px;line-height:1.45;">El handicap de juego del equipo será el <strong>promedio</strong> de los handicaps de los jugadores, multiplicado por este porcentaje. <strong>Regla:</strong> si el resultado supera al handicap menor del equipo, se juega con ese handicap menor.</div>
           </div>
         </div>
       </div>
