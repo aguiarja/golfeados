@@ -653,6 +653,57 @@
         </div>
       </div>
 
+      <!-- FORMATO DEL TORNEO -->
+      <div style="background:var(--cardL);border-radius:10px;padding:14px;border:1px solid var(--border);">
+        <div class="text-12 font-bold text-muted" style="letter-spacing:1px;text-transform:uppercase;margin-bottom:12px;">🎯 Formato del Torneo</div>
+
+        <!-- Modalidad de resultado -->
+        <div style="margin-bottom:14px;">
+          <label class="form-label">Modalidad de resultado</label>
+          <div style="display:flex;gap:14px;margin-top:4px;">
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;">
+              <input type="checkbox" id="tModNeto" style="width:16px;height:16px;accent-color:var(--green);"/> Neto
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;">
+              <input type="checkbox" id="tModGross" style="width:16px;height:16px;accent-color:var(--green);"/> Gross
+            </label>
+          </div>
+          <div class="text-11 text-muted" style="margin-top:4px;">Marca ambas si el torneo premia neto y gross (ranking doble).</div>
+        </div>
+
+        <!-- Tipo de participación -->
+        <div style="margin-bottom:14px;">
+          <label class="form-label">Tipo de participación</label>
+          <select class="form-select" id="tTipoParticipacion" style="width:100%;" onchange="onTipoParticipacionChange()">
+            <option value="individual">👤 Individual</option>
+            <option value="pareja">👥 Pareja (2 jugadores)</option>
+            <option value="trio">👥👤 Trío (3 jugadores)</option>
+            <option value="cuarteto">👥👥 Cuarteto (4 jugadores)</option>
+          </select>
+        </div>
+
+        <!-- Cálculo de handicap -->
+        <div>
+          <label class="form-label">Cálculo del handicap de juego</label>
+          <div id="tHcapIndividualBox">
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span class="text-13">% del handicap del jugador:</span>
+              <input type="number" class="form-input" id="tHcapPorcentaje" min="0" max="100" step="1" placeholder="100" style="width:90px;"/>
+              <span class="text-13">%</span>
+            </div>
+            <div class="text-11 text-muted" style="margin-top:4px;">Ej: 100% = handicap completo · 75% = tres cuartos · 90% = nueve décimos.</div>
+          </div>
+          <div id="tHcapEquipoBox" style="display:none;margin-top:10px;padding:10px;background:var(--white);border:1px solid var(--border);border-radius:8px;">
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span class="text-13">Promedio del equipo · % del promedio:</span>
+              <input type="number" class="form-input" id="tHcapEquipoPorcentaje" min="0" max="100" step="1" placeholder="50" style="width:90px;"/>
+              <span class="text-13">%</span>
+            </div>
+            <div class="text-11 text-muted" style="margin-top:6px;line-height:1.45;">El handicap de juego del equipo será el promedio de los handicaps de los jugadores, multiplicado por este porcentaje. <strong>Regla:</strong> si el resultado supera al handicap menor del equipo, se juega con ese handicap menor.</div>
+          </div>
+        </div>
+      </div>
+
       <!-- REGLAS DE PUNTUACIÓN -->
       <div style="background:var(--cardL);border-radius:10px;padding:14px;border:1px solid var(--border);">
         <div class="text-12 font-bold text-muted" style="letter-spacing:1px;text-transform:uppercase;margin-bottom:12px;">⚙️ Reglas de Puntuación</div>

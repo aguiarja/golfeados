@@ -723,6 +723,15 @@ function _collectSelectedMetodos(){
   return Array.from(document.querySelectorAll('.mp-checkbox:checked')).map(c=>c.value);
 }
 
+function onTipoParticipacionChange(){
+  const tipo=document.getElementById('tTipoParticipacion')?.value||'individual';
+  const ind=document.getElementById('tHcapIndividualBox');
+  const eq=document.getElementById('tHcapEquipoBox');
+  if(!ind||!eq) return;
+  if(tipo==='individual'){ ind.style.display='block'; eq.style.display='none'; }
+  else { ind.style.display='block'; eq.style.display='block'; }
+}
+
 function onTorneoClubChange(){
   const sel=document.getElementById('tClubId'); if(!sel) return;
   const cid=sel.value;
@@ -1017,6 +1026,14 @@ function openModalTorneo(torneoId=null){
   // dates removed — managed through partidas
   document.getElementById('tJornadasTotal').value=t?.jornadas_total||'';
   if(document.getElementById('tCuposMaximos')) document.getElementById('tCuposMaximos').value=t?.cupos_maximos||'';
+  // ── Formato del torneo ──
+  const _mods=Array.isArray(t?.modalidad_resultado)?t.modalidad_resultado:[];
+  const _eN=document.getElementById('tModNeto'); if(_eN) _eN.checked= t? _mods.includes('neto') : true;
+  const _eG=document.getElementById('tModGross'); if(_eG) _eG.checked= t? _mods.includes('gross') : false;
+  const _eTP=document.getElementById('tTipoParticipacion'); if(_eTP) _eTP.value=t?.tipo_participacion||'individual';
+  const _eHP=document.getElementById('tHcapPorcentaje'); if(_eHP) _eHP.value=t?.hcap_porcentaje!=null?t.hcap_porcentaje:100;
+  const _eHE=document.getElementById('tHcapEquipoPorcentaje'); if(_eHE) _eHE.value=t?.hcap_equipo_porcentaje!=null?t.hcap_equipo_porcentaje:50;
+  if(typeof onTipoParticipacionChange==='function') onTipoParticipacionChange();
   document.getElementById('tEstado').value=t?.estado||'Activo';
   document.getElementById('tDescripcion').value=t?.descripcion||'';
   document.getElementById('tVisibilidad').value=t?.visibilidad||'privado';
@@ -1154,10 +1171,14 @@ function renderCrearTorneo(){
   STATE._torneoLogoURL=null; STATE._torneoLogoCleared=false;
   STATE._coAdmins=[]; STATE._adminUsers={};
   STATE._categorias=[];
-  const fv={tNombre:'',tJornadasTotal:'',tCuposMaximos:'',tDescripcion:'',tCiudad:'',tFechaTorneo:'',tFechaLimite:'',addAdminInput:'',tNuevaCategoria:''};
+  const fv={tNombre:'',tJornadasTotal:'',tCuposMaximos:'',tDescripcion:'',tCiudad:'',tFechaTorneo:'',tFechaLimite:'',addAdminInput:'',tNuevaCategoria:'',tHcapPorcentaje:'100',tHcapEquipoPorcentaje:'50'};
   Object.entries(fv).forEach(([id,v])=>{ const e=document.getElementById(id); if(e) e.value=v; });
-  const sv={tEstado:'Activo',tVisibilidad:'privado',tQuienCarga:'admins',tCostoInscripcion:'0',tMonedaInscripcion:'pelotas',tClubId:'',rPts1:'4',rPts2:'3',rPts3:'2',rPtsResto:'1',rBonus:'0',rPenalNoAsist:'0',rPenalDQ:'0',rDescartes:'0',rEmpates:'comparten'};
+  const sv={tEstado:'Activo',tVisibilidad:'privado',tQuienCarga:'admins',tCostoInscripcion:'0',tMonedaInscripcion:'pelotas',tClubId:'',tTipoParticipacion:'individual',rPts1:'4',rPts2:'3',rPts3:'2',rPtsResto:'1',rBonus:'0',rPenalNoAsist:'0',rPenalDQ:'0',rDescartes:'0',rEmpates:'comparten'};
   Object.entries(sv).forEach(([id,v])=>{ const e=document.getElementById(id); if(e) e.value=v; });
+  // Defaults checkboxes: Neto marcado, Gross no
+  const _mn=document.getElementById('tModNeto'); if(_mn) _mn.checked=true;
+  const _mg=document.getElementById('tModGross'); if(_mg) _mg.checked=false;
+  if(typeof onTipoParticipacionChange==='function') onTipoParticipacionChange();
   // Re-populate club select
   const clubSel=document.getElementById('tClubId');
   if(clubSel){
@@ -1338,6 +1359,12 @@ async function saveModalTorneo(){
     const _ciudad=_club?.ciudad||'';
     const _fechaT=document.getElementById('tFechaTorneo')?.value||'';
     const _fechaL=document.getElementById('tFechaLimite')?.value||'';
+    // Formato del torneo
+    const _modRes=[]; if(document.getElementById('tModNeto')?.checked) _modRes.push('neto');
+    if(document.getElementById('tModGross')?.checked) _modRes.push('gross');
+    const _tipoPart=document.getElementById('tTipoParticipacion')?.value||'individual';
+    const _hcapPct=Math.max(0,Math.min(100,Number(document.getElementById('tHcapPorcentaje')?.value)||100));
+    const _hcapEqPct=Math.max(0,Math.min(100,Number(document.getElementById('tHcapEquipoPorcentaje')?.value)||50));
     const data={
       nombre, logoURL,
       ciudad:_ciudad,
@@ -1348,6 +1375,10 @@ async function saveModalTorneo(){
       ...(docURL?{docURL,docType}:{}),
       jornadas_total:Number(document.getElementById('tJornadasTotal').value)||0,
       cupos_maximos:Number(document.getElementById('tCuposMaximos')?.value)||0,
+      modalidad_resultado:_modRes.length?_modRes:['neto'],
+      tipo_participacion:_tipoPart,
+      hcap_porcentaje:_hcapPct,
+      hcap_equipo_porcentaje:_tipoPart==='individual'?null:_hcapEqPct,
       estado:document.getElementById('tEstado').value,
       descripcion:document.getElementById('tDescripcion').value.trim(),
       visibilidad:document.getElementById('tVisibilidad').value,
