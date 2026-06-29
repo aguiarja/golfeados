@@ -1092,6 +1092,23 @@ function jornadaRowMT(jn){
   html+='</div>'; // end clickable header
 
   if(isOpen){
+    // ── ACCIONES (Cargar resultados / Editar partida) ──
+    const torneoDeJornada=findTorneo(jn.torneo_id);
+    const isAdminJornada=isTorneoAdmin(torneoDeJornada);
+    const canCargarThis=canCargarTorneo(torneoDeJornada);
+    const quienCarga=torneoDeJornada?.quienCargaResultados||'admins';
+    const myJugId=STATE.profile?.jugador_id;
+    const canCargar=est==='En Juego'&&(canCargarThis||(quienCarga==='cualquiera'&&myJugId&&STATE.resultados.some(r=>r.jornada_id===jn.id&&r.jugador_id===myJugId)));
+    const canEditResults=(est==='Pendiente Attest'||est==='Por Validar')&&(isAdminJornada||canCargarThis);
+    const actions=[];
+    if(canCargar) actions.push(`<button class="btn-primary" style="font-size:12px;padding:8px 14px;" onclick="event.stopPropagation();goCargar('${jn.id}')">📋 Cargar Resultados</button>`);
+    if(canEditResults) actions.push(`<button class="btn-outline" style="font-size:12px;padding:8px 14px;" onclick="event.stopPropagation();goCargar('${jn.id}')">✏️ Editar resultados</button>`);
+    if(isAdminJornada&&est!=='Jugado'&&est!=='Oficial') actions.push(`<button class="btn-outline" style="font-size:12px;padding:8px 14px;" onclick="event.stopPropagation();openModalJornada('${jn.id}')">⚙️ Editar partida</button>`);
+    if(est==='Planificada') actions.push(`<div class="text-11 text-muted" style="padding:6px 0;">⏳ Aún no es el día de juego</div>`);
+    if(actions.length){
+      html+='<div style="border-top:1px solid var(--border);padding:10px 12px;display:flex;flex-wrap:wrap;gap:8px;background:var(--white);">'+actions.join('')+'</div>';
+    }
+
     // ── RESULTS ──────────────────────────────────────
     if(hasResults){
       html+='<div style="border-top:1px solid var(--border);background:var(--bg);">';
