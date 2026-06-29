@@ -762,8 +762,8 @@ function renderPremiosBox(){
   if(!list) return;
   const cats=(STATE._categorias||[]).filter(c=>c&&c.nombre);
   const modalidades=[];
-  if(document.getElementById('tModNeto')?.checked) modalidades.push('neto');
   if(document.getElementById('tModGross')?.checked) modalidades.push('gross');
+  if(document.getElementById('tModNeto')?.checked) modalidades.push('neto');
   if(cats.length===0||modalidades.length===0){
     list.innerHTML=''; if(vacio) vacio.style.display='block'; return;
   }
@@ -789,6 +789,43 @@ function renderPremiosBox(){
       </div>
     </div>`;
   }).join('');
+}
+
+// ── Premios Especiales ───────────────────────────────
+function addPremioEspecial(){
+  const nIn=document.getElementById('tPESpecialNombre');
+  const dIn=document.getElementById('tPESpecialDesc');
+  if(!nIn) return;
+  const nombre=(nIn.value||'').trim();
+  if(!nombre){ alert('Ingresa el nombre del premio especial.'); return; }
+  const descripcion=(dIn?.value||'').trim();
+  if(!Array.isArray(STATE._premiosEspeciales)) STATE._premiosEspeciales=[];
+  STATE._premiosEspeciales.push({nombre,descripcion});
+  nIn.value=''; if(dIn) dIn.value='';
+  renderPremiosEspecialesList();
+}
+function removePremioEspecial(idx){
+  if(!Array.isArray(STATE._premiosEspeciales)) return;
+  STATE._premiosEspeciales.splice(idx,1);
+  renderPremiosEspecialesList();
+}
+function renderPremiosEspecialesList(){
+  const el=document.getElementById('tPremiosEspecialesList');
+  if(!el) return;
+  const lst=STATE._premiosEspeciales||[];
+  if(lst.length===0){
+    el.innerHTML='<div class="text-11 text-muted" style="font-style:italic;">Sin premios especiales aún.</div>';
+    return;
+  }
+  el.innerHTML=lst.map((p,i)=>`
+    <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--cardL);border:1px solid var(--border);border-radius:8px;">
+      <div style="font-size:18px;">🎁</div>
+      <div style="flex:1;min-width:0;">
+        <div class="text-13 font-bold">${p.nombre}</div>
+        ${p.descripcion?`<div class="text-11 text-muted">${p.descripcion}</div>`:''}
+      </div>
+      <button type="button" onclick="removePremioEspecial(${i})" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px;">✕</button>
+    </div>`).join('');
 }
 
 // Captura los valores actuales del DOM en STATE._premios (para no perderlos en re-renders)
@@ -1181,6 +1218,10 @@ function openModalTorneo(torneoId=null){
   const _radioP=document.getElementById('tModoPuntos'); if(_radioP) _radioP.checked=(_modoPrem==='puntos_posicion');
   const _radioR=document.getElementById('tModoPremios'); if(_radioR) _radioR.checked=(_modoPrem==='premios_torneo');
   STATE._premios=(t?.premios&&typeof t.premios==='object')?JSON.parse(JSON.stringify(t.premios)):{};
+  STATE._premiosEspeciales=Array.isArray(t?.premios_especiales)?t.premios_especiales.map(p=>({nombre:p.nombre||'',descripcion:p.descripcion||''})):[];
+  const _pen=document.getElementById('tPESpecialNombre'); if(_pen) _pen.value='';
+  const _ped=document.getElementById('tPESpecialDesc'); if(_ped) _ped.value='';
+  renderPremiosEspecialesList();
   if(typeof onModoPremiacionChange==='function') onModoPremiacionChange();
 
   // Hide co-admins section for new torneos (show after creation)
@@ -1253,6 +1294,7 @@ function renderCrearTorneo(){
   STATE._coAdmins=[]; STATE._adminUsers={};
   STATE._categorias=[];
   STATE._premios={};
+  STATE._premiosEspeciales=[];
   const fv={tNombre:'',tJornadasTotal:'',tCuposMaximos:'',tDescripcion:'',tCiudad:'',tFechaTorneo:'',tFechaLimite:'',addAdminInput:'',tNuevaCategoria:'',tHcapPorcentaje:'100',tHcapEquipoPorcentaje:'50'};
   Object.entries(fv).forEach(([id,v])=>{ const e=document.getElementById(id); if(e) e.value=v; });
   const sv={tEstado:'Activo',tVisibilidad:'privado',tQuienCarga:'admins',tCostoInscripcion:'0',tMonedaInscripcion:'pelotas',tClubId:'',tTipoParticipacion:'individual',tModalidadJuego:'stroke_play',tFormatoSalida:'tee_time',rPts1:'4',rPts2:'3',rPts3:'2',rPtsResto:'1',rBonus:'0',rPenalNoAsist:'0',rPenalDQ:'0',rDescartes:'0',rEmpates:'comparten'};
@@ -1263,6 +1305,9 @@ function renderCrearTorneo(){
   // Default modalidad de premiación: puntos por posición
   const _rp=document.getElementById('tModoPuntos'); if(_rp) _rp.checked=true;
   const _rr=document.getElementById('tModoPremios'); if(_rr) _rr.checked=false;
+  const _pen=document.getElementById('tPESpecialNombre'); if(_pen) _pen.value='';
+  const _ped=document.getElementById('tPESpecialDesc'); if(_ped) _ped.value='';
+  if(typeof renderPremiosEspecialesList==='function') renderPremiosEspecialesList();
   if(typeof onModoPremiacionChange==='function') onModoPremiacionChange();
   if(typeof onTipoParticipacionChange==='function') onTipoParticipacionChange();
   // Re-populate club select
@@ -1475,6 +1520,7 @@ async function saveModalTorneo(){
       hcap_equipo_porcentaje:_tipoPart==='individual'?null:_hcapEqPct,
       modalidad_premiacion:(document.querySelector('input[name="tModoPremiacion"]:checked')?.value)||'puntos_posicion',
       premios:(()=>{ _capturarPremiosDOM(); return STATE._premios||{}; })(),
+      premios_especiales:(STATE._premiosEspeciales||[]).map(p=>({nombre:(p.nombre||'').trim(),descripcion:(p.descripcion||'').trim()})).filter(p=>p.nombre),
       estado:document.getElementById('tEstado').value,
       descripcion:document.getElementById('tDescripcion').value.trim(),
       visibilidad:document.getElementById('tVisibilidad').value,

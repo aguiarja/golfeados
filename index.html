@@ -756,6 +756,18 @@
           <div class="text-11 text-muted" style="margin-bottom:10px;line-height:1.5;">Indica cuántas posiciones premiarás en cada categoría y modalidad de resultado. Las modalidades dependen de lo seleccionado arriba (Neto / Gross).</div>
           <div id="tPremiosList"></div>
           <div id="tPremiosVacio" class="text-11 text-muted" style="font-style:italic;display:none;">⚠️ Agrega categorías y marca al menos una modalidad de resultado (Neto o Gross) en la sección anterior.</div>
+
+          <!-- Premios especiales -->
+          <div style="margin-top:14px;padding-top:12px;border-top:1px dashed var(--border);">
+            <div class="text-12 font-bold" style="margin-bottom:4px;">🎁 Premios especiales</div>
+            <div class="text-11 text-muted" style="margin-bottom:10px;">Premios adicionales fuera de categorías: drive más largo, cierre a bandera, hole in one, etc.</div>
+            <div id="tPremiosEspecialesList" style="display:flex;flex-direction:column;gap:6px;margin-bottom:10px;"></div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              <input type="text" class="form-input" id="tPESpecialNombre" placeholder="Nombre (ej: Drive más largo)" style="flex:1;min-width:160px;"/>
+              <input type="text" class="form-input" id="tPESpecialDesc" placeholder="Descripción breve (opcional)" style="flex:2;min-width:200px;"/>
+              <button type="button" class="btn-outline" onclick="addPremioEspecial()">+ Agregar</button>
+            </div>
+          </div>
         </div>
 
         <!-- Bloque: Reglas de puntuación (puntos por posición) -->
