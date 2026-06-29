@@ -807,6 +807,26 @@ function addPartidaTorneo(){
   STATE._partidas.push({_id:null,sede:'',fecha:'',hora:''});
   renderPartidasList();
 }
+
+// Sincroniza la cantidad de filas con el N° de Partidas
+function syncPartidasFromTotal(){
+  const n=Math.max(0,Math.min(52,Number(document.getElementById('tJornadasTotal')?.value)||0));
+  _capturarPartidasDOM();
+  if(!Array.isArray(STATE._partidas)) STATE._partidas=[];
+  if(STATE._partidas.length<n){
+    while(STATE._partidas.length<n) STATE._partidas.push({_id:null,sede:'',fecha:'',hora:''});
+  } else if(STATE._partidas.length>n){
+    // Quita las del final. Las que tengan _id se marcan para eliminar al guardar.
+    while(STATE._partidas.length>n){
+      const removed=STATE._partidas.pop();
+      if(removed&&removed._id){
+        if(!STATE._partidasEliminar) STATE._partidasEliminar=[];
+        STATE._partidasEliminar.push(removed._id);
+      }
+    }
+  }
+  renderPartidasList();
+}
 function removePartidaTorneo(idx){
   _capturarPartidasDOM();
   if(!Array.isArray(STATE._partidas)) return;
@@ -834,7 +854,7 @@ function renderPartidasList(){
   const lst=STATE._partidas||[];
   const clubes=STATE.clubes||[];
   if(lst.length===0){
-    el.innerHTML='<div class="text-11 text-muted" style="font-style:italic;padding:4px 0;">Sin partidas aún. Haz clic en "+ Agregar partida" para crear la primera.</div>';
+    el.innerHTML='<div class="text-11 text-muted" style="font-style:italic;padding:4px 0;">Indica el N° de partidas arriba para que aparezcan los campos.</div>';
     return;
   }
   el.innerHTML=lst.map((p,i)=>{
@@ -1285,6 +1305,11 @@ function openModalTorneo(torneoId=null){
       .sort((a,b)=>{ const fa=a.fecha?.seconds?a.fecha.seconds:0; const fb=b.fecha?.seconds?b.fecha.seconds:0; return fa-fb; });
     STATE._partidas=jns.map(j=>({_id:j.id,sede:j.sede||'',fecha:_toDateInputStr(j.fecha),hora:j.teeTime||''}));
   }
+  // Si tJornadasTotal es mayor que las jornadas cargadas, rellenar con filas vacías
+  const _tot=Number(t?.jornadas_total)||0;
+  if(_tot>STATE._partidas.length){
+    while(STATE._partidas.length<_tot) STATE._partidas.push({_id:null,sede:'',fecha:'',hora:''});
+  }
   renderPartidasList();
   const _pen=document.getElementById('tPESpecialNombre'); if(_pen) _pen.value='';
   const _ped=document.getElementById('tPESpecialDesc'); if(_ped) _ped.value='';
@@ -1377,6 +1402,7 @@ function renderCrearTorneo(){
   const _ped=document.getElementById('tPESpecialDesc'); if(_ped) _ped.value='';
   if(typeof renderPremiosEspecialesList==='function') renderPremiosEspecialesList();
   if(typeof renderPartidasList==='function') renderPartidasList();
+  if(typeof syncPartidasFromTotal==='function') syncPartidasFromTotal();
   if(typeof onModoPremiacionChange==='function') onModoPremiacionChange();
   if(typeof onTipoParticipacionChange==='function') onTipoParticipacionChange();
   // Re-populate club select

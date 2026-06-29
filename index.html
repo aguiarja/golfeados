@@ -579,7 +579,7 @@
           </div>
           <div style="display:flex;gap:12px;">
             <div style="flex:1;"><label class="form-label">N° Partidas</label>
-              <input type="number" class="form-input" id="tJornadasTotal" min="1" max="52" placeholder="8"/></div>
+              <input type="number" class="form-input" id="tJornadasTotal" min="1" max="52" placeholder="8" oninput="syncPartidasFromTotal&&syncPartidasFromTotal()"/></div>
             <div style="flex:1;"><label class="form-label">Cupos máximos</label>
               <input type="number" class="form-input" id="tCuposMaximos" min="1" max="500" placeholder="Ej: 80"/></div>
             <div style="flex:1;"><label class="form-label">Estado</label>
@@ -588,6 +588,12 @@
                 <option value="Activo" selected>Activo</option>
                 <option value="Finalizado">Finalizado</option>
               </select></div>
+          </div>
+          <!-- PARTIDAS — filas generadas automáticamente a partir de N° Partidas -->
+          <div id="tPartidasSeccion">
+            <label class="form-label">Partidas (club, fecha y hora)</label>
+            <div class="text-11 text-muted" style="margin-bottom:6px;">Se generan automáticamente según el N° de partidas que indiques arriba.</div>
+            <div id="tPartidasList" style="display:flex;flex-direction:column;gap:8px;"></div>
           </div>
           <div>
             <label class="form-label">Descripción (opcional)</label>
@@ -651,14 +657,6 @@
           <input type="text" class="form-input" id="tNuevaCategoria" placeholder="Ej: 1ª Categoría" style="flex:1;" onkeydown="if(event.key==='Enter'){event.preventDefault();addCategoriaTorneo();}"/>
           <button type="button" class="btn-outline" onclick="addCategoriaTorneo()">+ Agregar</button>
         </div>
-      </div>
-
-      <!-- PARTIDAS DEL TORNEO -->
-      <div style="background:var(--cardL);border-radius:10px;padding:14px;border:1px solid var(--border);">
-        <div class="text-12 font-bold text-muted" style="letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;">📅 Partidas del Torneo</div>
-        <div class="text-11 text-muted" style="margin-bottom:10px;">Define cada partida con su <strong>club, fecha y hora de salida</strong>. Se crearán automáticamente al guardar el torneo.</div>
-        <div id="tPartidasList" style="display:flex;flex-direction:column;gap:8px;margin-bottom:10px;"></div>
-        <button type="button" class="btn-outline" onclick="addPartidaTorneo()">+ Agregar partida</button>
       </div>
 
       <!-- FORMATO DEL TORNEO -->
