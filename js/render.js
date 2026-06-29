@@ -1045,7 +1045,6 @@ function renderMisTorneos(){
             <button class="btn-blue" style="font-size:12px;padding:7px 14px;" onclick="shareTorneoWA('${tid}',event)">📲 Compartir</button>
             ${(()=>{const pc=(STATE.inscripciones||[]).filter(i=>i.torneo_id===tid&&i.estado==='pendiente').length;return isAdminT&&pc>0?`<button class="btn-outline" style="font-size:12px;padding:7px 14px;" onclick="openModalPendientes('${tid}')">📋 Pendientes <span style="background:#E65100;color:#fff;border-radius:10px;font-size:10px;padding:1px 6px;margin-left:2px;">${pc}</span></button>`:''})()}
             ${isAdminT?`<button class="btn-outline" style="font-size:12px;padding:7px 14px;" onclick="openJugadoresTorneo('${tid}')">👤 Jugadores</button>`:''}
-            ${isAdminT?`<button class="btn-green" style="font-size:12px;padding:7px 14px;" onclick="openModalJornada(null,'${tid}')">+ Partida</button>`:''}
             ${isAdminT?`<button class="btn-outline" style="font-size:12px;padding:7px 14px;" onclick="openModalEditTorneo('${tid}')">✏️ Editar torneo</button>`:''}
           </div>
         </div>`:``}
